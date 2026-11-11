@@ -80,21 +80,29 @@ export async function addEntry(
 }
 
 // Only the owner's entry is found; anyone else gets 404, so they cannot learn it exists.
-async function ownEntry(userId: string, id: string): Promise<Row & { source: Entry["source"] }> {
+async function ownEntry(userId: string, id: string): Promise<Row> {
   if (!UUID.test(id)) throw NOT_FOUND();
   const { data, error } = await getDb().from("entries").select(COLUMNS).eq("id", id).eq("user_id", userId).maybeSingle();
   if (error) throw error;
   if (!data) throw NOT_FOUND();
-  const row = data as Row;
-  // Paying a plan made this entry; undoing it belongs to the plan (card 57), or the plan would stay "paid"
-  if (row.source === "plan") throw new HttpError(409, "plan_entry", "รายการนี้มาจากการจ่ายแผน แก้ที่แผนแทน");
-  return row;
+  return data as Row;
 }
 
 const CANCELLED = () => new HttpError(409, "entry_cancelled", "รายการนี้ถูกยกเลิกแล้ว");
 
+// Paying a plan made this entry: its amount and date are the plan's, and undoing it belongs to the
+// plan (unpay), or the plan would stay "paid". Only a purchase's category may change (L9).
+function checkPlanEntryEdit(row: Row, patch: EntryPatch): void {
+  if (row.source !== "plan") return;
+  if (row.category === "bills") throw new HttpError(409, "plan_entry", "รายการจ่ายบิลเปลี่ยนหมวดไม่ได้");
+  if (Object.keys(patch).some((k) => k !== "category")) {
+    throw new HttpError(409, "plan_entry", "รายการนี้มาจากการจ่ายแผน เปลี่ยนได้แค่หมวด");
+  }
+}
+
 export async function editEntry(userId: string, id: string, patch: EntryPatch): Promise<Entry> {
   const row = await ownEntry(userId, id);
+  checkPlanEntryEdit(row, patch);
   if (row.cancelled_at) throw CANCELLED();
   const { data, error } = await getDb()
     .from("entries")
@@ -117,6 +125,7 @@ export async function editEntry(userId: string, id: string, patch: EntryPatch): 
 // Cancel, never delete: the row and its history stay. Cancelling twice returns the same entry.
 export async function cancelEntry(userId: string, id: string): Promise<Entry> {
   const row = await ownEntry(userId, id);
+  if (row.source === "plan") throw new HttpError(409, "plan_entry", "รายการนี้มาจากการจ่ายแผน ให้ยกเลิกการจ่ายที่แผนแทน");
   if (row.cancelled_at) return toEntry(row);
   const { error } = await getDb()
     .from("entries")

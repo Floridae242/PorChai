@@ -146,6 +146,7 @@ Backend จึงมีหน้าที่หลักสองอย่าง
 | ลอง | ไม่เปลี่ยน | ไม่เปลี่ยน | ไม่ (คำนวณอย่างเดียว) |
 | วางแผน | ไม่เปลี่ยน | เพิ่ม | บันทึกเป็นแผน |
 | จ่ายแล้ว | ลด | ปลดยอดที่กันไว้ (ถ้ามี) | สร้างรายจ่าย 1 รายการ ครั้งเดียว |
+| เลื่อนไปรอบหน้า | ไม่เปลี่ยน | ไม่นับรอบนี้ | บันทึกเป็นแผน `postponed` ย้ายไปเป็น "วางแผน" ของรอบใหม่ |
 
 ### การจัดการตัวเลข (ผมตัดสินใจเอง)
 
@@ -165,7 +166,7 @@ Backend จึงมีหน้าที่หลักสองอย่าง
 | `cycles` | `id`, `user_id`, `start_balance`, `start_balance_at`, `payday` (date), `emergency_buffer`, `savings_amount`, `savings_percent`, `essential_food_daily`, `essential_transport_daily`, `income_source` (family/side_job/other), `income_frequency` (weekly/monthly/irregular), `status` (active/closed), `version`, `started_at` | ผู้ใช้มีรอบ active ได้รอบเดียว · วันที่ในเดือน/วันในสัปดาห์ของเงินเข้าอ่านจาก `payday` ไม่เก็บซ้ำ · `savings_amount` ตรึงตอนตั้งรอบ `savings_percent` แค่บอกว่าเลือกแบบ % (null = กรอกเอง) · `version` เพิ่มทุกครั้งที่แก้ ใช้ปฏิเสธหน้าจอที่ถือข้อมูลเก่า (การ์ด 23) |
 | `balance_checks` | `id`, `user_id`, `cycle_id`, `balance`, `as_of`, `created_at` | ประวัติ "ปรับยอด" ล่าสุดตาม `as_of` คือยอดอ้างอิง |
 | `entries` | `id`, `user_id`, `cycle_id`, `amount`, `category`, `note`, `spent_on` (date), `source` (chat/form/plan/reminder/ocr), `idempotency_key` (unique), `created_at`, `updated_at` | รายจ่ายจริง แก้และลบได้ |
-| `plans` | `id`, `user_id`, `cycle_id`, `kind` (bill/purchase), `title`, `amount`, `due_on`, `status` (reserved/paid/cancelled/separate), `entry_id` (unique), `version` | บิลค้างและแผนซื้อ จ่ายแล้วจะชี้ไปที่รายจ่ายที่สร้าง (รายจ่ายหนึ่งปิดได้แผนเดียว) · `separate` = บิลจ่ายแยก ไม่หัก (เฉพาะ bill) · บิลที่จ่ายก่อนกรอกยอด = `paid` ไม่มี entry |
+| `plans` | `id`, `user_id`, `cycle_id`, `kind` (bill/purchase), `title`, `amount`, `due_on`, `status` (reserved/postponed/paid/cancelled/separate), `category` (เฉพาะของที่ซื้อ), `entry_id` (unique), `idempotency_key`, `version` | บิลค้างและแผนซื้อ จ่ายแล้วจะชี้ไปที่รายจ่ายที่สร้าง (รายจ่ายหนึ่งปิดได้แผนเดียว) · `separate` = บิลจ่ายแยก ไม่หัก (เฉพาะ bill) · บิลที่จ่ายก่อนกรอกยอด = `paid` ไม่มี entry |
 | `category_limits` | `cycle_id`, `category`, `amount` | วงเงินต่อหมวด (ถ้าผู้ใช้ตั้ง) |
 | `chat_drafts` | `id`, `user_id`, `payload` (jsonb), `status` (pending/confirmed/discarded), `expires_at` | รายการร่างจากแชต รอกดยืนยัน |
 | `line_events` | `webhook_event_id` (PK), `received_at` | กัน event ซ้ำจาก LINE |
@@ -211,9 +212,8 @@ Backend จึงมีหน้าที่หลักสองอย่าง
 | `GET /api/entries` · `POST /api/entries` ✅ | ดูรายการที่ยังไม่ยกเลิกของรอบนี้ (ใหม่ก่อน) / เพิ่มรายจ่าย (ต้องมี header `Idempotency-Key` ไม่มี → 400 · key ซ้ำ → 200 รายการเดิม ไม่บันทึกเพิ่ม) |
 | `PATCH /api/entries/:id` · `DELETE /api/entries/:id` ✅ | แก้ / **ยกเลิก** (ไม่ลบแถว ตั้ง `cancelled_at`) เฉพาะของเจ้าของ (ของคนอื่นหรือ id ผิดรูป → 404) · ยกเลิกซ้ำได้ผลเดิม · แก้รายการที่ยกเลิกแล้ว → 409 `entry_cancelled` · รายการที่เกิดจากจ่ายแผน → 409 `plan_entry` (ต้องย้อนที่แผน การ์ด 57) |
 | `POST /api/simulate` | ลองก่อนจ่าย: คืนผลคำนวณ ไม่บันทึกอะไร |
-| `GET /api/plans` · `POST /api/plans` | ดูแผน / สร้างแผน (วางแผน) |
-| `POST /api/plans/:id/pay` | จ่ายแล้ว: สร้างรายจ่ายและปลดยอดกันไว้ใน transaction เดียว กดซ้ำได้ผลเดิม |
-| `POST /api/plans/:id/cancel` | ยกเลิกแผน |
+| `GET /api/plans` · `POST /api/plans` ✅ | ดูแผนของรอบนี้ / เก็บไว้ในแผน หรือเลื่อนไปรอบหน้า (W15) · ต้องมี `Idempotency-Key` |
+| `POST /api/plans/:id/{pay,unpay,cancel,postpone,keep}` ✅ | การ์ด 57: ทุกปุ่มผ่านฟังก์ชัน `plan_action` (ล็อกแถวแผน transaction เดียว เรียกได้เฉพาะ service_role) · จ่ายแล้ว = สร้างรายจ่าย 1 รายการ + ปลดยอดกัน · กดซ้ำ/สองหน้าจอได้ผลเดิม · ทำไม่ได้จากสถานะปัจจุบัน → 409 `plan_status` · ของคนอื่น → 404 |
 | `PUT /api/category-limits` | ตั้งวงเงินต่อหมวดของรอบนี้ |
 
 รูปแบบ error: `{ "error": { "code": "...", "message": "ข้อความไทยสำหรับผู้ใช้" } }` · ข้อมูลไม่ผ่าน → 422 `invalid_input` · ยังไม่มีรอบเงิน → 409 `no_cycle`
@@ -281,3 +281,6 @@ Backend จึงมีหน้าที่หลักสองอย่าง
 - ปรับยอด: รายจ่ายของวันก่อนหน้าที่จดหลังปรับยอด ถือว่าอยู่ในยอดที่ปรับแล้ว ไม่หัก
 - ยังไม่ทำ "รายการที่ลดหรือเลื่อนได้" (W8) แบบเต็ม — ตอนนี้ใช้แผน `purchase` ที่มี `due_on` แทน ช่องลดได้เหลือเท่าไร/เลื่อนได้ไหม ทำพร้อมการ์ด 23
 - รายงานร้านขั้นต่ำ 5 คน
+- แผน (การ์ด 57, ผู้ใช้เลือก 12 พ.ย.): หมวดของรายจ่ายที่จ่ายจากแผน ส่งได้ตอนเก็บหรือตอนจ่าย ไม่ส่ง = อื่น ๆ และเปลี่ยนหมวดทีหลังได้ (ยอดแก้ไม่ได้) · "เลื่อนไปรอบหน้า" เป็นสถานะ `postponed` · มี "ยกเลิกการจ่าย" (เกินเกณฑ์การ์ด)
+- แผนที่เลื่อนไว้ ตั้งรอบใหม่แล้วกลับมาเป็น "วางแผน" ทันที (กันเงินไว้ก่อน ไม่ให้เห็นเงินมากกว่าที่มี) — ผมตัดสินใจเอง
+- ยังไม่นับสิทธิ์ "แผนฟรี 3 รายการต่อรอบ" (W15/W16) รอทีมตกลงเรื่องสิทธิ์ฟรี

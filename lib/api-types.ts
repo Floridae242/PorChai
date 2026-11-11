@@ -62,6 +62,47 @@ export interface BalanceCheckRequest {
   asOf?: string; // ISO time; default now
 }
 
+// A bill or something to buy. reserved = held back (W15 "เก็บไว้ในแผน") · postponed = next cycle
+// ("เลื่อนไปรอบหน้า") · paid = spent once, entryId is that spend · separate = bill paid from other money
+export type PlanStatus = "reserved" | "postponed" | "paid" | "cancelled" | "separate";
+
+export interface Plan {
+  id: string;
+  kind: "bill" | "purchase";
+  title: string;
+  amount: number;
+  dueOn: string | null;
+  category: UserCategory | null; // purchases: the category its spend gets when paid (null = other)
+  status: PlanStatus;
+  entryId: string | null;
+  heldThisCycle: boolean; // counted in summary.reserved right now
+  createdAt: string;
+}
+
+// POST /api/plans — also send header `Idempotency-Key` (double tap = one plan)
+export interface NewPlanRequest {
+  title: string;
+  amount: number;
+  kind?: "purchase" | "bill"; // default purchase
+  category?: UserCategory; // purchases only
+  dueOn?: string | null;
+  status?: "reserved" | "postponed"; // default reserved
+}
+
+// POST /api/plans/:id/pay — body optional
+export interface PayPlanRequest {
+  category?: UserCategory; // overrides the plan's; ignored for a bill
+}
+
+export interface PlanResponse {
+  plan: Plan;
+  summary: Summary;
+}
+
+export interface PlansResponse {
+  plans: Plan[];
+}
+
 export interface EntryResponse {
   entry: Entry;
   summary: Summary;

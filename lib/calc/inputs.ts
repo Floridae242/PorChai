@@ -18,7 +18,7 @@ export interface EntryLike {
 
 export interface PlanLike {
   amount: Satang;
-  status: "reserved" | "paid" | "cancelled" | "separate";
+  status: "reserved" | "postponed" | "paid" | "cancelled" | "separate";
   dueOn: string | null; // YYYY-MM-DD
 }
 
@@ -41,11 +41,13 @@ export function spentOnDay(entries: EntryLike[], day: string): Satang {
   return entries.filter((e) => e.spentOn === day && !e.fromPlan).reduce((sum, e) => sum + e.amount, 0);
 }
 
-// Paid, cancelled and separately paid plans hold nothing back; items due after payday belong to the next cycle.
+// Paid, cancelled, separately paid and postponed plans hold nothing back; items due after payday belong to the next cycle.
+export function heldThisCycle(plan: Pick<PlanLike, "status" | "dueOn">, payday: string): boolean {
+  return plan.status === "reserved" && (plan.dueOn === null || plan.dueOn <= payday);
+}
+
 export function reservedTotal(plans: PlanLike[], payday: string): Satang {
-  return plans
-    .filter((p) => p.status === "reserved" && (p.dueOn === null || p.dueOn <= payday))
-    .reduce((sum, p) => sum + p.amount, 0);
+  return plans.filter((p) => heldThisCycle(p, payday)).reduce((sum, p) => sum + p.amount, 0);
 }
 
 export function savingsFromPercent(startBalance: Satang, percent: number): Satang {

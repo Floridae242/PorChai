@@ -219,3 +219,42 @@ export function parseNewCycle(body: unknown, today: string, now: Date): NewCycle
     plans: [...bills, ...items],
   };
 }
+
+// POST /api/plans — W15 "เก็บไว้ในแผน" (reserved) or "เลื่อนไปรอบหน้า" (postponed)
+export interface PlanRequest {
+  kind: "bill" | "purchase";
+  title: string;
+  amount: number;
+  dueOn: string | null;
+  category: UserCategory | null; // purchases only; null = 'other' when paid
+  status: "reserved" | "postponed";
+}
+
+const PLAN_KINDS = ["purchase", "bill"] as const;
+const NEW_PLAN_STATUS = ["reserved", "postponed"] as const;
+
+export function parseNewPlan(body: unknown): PlanRequest {
+  const b = asObject(body);
+  const kind = b.kind === undefined ? "purchase" : b.kind;
+  if (!PLAN_KINDS.includes(kind as PlanRequest["kind"])) throw invalid("ชนิดแผนต้องเป็น ของที่จะซื้อ หรือบิล");
+  const status = b.status === undefined ? "reserved" : b.status;
+  if (!NEW_PLAN_STATUS.includes(status as PlanRequest["status"])) {
+    throw invalid("สถานะแผนใหม่ต้องเป็น เก็บไว้ในแผน หรือเลื่อนไปรอบหน้า");
+  }
+  const hasCategory = b.category !== undefined && b.category !== null;
+  if (kind === "bill" && hasCategory) throw invalid("บิลจ่ายเข้าหมวดบิลเสมอ ไม่ต้องเลือกหมวด");
+  return {
+    kind: kind as PlanRequest["kind"],
+    title: planTitle(b.title),
+    amount: amount(b.amount),
+    dueOn: b.dueOn === undefined || b.dueOn === null ? null : isoDate(b.dueOn),
+    category: hasCategory ? category(b.category) : null,
+    status: status as PlanRequest["status"],
+  };
+}
+
+// POST /api/plans/:id/pay — the category for a purchase (a bill always goes to 'bills')
+export function parsePayPlan(body: unknown): { category: UserCategory | null } {
+  const b = asObject(body);
+  return { category: b.category === undefined || b.category === null ? null : category(b.category) };
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { baht } from "@/lib/calc/money";
 import {
   balanceNow,
+  heldThisCycle,
   latestAnchor,
   reservedTotal,
   savingsFromPercent,
@@ -106,6 +107,21 @@ describe("reservedTotal", () => {
   it("adds every reserved item due before payday", () => {
     const plans = [plan({ amount: baht(600), dueOn: "2026-11-05" }), plan({ amount: baht(480) })];
     expect(reservedTotal(plans, payday)).toBe(baht(1080));
+  });
+
+  it("W15: an item postponed to next cycle holds nothing back now", () => {
+    expect(reservedTotal([plan({ status: "postponed" })], payday)).toBe(0);
+  });
+});
+
+describe("heldThisCycle", () => {
+  const payday = "2026-11-13";
+  it("is the same rule reservedTotal sums", () => {
+    expect(heldThisCycle({ status: "reserved", dueOn: null }, payday)).toBe(true);
+    expect(heldThisCycle({ status: "reserved", dueOn: payday }, payday)).toBe(true);
+    expect(heldThisCycle({ status: "reserved", dueOn: "2026-11-14" }, payday)).toBe(false);
+    expect(heldThisCycle({ status: "postponed", dueOn: null }, payday)).toBe(false);
+    expect(heldThisCycle({ status: "paid", dueOn: null }, payday)).toBe(false);
   });
 });
 

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { HttpError } from "@/lib/http";
-import { parseBalanceCheck, parseEntryPatch, parseNewCycle, parseNewEntry } from "@/lib/validate";
+import {
+  parseBalanceCheck,
+  parseEntryPatch,
+  parseNewCycle,
+  parseNewEntry,
+  parseNewPlan,
+  parsePayPlan,
+} from "@/lib/validate";
 
 const TODAY = "2026-11-11";
 const NOW = new Date("2026-11-11T05:00:00Z");
@@ -201,5 +208,59 @@ describe("parseNewCycle", () => {
   it("rejects more than 20 bills", () => {
     const bills = Array.from({ length: 21 }, () => ({ title: "x", amount: 100 }));
     rejects(() => parseNewCycle(figma({ bills }), TODAY, NOW), "ไม่เกิน 20");
+  });
+});
+
+describe("parseNewPlan", () => {
+  it("W15 เก็บไว้ในแผน: a purchase kept in the plan by default", () => {
+    expect(parseNewPlan({ title: " รองเท้า ", amount: 48000 })).toEqual({
+      kind: "purchase",
+      title: "รองเท้า",
+      amount: 48000,
+      dueOn: null,
+      category: null,
+      status: "reserved",
+    });
+  });
+
+  it("W15 เลื่อนไปรอบหน้า: status postponed, with a category for when it is paid", () => {
+    expect(parseNewPlan({ title: "ทริป", amount: 60000, status: "postponed", category: "other", dueOn: "2026-12-01" })).toMatchObject({
+      status: "postponed",
+      category: "other",
+      dueOn: "2026-12-01",
+    });
+  });
+
+  it("accepts a bill, which always pays into 'bills'", () => {
+    expect(parseNewPlan({ kind: "bill", title: "ค่าเน็ต", amount: 20000 })).toMatchObject({ kind: "bill", category: null });
+  });
+
+  it("rejects a category on a bill", () => {
+    rejects(() => parseNewPlan({ kind: "bill", title: "ค่าเน็ต", amount: 20000, category: "food" }), "บิล");
+  });
+
+  it("rejects paid / cancelled / separate as a starting status", () => {
+    for (const status of ["paid", "cancelled", "separate", "constructor"]) {
+      rejects(() => parseNewPlan({ title: "x", amount: 100, status }), "สถานะ");
+    }
+  });
+
+  it("rejects a bad kind, title, amount or category", () => {
+    rejects(() => parseNewPlan({ kind: "gift", title: "x", amount: 100 }), "ชนิด");
+    rejects(() => parseNewPlan({ title: "", amount: 100 }), "ชื่อรายการ");
+    rejects(() => parseNewPlan({ title: "x", amount: 0 }), "ยอดเงิน");
+    rejects(() => parseNewPlan({ title: "x", amount: 100, category: "bills" }), "หมวด");
+  });
+});
+
+describe("parsePayPlan", () => {
+  it("category is optional", () => {
+    expect(parsePayPlan({})).toEqual({ category: null });
+    expect(parsePayPlan({ category: "supplies" })).toEqual({ category: "supplies" });
+  });
+
+  it("rejects 'bills' or an unknown category", () => {
+    rejects(() => parsePayPlan({ category: "bills" }), "หมวด");
+    rejects(() => parsePayPlan({ category: "x" }), "หมวด");
   });
 });

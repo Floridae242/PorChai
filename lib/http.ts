@@ -20,6 +20,17 @@ export async function readJson(request: Request): Promise<unknown> {
   }
 }
 
+// For actions whose body is optional: no body = {}
+export async function readOptionalJson(request: Request): Promise<unknown> {
+  const text = await request.text();
+  if (!text.trim()) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new HttpError(400, "bad_request", "คำขอไม่ถูกต้อง");
+  }
+}
+
 // Turn any thrown value into a JSON error response.
 export function errorResponse(err: unknown): Response {
   // Let Next's internal control-flow errors (e.g. dynamic-route bailout) through
