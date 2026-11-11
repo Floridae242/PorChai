@@ -23,7 +23,7 @@ const call = (token?: string) =>
 
 describe("GET /api/me", () => {
   beforeEach(() => {
-    vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "test-channel");
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-channel");
   });
   afterEach(async () => {
     vi.unstubAllEnvs();

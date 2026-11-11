@@ -27,7 +27,7 @@ async function status(p: Promise<unknown>) {
 
 describe("requireUser", () => {
   beforeEach(() => {
-    vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "test-channel");
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-channel");
   });
   afterEach(async () => {
     vi.unstubAllEnvs();
@@ -89,7 +89,7 @@ describe("requireUser", () => {
   });
 
   it("throws a plain Error (not HttpError) when the channel id is not configured", async () => {
-    vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "");
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "");
     const err = await requireUser(req("Bearer t"), verifyAs({ ok: true, lineUserId: lineA })).catch(
       (e) => e,
     );

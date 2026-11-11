@@ -19,8 +19,8 @@ export async function requireUser(
   if (!match) throw UNAUTHORIZED();
 
   // Missing config is a server error (500), not a client auth failure
-  const channelId = process.env.LINE_MINIAPP_CHANNEL_ID;
-  if (!channelId) throw new Error("Missing LINE_MINIAPP_CHANNEL_ID");
+  const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
+  if (!channelId) throw new Error("Missing LINE_LOGIN_CHANNEL_ID");
 
   const verify = deps.verify ?? verifyIdToken;
   const result = await verify(match[1], channelId);
