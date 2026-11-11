@@ -10,7 +10,9 @@ export default defineConfig(({ mode }) => ({
   test: {
     include: ["**/*.db.test.ts"],
     exclude: ["node_modules/**", ".next/**"],
-    env: loadEnv(mode, process.cwd(), ""),
+    // Only SUPABASE_* vars; setup file refuses non-local URLs
+    env: loadEnv(mode, process.cwd(), ["SUPABASE_"]),
+    setupFiles: ["./vitest.db.setup.ts"],
     // All files share one database
     fileParallelism: false,
   },

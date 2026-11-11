@@ -50,6 +50,17 @@ function entryRow(userId: string, cycleId: string, over = {}) {
   };
 }
 
+function planRow(userId: string, cycleId: string, over = {}) {
+  return {
+    user_id: userId,
+    cycle_id: cycleId,
+    kind: "bill",
+    title: "Rent",
+    amount: 3000,
+    ...over,
+  };
+}
+
 afterEach(async () => {
   // Deleting users cascades to all their rows
   if (createdUsers.length) {
@@ -133,5 +144,61 @@ describe("layer 0-1 schema", () => {
     const { data, error } = await anon.from("entries").select("*");
     expect(error).toBeNull();
     expect(data).toEqual([]);
+  });
+
+  it("rejects an entry that points at another user's cycle", async () => {
+    const userA = await makeUser();
+    const userB = await makeUser();
+    const cycleA = await makeCycle(userA);
+    const { error } = await db.from("entries").insert(entryRow(userB, cycleA));
+    expect(error?.code).toBe("23503");
+  });
+
+  it("rejects a plan that points at another user's cycle", async () => {
+    const userA = await makeUser();
+    const userB = await makeUser();
+    const cycleA = await makeCycle(userA);
+    const { error } = await db.from("plans").insert(planRow(userB, cycleA));
+    expect(error?.code).toBe("23503");
+  });
+
+  it("rejects a plan that points at another user's entry", async () => {
+    const userA = await makeUser();
+    const userB = await makeUser();
+    const cycleA = await makeCycle(userA);
+    const cycleB = await makeCycle(userB);
+    const { data: entryA, error: entryError } = await db
+      .from("entries")
+      .insert(entryRow(userA, cycleA))
+      .select("id")
+      .single();
+    expect(entryError).toBeNull();
+    const { error } = await db
+      .from("plans")
+      .insert(planRow(userB, cycleB, { entry_id: entryA!.id }));
+    expect(error?.code).toBe("23503");
+  });
+
+  it("keeps plan.user_id when its entry is deleted", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const { data: entry } = await db
+      .from("entries")
+      .insert(entryRow(userId, cycleId))
+      .select("id")
+      .single();
+    const { data: plan, error } = await db
+      .from("plans")
+      .insert(planRow(userId, cycleId, { entry_id: entry!.id }))
+      .select("id")
+      .single();
+    expect(error).toBeNull();
+    expect((await db.from("entries").delete().eq("id", entry!.id)).error).toBeNull();
+    const { data: after } = await db
+      .from("plans")
+      .select("user_id, entry_id")
+      .eq("id", plan!.id)
+      .single();
+    expect(after).toEqual({ user_id: userId, entry_id: null });
   });
 });

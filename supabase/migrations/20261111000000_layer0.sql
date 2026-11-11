@@ -16,7 +16,9 @@ create table cycles (
   emergency_buffer bigint not null default 0 check (emergency_buffer >= 0),
   status text not null default 'active' check (status in ('active', 'closed')),
   started_at timestamptz not null default now(),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Target for composite FKs: children must belong to the same user
+  unique (id, user_id)
 );
 
 -- One active cycle per user
@@ -25,7 +27,7 @@ create unique index cycles_one_active on cycles (user_id) where status = 'active
 create table entries (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users (id) on delete cascade,
-  cycle_id uuid not null references cycles (id),
+  cycle_id uuid not null,
   amount bigint not null check (amount > 0),
   category text not null
     check (category in ('food', 'transport', 'supplies', 'fun', 'bills', 'other')),
@@ -36,7 +38,10 @@ create table entries (
   -- Same key twice = same spend: blocks double-charging on retries
   idempotency_key text not null unique,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (id, user_id),
+  -- An entry can only point at its own user's cycle
+  foreign key (cycle_id, user_id) references cycles (id, user_id)
 );
 
 create index entries_user_spent_on on entries (user_id, spent_on);
@@ -45,15 +50,20 @@ create index entries_cycle on entries (cycle_id);
 create table plans (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users (id) on delete cascade,
-  cycle_id uuid not null references cycles (id),
+  cycle_id uuid not null,
   kind text not null check (kind in ('bill', 'purchase')),
   title text not null,
   amount bigint not null check (amount > 0),
   due_on date,
   status text not null default 'reserved'
     check (status in ('reserved', 'paid', 'cancelled')),
-  entry_id uuid references entries (id) on delete set null,
-  created_at timestamptz not null default now()
+  entry_id uuid,
+  created_at timestamptz not null default now(),
+  -- Plans can only point at their own user's cycle and entry
+  foreign key (cycle_id, user_id) references cycles (id, user_id),
+  -- Null only entry_id on delete, never user_id
+  foreign key (entry_id, user_id) references entries (id, user_id)
+    on delete set null (entry_id)
 );
 
 create index plans_user on plans (user_id);
