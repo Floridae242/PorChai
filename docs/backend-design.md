@@ -48,6 +48,17 @@ Backend จึงมีหน้าที่หลักสองอย่าง
 - **LINE OA แผนฟรี:** push ใช้โควตา (แหล่งรองรายงาน 300 ข้อความ/เดือนสำหรับไทย ยังไม่ยืนยันจากหน้า LINE ทางการ) ส่วน reply ไม่กินโควตา → ตอบในแชตด้วย reply เสมอ ใช้ push เฉพาะการเตือน
 - **Vercel Hobby:** cron รันได้วันละครั้ง และเวลาคลาดได้ทั้งชั่วโมง → ใช้ตั้งเวลาเตือน 12:30 ไม่ได้ (ดูข้อ 9)
 - **LIFF:** สร้าง LIFF app ใน LINE Login channel ที่อยู่ Provider เดียวกับ Messaging API channel (LINE user ID แยกตาม Provider) การเตือนส่งผ่าน OA ไม่ใช้ service message
+  - channel **PorChai Login** เปลี่ยนเป็น **Published** แล้ว (11 พ.ย.) ทุกบัญชี LINE เปิดได้ · ย้อนกลับเป็น Developing ไม่ได้ · ตอน Developing บัญชีที่ไม่มี role ใน channel จะเจอ 400
+  - ลิงก์ `liff.line.me/<id>/<path>` เปิดหน้าแรกพร้อม `?liff.state=` ก่อน → `app/liff-state-redirect.tsx` ใน layout เรียก `liff.init()` ให้พาไปหน้านั้น
+
+### ทำไมใช้ LIFF ไม่ใช้ LINE MINI App (ตัดสินใจ 11 พ.ย. · การ์ด 04)
+
+อาจารย์ไม่กำหนดว่าต้องเป็น MINI App หรือ LIFF ทีมเลือก LIFF เพราะ
+
+1. **MINI App แบบผ่านการรับรอง (Verified) ทีมขอไม่ได้:** ในไทยต้องอยู่ใต้ Certified Provider ที่ LINE ตรวจว่าเป็นองค์กรจริง (ยื่นผ่านฝ่ายขาย LINE ส่วนใหญ่สำหรับบริษัท) กลุ่มนักศึกษาไม่มีนิติบุคคล และการตรวจใช้ 1–2 สัปดาห์ ไม่ทันส่งมอบ 17–18 พ.ย. ([Submitting LINE MINI App](https://developers.line.biz/en/docs/line-mini-app/submit/submission-guide))
+2. **แบบไม่ผ่านการรับรอง (Unverified) ไม่ได้อะไรเพิ่ม:** ฟีเจอร์พิเศษ (ค้นหาใน LINE, แท็บ Home, service message, หัวจอโชว์ชื่อแอป) มีเฉพาะ Verified ([Custom features](https://developers.line.biz/en/docs/line-mini-app/discover/custom-features/))
+3. **LIFF ทำได้ครบที่พอใช้ต้องใช้:** เปิดจากแชต LINE OA, ใช้บัญชี LINE เดียวกับแชต (Provider เดียวกัน), ยืนยันตัวตนด้วย ID token · ทดสอบบนมือถือจริงผ่าน 11 พ.ย. 22:20 (`/dev/liff-check` 5/5)
+4. **ย้ายได้ถ้าจำเป็น:** MINI App ใช้ LIFF SDK ตัวเดียวกัน ย้ายไป channel "PorChai MiniApp" (Unverified) ได้ในราว 1 ชม. โดยเปลี่ยน LIFF ID ใน `lib/liff/config.ts` และ `LINE_LOGIN_CHANNEL_ID` ไม่ต้องเขียนหน้าจอใหม่
 - **Microsoft Clarity (ฝั่งหน้าจอ):** ต้องปิดบังยอดเงิน ชื่อรายการ และรายละเอียดรายจ่ายทุกจุด (NFR04) ก่อนเปิดให้ผู้ทดลองใช้
 - วันที่และ "วันนี้" ใช้เวลาไทย `Asia/Bangkok` เสมอ
 
@@ -253,7 +264,7 @@ Backend จึงมีหน้าที่หลักสองอย่าง
 ## 12. ต้องถามทีม (คำตอบเปลี่ยนสิ่งที่สร้าง)
 
 1. ~~เงินออม~~ — ปิดแล้ว 11 พ.ย.: ยึด Figma หักตั้งแต่ต้นรอบ (W6, L7)
-2. ~~ช่อง MINI App~~ — ปิดแล้ว 11 พ.ย.: ทีมกำหนดใช้ LIFF ใน LINE Login channel
+2. ~~ช่อง MINI App~~ — ปิดแล้ว 11 พ.ย.: อาจารย์ไม่กำหนด ทีมเลือก LIFF ใน LINE Login channel (เหตุผลในข้อ 3)
 3. **AI API:** ใช้เจ้าไหน (แนะนำ Claude Haiku หรือ Gemini Flash เพราะอ่านรูปใบเสร็จได้ ไม่ใช้ DeepSeek เพราะเก็บข้อมูลที่จีน) และใครเป็นเจ้าของ key/ออกเงิน (ชั้น 3–4)
 
 ## 13. ที่ผมตัดสินใจเอง (ตรวจได้ แย้งได้)
