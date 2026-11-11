@@ -21,9 +21,11 @@ npm run test:watch           # รันเทสต์ทุกครั้ง�
 
 ```bash
 supabase start      # ครั้งแรกโหลด image หลายนาที
-supabase db reset   # สร้างตารางใหม่จาก supabase/migrations/ (ล้างข้อมูลบนเครื่อง)
+supabase db reset   # สร้างตารางใหม่จาก supabase/migrations/ + ใส่ข้อมูลทดสอบ supabase/seed.sql (ล้างข้อมูลบนเครื่อง)
 supabase stop
 ```
+
+ข้อมูลทดสอบ (`supabase/seed.sql`) มีผู้ใช้เดโม 3 คนตามตัวเลข Figma: `U_demo_try` (ลอง), `U_demo_plan` (เลือกแผน), `U_demo_paid` (จ่ายจริง) · ใส่เฉพาะบนเครื่อง `supabase db push` ไม่ส่งขึ้น cloud · วันที่อิงวันที่ reset ถ้าเทสต์ข้ามวันให้ `supabase db reset` ใหม่ก่อน
 
 เทสต์ฐานข้อมูล (`npm run test:db`) อ่านค่าจาก `.env.test.local` (ถูก `.gitignore` กันไว้ ห้าม commit)
 สร้างไฟล์นี้เองจากผล `supabase status -o env` ตามนี้:
