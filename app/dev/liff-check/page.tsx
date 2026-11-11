@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LIFF_ID } from "@/lib/liff/config";
 
 // Card 06 evidence page (temporary, not a real screen): open in LINE via
 // https://liff.line.me/2012545176-udYyTUiA/dev/liff-check and it shows whether
 // the server accepts this LINE account, and rejects a forged token.
-// The LIFF ID is public (it is in every LIFF URL), not a secret.
-const LIFF_ID = "2012545176-udYyTUiA";
 
 interface Step {
   label: string;
