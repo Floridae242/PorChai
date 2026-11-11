@@ -7,7 +7,7 @@ export interface BudgetInput {
   emergencyBuffer: Satang;
   savings: Satang; // set aside at cycle start, never spendable
   reserved: Satang; // unpaid bills + planned purchases due by payday (see reservedTotal)
-  essentialPerDay: Satang; // food + transport the user needs each day
+  essentialPerDay: Satang | null; // food + transport a day; null = the user has not said (never guessed)
   today: string; // YYYY-MM-DD Thai
   payday: string; // YYYY-MM-DD
 }
@@ -19,8 +19,10 @@ export type BudgetResult =
       dailyBudget: Satang;
       todayRemaining: Satang;
       daysLeft: number;
-      maxPurchase: Satang; // most one item can cost and still leave the essentials every day
-      essentialShortPerDay: Satang; // how far the daily budget falls below the essentials (0 if it does not)
+      // These three need essentialPerDay; null = unknown, so ask for it before answering (card 14)
+      spare: Satang | null; // left after the essentials to payday; negative = that much short
+      maxPurchase: Satang | null; // most one item can cost and still leave the essentials every day
+      essentialShortPerDay: Satang | null; // how far the daily budget falls below the essentials
     }
   | { kind: "shortfall"; usable: Satang; shortfall: Satang; daysLeft: number }
   | { kind: "payday-passed"; usable: Satang };
@@ -37,14 +39,17 @@ export function computeBudget(input: BudgetInput): BudgetResult {
   // Today's spending is added back so the daily budget and purchase limit stay stable as the day goes on.
   const usableAtDayStart = usable + input.spentToday;
   const dailyBudget = floorToBaht(usableAtDayStart / daysLeft);
+  const essential = input.essentialPerDay;
+  const spare = essential === null ? null : floorToBaht(usableAtDayStart - essential * daysLeft);
   return {
     kind: "ok",
     usable,
     dailyBudget,
     todayRemaining: dailyBudget - input.spentToday,
     daysLeft,
-    maxPurchase: Math.max(0, floorToBaht(usableAtDayStart - input.essentialPerDay * daysLeft)),
-    essentialShortPerDay: Math.max(0, input.essentialPerDay - dailyBudget),
+    spare,
+    maxPurchase: spare === null ? null : Math.max(0, spare),
+    essentialShortPerDay: essential === null ? null : Math.max(0, essential - dailyBudget),
   };
 }
 

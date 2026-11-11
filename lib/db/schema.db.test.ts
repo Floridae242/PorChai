@@ -471,3 +471,28 @@ describe("card 11: cancel instead of delete, and history", () => {
   });
 });
 
+describe("card 14: essentials can be not set", () => {
+  it("a new cycle has no essentials yet (null), not 0", async () => {
+    const userId = await makeUser();
+    const { data } = await db
+      .from("cycles")
+      .insert(cycleRow(userId))
+      .select("essential_food_daily, essential_transport_daily")
+      .single();
+    expect(data).toEqual({ essential_food_daily: null, essential_transport_daily: null });
+  });
+
+  it("food and transport are set together", async () => {
+    const userId = await makeUser();
+    const { error } = await db.from("cycles").insert({ ...cycleRow(userId), essential_food_daily: 5000 });
+    expect(error?.code).toBe("23514");
+  });
+
+  it("both set to 0 on purpose is allowed", async () => {
+    const userId = await makeUser();
+    const { error } = await db
+      .from("cycles")
+      .insert({ ...cycleRow(userId), essential_food_daily: 0, essential_transport_daily: 0 });
+    expect(error).toBeNull();
+  });
+});

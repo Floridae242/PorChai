@@ -12,8 +12,8 @@ export interface ActiveCycle {
   payday: string;
   emergency_buffer: number;
   savings_amount: number;
-  essential_food_daily: number;
-  essential_transport_daily: number;
+  essential_food_daily: number | null;
+  essential_transport_daily: number | null;
 }
 
 // Every money action needs the caller's own active cycle; there is never a cycle id from the request.
@@ -68,7 +68,11 @@ export async function loadSummary(userId: string, now = new Date()): Promise<Sum
       plans.data.map((p) => ({ amount: p.amount, status: p.status, dueOn: p.due_on })),
       cycle.payday,
     ),
-    essentialPerDay: cycle.essential_food_daily + cycle.essential_transport_daily,
+    // Set together (DB check); null until the user says
+    essentialPerDay:
+      cycle.essential_food_daily === null || cycle.essential_transport_daily === null
+        ? null
+        : cycle.essential_food_daily + cycle.essential_transport_daily,
     today,
     payday: cycle.payday,
   };

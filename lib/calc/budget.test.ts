@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { baht } from "@/lib/calc/money";
+import { reservedTotal, type PlanLike } from "@/lib/calc/inputs";
 import {
   computeBudget,
   simulatePurchase,
@@ -19,7 +20,7 @@ function input(over: Partial<BudgetInput> & { days?: number } = {}): BudgetInput
     emergencyBuffer: 0,
     savings: 0,
     reserved: 0,
-    essentialPerDay: 0,
+    essentialPerDay: null,
     today: TODAY,
     payday,
     ...rest,
@@ -40,6 +41,56 @@ function figma(spent = 0): BudgetInput {
     days: 12,
   });
 }
+
+// Team central example (ตัวอย่างกลาง 1,000, confirmed 11 Nov): 1,000 on hand · payday in 10 days ·
+// essentials 70 a day (food 50 + transport 20) · plans: equipment 250, activity 200 (W8, can be
+// postponed past payday) · no bills, savings or buffer.
+describe("central example 1,000 — cards 03 / 14 / 57 / 23", () => {
+  const equipment = (status: PlanLike["status"] = "reserved"): PlanLike => ({ amount: baht(250), status, dueOn: null });
+  const activity = (dueOn: string | null = null): PlanLike => ({ amount: baht(200), status: "reserved", dueOn });
+
+  function central(over: { balance?: number; plans?: PlanLike[]; days?: number } = {}): BudgetInput {
+    const days = over.days ?? 10;
+    const base = input({ balance: over.balance ?? baht(1000), essentialPerDay: baht(70), days });
+    return { ...base, reserved: reservedTotal(over.plans ?? [equipment(), activity()], base.payday) };
+  }
+
+  it("card 14: doing every plan as is leaves 150 short of the essentials", () => {
+    expect(computeBudget(central())).toMatchObject({ kind: "ok", spare: baht(-150), maxPurchase: 0 });
+  });
+
+  it("card 14: the daily average is not shown as money to spend on extras", () => {
+    const r = computeBudget(central());
+    expect(r).toMatchObject({ kind: "ok", dailyBudget: baht(55), maxPurchase: 0 });
+  });
+
+  it("card 14: postponing the 200 activity past payday leaves 50 to spare", () => {
+    const r = computeBudget(central({ plans: [equipment(), activity("2026-11-25")] }));
+    expect(r).toMatchObject({ kind: "ok", spare: baht(50), maxPurchase: baht(50) });
+  });
+
+  it("card 57: choosing the equipment plan keeps real money at 1,000 and holds 250", () => {
+    const chosen = central({ plans: [equipment()] });
+    expect(chosen).toMatchObject({ balance: baht(1000), reserved: baht(250) });
+  });
+
+  it("card 57: paying it leaves 750 real money and nothing held for it — same spare as before", () => {
+    const chosen = central({ plans: [equipment()] });
+    const paid = central({ balance: baht(750), plans: [equipment("paid")] });
+    expect(paid).toMatchObject({ balance: baht(750), reserved: 0 });
+    expect(computeBudget(paid)).toEqual(computeBudget(chosen));
+  });
+
+  it("card 57: cancelling an unpaid plan only releases what it held — no income appears", () => {
+    const cancelled = central({ plans: [equipment("cancelled"), activity()] });
+    expect(cancelled).toMatchObject({ balance: baht(1000), reserved: baht(200) });
+  });
+
+  it("card 23: payday 2 days late adds 140 of essentials — the 50 spare becomes 90 short", () => {
+    const r = computeBudget(central({ plans: [equipment(), activity("2026-11-25")], days: 12 }));
+    expect(r).toMatchObject({ kind: "ok", spare: baht(-90) });
+  });
+});
 
 describe("computeBudget — Figma demo numbers", () => {
   it("W6/W9: (2,400 − 600 − 240 − 120) ÷ 12 = 120 a day", () => {
@@ -227,8 +278,31 @@ describe("computeBudget", () => {
     expect(r).toMatchObject({ kind: "ok", dailyBudget: baht(100), todayRemaining: baht(-50) });
   });
 
-  it("no essentials set: the purchase limit is all usable money and nothing is short", () => {
-    const r = computeBudget(input({ balance: baht(1000), days: 10 }));
-    expect(r).toMatchObject({ kind: "ok", maxPurchase: baht(1000), essentialShortPerDay: 0 });
+  it("card 14: essentials not set — the daily figure shows, but spare and purchase limit are unknown (ask first)", () => {
+    const r = computeBudget(input({ balance: baht(750), days: 10 }));
+    expect(r).toEqual({
+      kind: "ok",
+      usable: baht(750),
+      dailyBudget: baht(75),
+      todayRemaining: baht(75),
+      daysLeft: 10,
+      spare: null,
+      maxPurchase: null,
+      essentialShortPerDay: null,
+    });
+  });
+
+  it("card 14: essentials not set — trying a purchase cannot say what is left either", () => {
+    expect(simulatePurchase(input({ balance: baht(750), days: 10 }), baht(600))).toMatchObject({
+      kind: "ok",
+      dailyBudget: baht(15),
+      maxPurchase: null,
+      essentialShortPerDay: null,
+    });
+  });
+
+  it("essentials set to 0 on purpose: all usable money is spare", () => {
+    const r = computeBudget(input({ balance: baht(1000), days: 10, essentialPerDay: 0 }));
+    expect(r).toMatchObject({ kind: "ok", spare: baht(1000), maxPurchase: baht(1000), essentialShortPerDay: 0 });
   });
 });

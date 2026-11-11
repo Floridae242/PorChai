@@ -281,6 +281,18 @@ describe("card 11: entries API", () => {
     expect((await summary(lineA)).balance).toBe(240000);
   });
 
+  it("card 14: a cycle without essentials shows 75 a day but no purchase limit (unknown, ask first)", async () => {
+    const { data: cycle } = await db
+      .from("cycles")
+      .insert({ user_id: userA, start_balance: 100000, payday: addDays(today(), 10) })
+      .select("id")
+      .single();
+    await db.from("plans").insert({ user_id: userA, cycle_id: cycle!.id, kind: "purchase", title: "อุปกรณ์", amount: 25000 });
+    const s = await summary(lineA);
+    expect(s.essentialPerDay).toBeNull();
+    expect(s.budget).toMatchObject({ dailyBudget: 7500, spare: null, maxPurchase: null, essentialShortPerDay: null });
+  });
+
   it("lists the caller's active entries, newest first", async () => {
     await figmaCycle(userA);
     await post(lineA, { amount: 4500, category: "food" });

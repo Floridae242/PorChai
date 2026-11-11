@@ -26,7 +26,7 @@ export interface Summary {
   savings: number;
   emergencyBuffer: number;
   reserved: number; // unpaid bills + plans due by payday
-  essentialPerDay: number;
+  essentialPerDay: number | null; // null = not set yet: ask before showing spare / purchase limit
   budget: BudgetResult;
 }
 
