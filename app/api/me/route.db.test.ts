@@ -68,9 +68,10 @@ describe("GET /api/me", () => {
 
   it("a closed cycle does not count as active", async () => {
     const { userId } = await (await call(lineA)).json();
-    await getDb()
+    const { error } = await getDb()
       .from("cycles")
       .insert({ user_id: userId, start_balance: 1000, payday: "2026-12-01", status: "closed" });
+    expect(error).toBeNull();
     expect((await (await call(lineA)).json()).hasActiveCycle).toBe(false);
   });
 });

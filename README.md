@@ -50,7 +50,8 @@ supabase stop
 ชั้น 0 ถือว่าเสร็จเมื่อข้อ 5–7 ผ่านบนมือถือจริง ไม่ใช่แค่เทสต์เขียว
 
 1. สร้างบัญชีและช่องทางที่ต้องใช้
-   - LINE Developers: Messaging API channel (ผูกกับ LINE OA) และ MINI App channel (ถ้าสร้าง MINI App ในไทยไม่ได้ ให้ใช้ LIFF แทน)
+   - LINE Developers: Messaging API channel (ผูกกับ LINE OA) และ MINI App channel (ถ้าสร้าง MINI App ในไทยไม่ได้ ให้ใช้ LIFF/LINE Login แทน)
+     **ต้องสร้างสองช่องทางนี้ใต้ Provider เดียวกัน** เพราะ LINE user ID แยกตาม Provider ถ้าอยู่คนละ Provider `source.userId` ใน webhook กับ `sub` ใน ID token จะไม่ตรงกัน และนักศึกษา 1 คนจะกลายเป็น 2 users
    - Supabase: โปรเจกต์จริง 1 โปรเจกต์
    - Vercel: import repo นี้
 2. ใส่ env ใน Vercel (Project Settings > Environment Variables) ห้ามใส่ในไฟล์ใน repo ชื่อตัวแปรตาม `.env.example`:
@@ -58,8 +59,10 @@ supabase stop
    (`SUPABASE_ANON_KEY` ใช้เฉพาะเทสต์ ไม่ต้องใส่)
 3. สร้างตารางบนโปรเจกต์จริง: `supabase link --project-ref <ref>` แล้ว `supabase db push`
 4. deploy preview บน Vercel (push branch) แล้วจดโดเมน
+   คำเตือน: preview ของ Vercel เปิด Vercel Authentication ไว้เป็นค่าเริ่มต้น ทำให้ LINE กด Verify webhook แล้วได้ 401 ต้องปิด Deployment Protection ของ preview นั้น หรือใช้โดเมน production แทน
 5. ตั้ง webhook ใน LINE Developers (Messaging API channel): Webhook URL = `https://<domain>/api/line/webhook` เปิด Use webhook แล้วกด **Verify** ต้องได้ Success
 6. เปิด MINI App บนมือถือ เรียก `GET /api/me` ด้วย ID token จริง ต้องได้ `userId` และมีแถวใหม่ในตาราง `users`
+   (ID token จริงได้จาก `liff.getIDToken()` ในฝั่ง MINI App เท่านั้น ข้อนี้จึงต้องรอให้มีหน้าจอเล็กๆ ที่เรียกฟังก์ชันนี้ก่อน)
 7. ส่งข้อความหา LINE OA ในตาราง `line_events` ต้องมีแถวเพิ่ม 1 แถว
 
 ## โฟลเดอร์และเจ้าของ

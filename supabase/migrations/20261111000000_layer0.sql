@@ -35,11 +35,12 @@ create table entries (
   spent_on date not null,
   source text not null
     check (source in ('chat', 'form', 'plan', 'reminder', 'ocr')),
-  -- Same key twice = same spend: blocks double-charging on retries
-  idempotency_key text not null unique,
+  -- Same key twice for one user = same spend: blocks double-charging on retries
+  idempotency_key text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (id, user_id),
+  unique (user_id, idempotency_key),
   -- An entry can only point at its own user's cycle
   foreign key (cycle_id, user_id) references cycles (id, user_id)
 );
@@ -94,6 +95,9 @@ create table line_events (
   webhook_event_id text primary key,
   received_at timestamptz not null default now()
 );
+
+-- Defense in depth: no direct grants for anon/authenticated (service_role keeps access)
+revoke all on all tables in schema public from anon, authenticated;
 
 alter table users enable row level security;
 alter table cycles enable row level security;

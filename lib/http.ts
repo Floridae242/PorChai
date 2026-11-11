@@ -1,3 +1,5 @@
+import { unstable_rethrow } from "next/navigation";
+
 export class HttpError extends Error {
   readonly status: number;
   readonly code: string;
@@ -12,6 +14,8 @@ export class HttpError extends Error {
 
 // Turn any thrown value into a JSON error response.
 export function errorResponse(err: unknown): Response {
+  // Let Next's internal control-flow errors (e.g. dynamic-route bailout) through
+  unstable_rethrow(err);
   if (err instanceof HttpError) {
     return Response.json({ error: { code: err.code, message: err.message } }, { status: err.status });
   }

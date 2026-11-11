@@ -88,13 +88,29 @@ describe("layer 0-1 schema", () => {
     expect(error).toBeNull();
   });
 
-  it("rejects a duplicate idempotency_key", async () => {
+  it("rejects a duplicate idempotency_key for the same user", async () => {
     const userId = await makeUser();
     const cycleId = await makeCycle(userId);
     const row = entryRow(userId, cycleId);
     expect((await db.from("entries").insert(row)).error).toBeNull();
     const { error } = await db.from("entries").insert(row);
     expect(error?.code).toBe("23505");
+  });
+
+  it("allows the same idempotency_key for two different users", async () => {
+    const userA = await makeUser();
+    const userB = await makeUser();
+    const cycleA = await makeCycle(userA);
+    const cycleB = await makeCycle(userB);
+    const key = `k-${crypto.randomUUID()}`;
+    const a = await db
+      .from("entries")
+      .insert(entryRow(userA, cycleA, { idempotency_key: key }));
+    const b = await db
+      .from("entries")
+      .insert(entryRow(userB, cycleB, { idempotency_key: key }));
+    expect(a.error).toBeNull();
+    expect(b.error).toBeNull();
   });
 
   it("rejects an entry with amount 0", async () => {
@@ -124,26 +140,49 @@ describe("layer 0-1 schema", () => {
     expect(error?.code).toBe("23505");
   });
 
-  it("hides rows from the anon key (RLS)", async () => {
+  it("gives the anon key no rows from any table", async () => {
     const userId = await makeUser();
     const cycleId = await makeCycle(userId);
-    const { error: insertError } = await db
-      .from("entries")
-      .insert(entryRow(userId, cycleId));
-    expect(insertError).toBeNull();
-
-    // Sanity: the service role sees the row
-    const { data: seen } = await db.from("entries").select("id");
-    expect(seen?.length).toBeGreaterThan(0);
+    const rows: Record<string, Record<string, unknown>> = {
+      entries: entryRow(userId, cycleId),
+      plans: planRow(userId, cycleId),
+      category_limits: { cycle_id: cycleId, category: "food", amount: 100 },
+      chat_drafts: {
+        user_id: userId,
+        payload: {},
+        expires_at: "2030-01-01T00:00:00Z",
+      },
+    };
+    for (const [table, row] of Object.entries(rows)) {
+      expect((await db.from(table).insert(row)).error).toBeNull();
+    }
+    const eventId = `evt-${crypto.randomUUID()}`;
+    createdEvents.push(eventId);
+    expect((await db.from("line_events").insert({ webhook_event_id: eventId })).error)
+      .toBeNull();
 
     const anon = createClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_ANON_KEY!,
       { auth: { persistSession: false } },
     );
-    const { data, error } = await anon.from("entries").select("*");
-    expect(error).toBeNull();
-    expect(data).toEqual([]);
+    const tables = [
+      "users",
+      "cycles",
+      "entries",
+      "plans",
+      "category_limits",
+      "chat_drafts",
+      "line_events",
+    ];
+    for (const table of tables) {
+      // Sanity: the service role sees data, so an empty anon result means blocked
+      const { data: seen } = await db.from(table).select("*").limit(1);
+      expect(seen?.length, `service role sees ${table}`).toBeGreaterThan(0);
+      // Either a permission error or an empty list is fine; never data
+      const { data } = await anon.from(table).select("*");
+      expect(data ?? [], `anon on ${table}`).toEqual([]);
+    }
   });
 
   it("rejects an entry that points at another user's cycle", async () => {

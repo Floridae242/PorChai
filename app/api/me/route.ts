@@ -1,4 +1,3 @@
-import { unstable_rethrow } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { errorResponse } from "@/lib/http";
@@ -15,8 +14,6 @@ export async function GET(request: Request): Promise<Response> {
     if (error) throw error;
     return Response.json({ userId, hasActiveCycle: (count ?? 0) > 0 });
   } catch (err) {
-    // Let Next's build-time "this route is dynamic" signal through
-    unstable_rethrow(err);
     return errorResponse(err);
   }
 }
