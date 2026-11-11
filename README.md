@@ -13,6 +13,29 @@ npm test                     # รันเทสต์ครั้งเดี�
 npm run test:watch           # รันเทสต์ทุกครั้งที่แก้ไฟล์
 ```
 
+`npm test` ไม่แตะฐานข้อมูล (ข้ามไฟล์ `*.db.test.ts`) เปิดฐานข้อมูลหรือไม่ก็ผ่าน
+
+## ฐานข้อมูลบนเครื่อง (Supabase)
+
+ต้องมี Docker Desktop (เปิดอยู่) และ [Supabase CLI](https://supabase.com/docs/guides/cli)
+
+```bash
+supabase start      # ครั้งแรกโหลด image หลายนาที
+supabase db reset   # สร้างตารางใหม่จาก supabase/migrations/ (ล้างข้อมูลบนเครื่อง)
+supabase stop
+```
+
+เทสต์ฐานข้อมูล (`npm run test:db`) อ่านค่าจาก `.env.test.local` (ถูก `.gitignore` กันไว้ ห้าม commit)
+สร้างไฟล์นี้เองจากผล `supabase status -o env` ตามนี้:
+
+| ตัวแปรใน `.env.test.local` | ค่าจาก `supabase status -o env` |
+|---|---|
+| `SUPABASE_URL` | `API_URL` |
+| `SUPABASE_SERVICE_ROLE_KEY` | `SERVICE_ROLE_KEY` |
+| `SUPABASE_ANON_KEY` | `ANON_KEY` (ใช้ตรวจ RLS ในเทสต์เท่านั้น) |
+
+ทุกตารางเปิด RLS และไม่มี policy: มีแต่ service role (ฝั่ง `app/api/`) ที่อ่าน/เขียนได้
+
 ## โฟลเดอร์และเจ้าของ
 
 | โฟลเดอร์ | เนื้อหา | ดูแลหลัก |
