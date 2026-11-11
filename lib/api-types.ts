@@ -30,6 +30,21 @@ export interface Summary {
   budget: BudgetResult;
 }
 
+// POST /api/cycle — W4–W9 setup (see docs/frontend-api.md 3.1)
+export interface NewCycleRequest {
+  incomeSource: "family" | "side_job" | "other";
+  incomeFrequency: "weekly" | "monthly" | "irregular";
+  payday: string; // after today
+  balance: number;
+  balanceAsOf?: string; // ISO; default now
+  bills?: { title: string; amount: number; dueOn?: string | null; status?: "unpaid" | "paid" | "separate" }[];
+  savingsPercent?: number; // 1–100 of balance; or savingsAmount, not both
+  savingsAmount?: number;
+  emergencyBuffer?: number;
+  essentials?: { food: number; transport: number }; // leave out = not set (ask later)
+  flexibleItems?: { title: string; amount: number; dueOn?: string | null }[];
+}
+
 // POST /api/entries — also send header `Idempotency-Key` (same key = same spend, saved once)
 export interface NewEntryRequest {
   amount: number;
