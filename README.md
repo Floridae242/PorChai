@@ -36,6 +36,32 @@ supabase stop
 
 ทุกตารางเปิด RLS และไม่มี policy: มีแต่ service role (ฝั่ง `app/api/`) ที่อ่าน/เขียนได้
 
+## เส้น API ที่มีแล้ว
+
+| เส้น | หน้าที่ |
+|---|---|
+| `POST /api/line/webhook` | รับ event จาก LINE OA: ตรวจลายเซ็น กันซ้ำด้วย `webhookEventId` แล้วตอบ 200 เร็วๆ |
+| `GET /api/me` | รับ `Authorization: Bearer <ID token>` ตรวจกับ LINE แล้วตอบ `{ userId, hasActiveCycle }` (ไม่มี token หรือ token ผิด = 401) |
+
+ทุกเส้นที่ต้องล็อกอินใช้ `userId` จาก `requireUser()` เท่านั้น ห้ามรับ `userId` จากคำขอ
+
+## ตั้งค่าของจริง (ทำเองด้วยบัญชีของตัวเอง)
+
+ชั้น 0 ถือว่าเสร็จเมื่อข้อ 5–7 ผ่านบนมือถือจริง ไม่ใช่แค่เทสต์เขียว
+
+1. สร้างบัญชีและช่องทางที่ต้องใช้
+   - LINE Developers: Messaging API channel (ผูกกับ LINE OA) และ MINI App channel (ถ้าสร้าง MINI App ในไทยไม่ได้ ให้ใช้ LIFF แทน)
+   - Supabase: โปรเจกต์จริง 1 โปรเจกต์
+   - Vercel: import repo นี้
+2. ใส่ env ใน Vercel (Project Settings > Environment Variables) ห้ามใส่ในไฟล์ใน repo ชื่อตัวแปรตาม `.env.example`:
+   `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `NEXT_PUBLIC_LIFF_ID`, `LINE_MINIAPP_CHANNEL_ID`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+   (`SUPABASE_ANON_KEY` ใช้เฉพาะเทสต์ ไม่ต้องใส่)
+3. สร้างตารางบนโปรเจกต์จริง: `supabase link --project-ref <ref>` แล้ว `supabase db push`
+4. deploy preview บน Vercel (push branch) แล้วจดโดเมน
+5. ตั้ง webhook ใน LINE Developers (Messaging API channel): Webhook URL = `https://<domain>/api/line/webhook` เปิด Use webhook แล้วกด **Verify** ต้องได้ Success
+6. เปิด MINI App บนมือถือ เรียก `GET /api/me` ด้วย ID token จริง ต้องได้ `userId` และมีแถวใหม่ในตาราง `users`
+7. ส่งข้อความหา LINE OA ในตาราง `line_events` ต้องมีแถวเพิ่ม 1 แถว
+
 ## โฟลเดอร์และเจ้าของ
 
 | โฟลเดอร์ | เนื้อหา | ดูแลหลัก |
