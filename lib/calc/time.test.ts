@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysBetween, thaiDate } from "@/lib/calc/time";
+import { addDays, daysBetween, thaiDate } from "@/lib/calc/time";
 
 describe("thaiDate", () => {
   it("rolls over to the next day after 17:00 UTC (00:30 Thai)", () => {
@@ -26,5 +26,16 @@ describe("daysBetween", () => {
 
   it("works across a year boundary", () => {
     expect(daysBetween("2026-12-30", "2027-01-02")).toBe(3);
+  });
+});
+
+describe("addDays", () => {
+  it("moves to the next day", () => {
+    expect(addDays("2026-11-11", 1)).toBe("2026-11-12");
+  });
+
+  it("crosses month and year ends", () => {
+    expect(addDays("2026-11-30", 1)).toBe("2026-12-01");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
   });
 });

@@ -61,6 +61,16 @@ function planRow(userId: string, cycleId: string, over = {}) {
   };
 }
 
+function checkRow(userId: string, cycleId: string, over = {}) {
+  return {
+    user_id: userId,
+    cycle_id: cycleId,
+    balance: 200000,
+    as_of: "2026-11-03T05:00:00Z",
+    ...over,
+  };
+}
+
 afterEach(async () => {
   // Deleting users cascades to all their rows
   if (createdUsers.length) {
@@ -152,6 +162,7 @@ describe("layer 0-1 schema", () => {
         payload: {},
         expires_at: "2030-01-01T00:00:00Z",
       },
+      balance_checks: checkRow(userId, cycleId),
     };
     for (const [table, row] of Object.entries(rows)) {
       expect((await db.from(table).insert(row)).error).toBeNull();
@@ -174,6 +185,7 @@ describe("layer 0-1 schema", () => {
       "category_limits",
       "chat_drafts",
       "line_events",
+      "balance_checks",
     ];
     for (const table of tables) {
       // Sanity: the service role sees data, so an empty anon result means blocked
@@ -239,5 +251,123 @@ describe("layer 0-1 schema", () => {
       .eq("id", plan!.id)
       .single();
     expect(after).toEqual({ user_id: userId, entry_id: null });
+  });
+});
+
+describe("Figma alignment schema", () => {
+  it("accepts the four user categories", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    for (const category of ["food", "transport", "supplies", "other"]) {
+      const { error } = await db.from("entries").insert(entryRow(userId, cycleId, { category }));
+      expect(error, category).toBeNull();
+    }
+  });
+
+  it("rejects the dropped 'fun' category", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const { error } = await db.from("entries").insert(entryRow(userId, cycleId, { category: "fun" }));
+    expect(error?.code).toBe("23514");
+  });
+
+  it("keeps 'bills' for paid plans only, not for chat or form entries", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const fromForm = await db
+      .from("entries")
+      .insert(entryRow(userId, cycleId, { category: "bills", source: "form" }));
+    expect(fromForm.error?.code).toBe("23514");
+    const fromPlan = await db
+      .from("entries")
+      .insert(entryRow(userId, cycleId, { category: "bills", source: "plan" }));
+    expect(fromPlan.error).toBeNull();
+  });
+
+  it("rejects a category limit on 'bills'", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const { error } = await db
+      .from("category_limits")
+      .insert({ cycle_id: cycleId, category: "bills", amount: 100 });
+    expect(error?.code).toBe("23514");
+  });
+
+  it("allows a bill paid from other money ('separate'), but not a purchase", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const bill = await db.from("plans").insert(planRow(userId, cycleId, { status: "separate" }));
+    expect(bill.error).toBeNull();
+    const purchase = await db
+      .from("plans")
+      .insert(planRow(userId, cycleId, { kind: "purchase", status: "separate" }));
+    expect(purchase.error?.code).toBe("23514");
+  });
+
+  it("R01: one entry can settle only one plan", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const { data: entry } = await db
+      .from("entries")
+      .insert(entryRow(userId, cycleId, { source: "plan" }))
+      .select("id")
+      .single();
+    const first = await db.from("plans").insert(planRow(userId, cycleId, { entry_id: entry!.id }));
+    expect(first.error).toBeNull();
+    const second = await db.from("plans").insert(planRow(userId, cycleId, { entry_id: entry!.id }));
+    expect(second.error?.code).toBe("23505");
+  });
+
+  it("stores the Figma cycle setup: source, frequency, savings, essentials", async () => {
+    const userId = await makeUser();
+    const { data, error } = await db
+      .from("cycles")
+      .insert({
+        ...cycleRow(userId),
+        start_balance: 240000,
+        start_balance_at: "2026-11-01T01:10:00Z",
+        income_source: "family",
+        income_frequency: "monthly",
+        savings_amount: 24000,
+        savings_percent: 10,
+        essential_food_daily: 5000,
+        essential_transport_daily: 2000,
+      })
+      .select("savings_amount, essential_food_daily, version")
+      .single();
+    expect(error).toBeNull();
+    expect(data).toEqual({ savings_amount: 24000, essential_food_daily: 5000, version: 1 });
+  });
+
+  it.each([
+    ["income_source", "lottery"],
+    ["income_frequency", "daily"],
+    ["savings_percent", 0],
+    ["savings_percent", 101],
+    ["savings_amount", -1],
+    ["essential_food_daily", -1],
+    ["essential_transport_daily", -1],
+  ])("rejects cycles.%s = %s", async (column, value) => {
+    const userId = await makeUser();
+    const { error } = await db.from("cycles").insert({ ...cycleRow(userId), [column]: value });
+    expect(error?.code).toBe("23514");
+  });
+
+  it("records balance checks and rejects a negative balance", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    expect((await db.from("balance_checks").insert(checkRow(userId, cycleId))).error).toBeNull();
+    const { error } = await db
+      .from("balance_checks")
+      .insert(checkRow(userId, cycleId, { balance: -1 }));
+    expect(error?.code).toBe("23514");
+  });
+
+  it("rejects a balance check on another user's cycle", async () => {
+    const userA = await makeUser();
+    const userB = await makeUser();
+    const cycleA = await makeCycle(userA);
+    const { error } = await db.from("balance_checks").insert(checkRow(userB, cycleA));
+    expect(error?.code).toBe("23503");
   });
 });

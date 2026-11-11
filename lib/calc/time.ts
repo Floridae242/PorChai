@@ -18,3 +18,8 @@ function toUtcMs(date: string): number {
 export function daysBetween(from: string, to: string): number {
   return Math.round((toUtcMs(to) - toUtcMs(from)) / MS_PER_DAY);
 }
+
+// Calendar date `n` days after `date` (YYYY-MM-DD).
+export function addDays(date: string, n: number): string {
+  return new Date(toUtcMs(date) + n * MS_PER_DAY).toISOString().slice(0, 10);
+}
