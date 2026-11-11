@@ -186,6 +186,7 @@ describe("layer 0-1 schema", () => {
       "chat_drafts",
       "line_events",
       "balance_checks",
+      "history",
     ];
     for (const table of tables) {
       // Sanity: the service role sees data, so an empty anon result means blocked
@@ -371,3 +372,102 @@ describe("Figma alignment schema", () => {
     expect(error?.code).toBe("23503");
   });
 });
+
+describe("card 11: cancel instead of delete, and history", () => {
+  async function history(subjectId: string) {
+    const { data, error } = await db
+      .from("history")
+      .select("action, before, after")
+      .eq("subject_id", subjectId)
+      .order("id");
+    expect(error).toBeNull();
+    return data!;
+  }
+
+  async function makeEntry(userId: string, cycleId: string, over = {}) {
+    const { data, error } = await db
+      .from("entries")
+      .insert(entryRow(userId, cycleId, over))
+      .select("id, updated_at")
+      .single();
+    expect(error).toBeNull();
+    return data!;
+  }
+
+  it("records create, edit and cancel of an entry, and keeps the row", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const entry = await makeEntry(userId, cycleId, { amount: 4500 });
+
+    expect((await db.from("entries").update({ amount: 5000 }).eq("id", entry.id)).error).toBeNull();
+    expect(
+      (await db.from("entries").update({ cancelled_at: new Date().toISOString() }).eq("id", entry.id)).error,
+    ).toBeNull();
+
+    const rows = await history(entry.id);
+    expect(rows.map((r) => r.action)).toEqual(["create", "edit", "cancel"]);
+    expect(rows[1].before.amount).toBe(4500);
+    expect(rows[1].after.amount).toBe(5000);
+
+    const { data: kept } = await db.from("entries").select("amount, cancelled_at").eq("id", entry.id).single();
+    expect(kept!.amount).toBe(5000);
+    expect(kept!.cancelled_at).not.toBeNull();
+  });
+
+  it("history belongs to the entry's owner", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const entry = await makeEntry(userId, cycleId);
+    const { data } = await db.from("history").select("user_id, subject").eq("subject_id", entry.id).single();
+    expect(data).toEqual({ user_id: userId, subject: "entry" });
+  });
+
+  it("a cancelled entry can be neither edited nor brought back", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const entry = await makeEntry(userId, cycleId);
+    await db.from("entries").update({ cancelled_at: new Date().toISOString() }).eq("id", entry.id);
+
+    const edit = await db.from("entries").update({ amount: 1 }).eq("id", entry.id);
+    expect(edit.error?.code).toBe("23514");
+    const revive = await db.from("entries").update({ cancelled_at: null }).eq("id", entry.id);
+    expect(revive.error?.code).toBe("23514");
+  });
+
+  it("bumps updated_at on edit", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const entry = await makeEntry(userId, cycleId);
+    const { data } = await db
+      .from("entries")
+      .update({ note: "แก้" })
+      .eq("id", entry.id)
+      .select("updated_at")
+      .single();
+    expect(new Date(data!.updated_at).getTime()).toBeGreaterThan(new Date(entry.updated_at).getTime());
+  });
+
+  it("records a plan's status changes (pending → paid)", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const { data: plan } = await db.from("plans").insert(planRow(userId, cycleId)).select("id").single();
+    await db.from("plans").update({ status: "paid" }).eq("id", plan!.id);
+
+    const rows = await history(plan!.id);
+    expect(rows.map((r) => r.action)).toEqual(["create", "status"]);
+    expect([rows[1].before.status, rows[1].after.status]).toEqual(["reserved", "paid"]);
+  });
+
+  it("a balance check's as_of defaults to the database clock", async () => {
+    const userId = await makeUser();
+    const cycleId = await makeCycle(userId);
+    const { data, error } = await db
+      .from("balance_checks")
+      .insert({ user_id: userId, cycle_id: cycleId, balance: 100 })
+      .select("as_of")
+      .single();
+    expect(error).toBeNull();
+    expect(Math.abs(new Date(data!.as_of).getTime() - Date.now())).toBeLessThan(60_000);
+  });
+});
+

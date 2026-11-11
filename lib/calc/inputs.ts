@@ -13,6 +13,7 @@ export interface EntryLike {
   amount: Satang;
   spentOn: string; // YYYY-MM-DD Thai
   createdAt: Date;
+  fromPlan?: boolean; // created by paying a plan (source = 'plan')
 }
 
 export interface PlanLike {
@@ -32,6 +33,12 @@ export function balanceNow(anchor: BalanceAnchor, entries: EntryLike[]): Satang 
   return entries
     .filter((e) => e.createdAt > anchor.asOf && e.spentOn >= anchorDay)
     .reduce((left, e) => left - e.amount, anchor.amount);
+}
+
+// Spending that counts against one day's budget. A paid plan is left out: its money was
+// held back as reserved, so paying it moves money from reserved to spent, not into today.
+export function spentOnDay(entries: EntryLike[], day: string): Satang {
+  return entries.filter((e) => e.spentOn === day && !e.fromPlan).reduce((sum, e) => sum + e.amount, 0);
 }
 
 // Paid, cancelled and separately paid plans hold nothing back; items due after payday belong to the next cycle.

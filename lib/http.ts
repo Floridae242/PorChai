@@ -12,6 +12,14 @@ export class HttpError extends Error {
   }
 }
 
+export async function readJson(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    throw new HttpError(400, "bad_request", "คำขอไม่ถูกต้อง");
+  }
+}
+
 // Turn any thrown value into a JSON error response.
 export function errorResponse(err: unknown): Response {
   // Let Next's internal control-flow errors (e.g. dynamic-route bailout) through

@@ -176,6 +176,11 @@ describe("computeBudget", () => {
     expect(a).toMatchObject({ kind: "ok", usable: baht(1500), dailyBudget: baht(150) });
   });
 
+  it("W15: paying shoes 480 as a plan (not day spending) leaves 80 a day", () => {
+    const paid = { ...figma(), balance: baht(2400 - 480) };
+    expect(computeBudget(paid)).toMatchObject({ kind: "ok", dailyBudget: baht(80), todayRemaining: baht(80) });
+  });
+
   it("card 23: a later payday spreads the money thinner and raises the essentials needed", () => {
     const onTime = figma();
     const late = { ...onTime, payday: "2026-11-26" }; // 15 days instead of 12

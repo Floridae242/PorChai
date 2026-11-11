@@ -5,6 +5,7 @@ import {
   latestAnchor,
   reservedTotal,
   savingsFromPercent,
+  spentOnDay,
   type PlanLike,
 } from "@/lib/calc/inputs";
 
@@ -115,5 +116,24 @@ describe("savingsFromPercent", () => {
 
   it("floors to whole baht: 15% of 1,999 is 299 (not 299.85)", () => {
     expect(savingsFromPercent(baht(1999), 15)).toBe(baht(299));
+  });
+});
+
+describe("spentOnDay", () => {
+  const e = (amount: number, spentOn: string, fromPlan = false) => ({
+    amount: baht(amount),
+    spentOn,
+    createdAt: at("2026-11-01T05:00:00Z"),
+    fromPlan,
+  });
+
+  it("adds the day's chat and form spending", () => {
+    expect(spentOnDay([e(45, "2026-11-01"), e(55, "2026-11-01"), e(30, "2026-10-31")], "2026-11-01")).toBe(
+      baht(100),
+    );
+  });
+
+  it("FR06/W15: paying a plan is not day spending — its money was already held back", () => {
+    expect(spentOnDay([e(45, "2026-11-01"), e(600, "2026-11-01", true)], "2026-11-01")).toBe(baht(45));
   });
 });
