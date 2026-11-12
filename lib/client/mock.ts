@@ -237,7 +237,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
 
   return {
     async me() {
-      return { userId: "mock-user", hasActiveCycle: cycle !== null };
+      return { hasActiveCycle: cycle !== null };
     },
 
     async createCycle(req: NewCycleRequest) {

@@ -74,6 +74,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        data-clarity-mask="true"
         aria-labelledby={titleId}
         tabIndex={-1}
         className="max-h-[90dvh] w-full overflow-y-auto rounded-t-sheet bg-card px-4 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] font-body text-primary outline-none md:w-[480px] md:rounded-sheet md:pb-6"
@@ -84,6 +85,6 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         {children}
       </div>
     </div>,
-    document.body,
+    document.getElementById("app-portal") ?? document.body,
   );
 }

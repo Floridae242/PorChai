@@ -29,7 +29,7 @@ const hdr = (c: Call, k: string) => new Headers(c.init.headers).get(k);
 describe("createLiveApi", () => {
   it("(a) sends Bearer token on every request", async () => {
     const { api, calls } = setup([json(200, { userId: "u", hasActiveCycle: true }), json(200, { entries: [] })]);
-    await api.me();
+    expect(await api.me()).toEqual({ hasActiveCycle: true });
     await api.entries();
     expect(calls).toHaveLength(2);
     for (const c of calls) expect(hdr(c, "Authorization")).toBe("Bearer tok-1");

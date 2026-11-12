@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 export type ListRowProps = {
@@ -30,9 +31,9 @@ export function ListRow({ title, subtitle, amount, badge, href, onClick }: ListR
   );
   if (href) {
     return (
-      <a href={href} className={BASE}>
+      <Link href={href} onClick={onClick} className={BASE}>
         {content}
-      </a>
+      </Link>
     );
   }
   if (onClick) {

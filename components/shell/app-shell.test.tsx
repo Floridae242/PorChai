@@ -46,3 +46,15 @@ describe("AppShell", () => {
     expect(screen.getByText("เนื้อหา")).not.toBeNull();
   });
 });
+
+describe("AppShell clarity mask", () => {
+  it("masks the content wrapper", () => {
+    const { container } = render(<AppShell>เนื้อหา</AppShell>);
+    expect(container.querySelector('[data-clarity-mask="true"]')?.textContent).toContain("เนื้อหา");
+  });
+  it("masks the content wrapper on nav-less pages", () => {
+    pathname = "/app/consent";
+    const { container } = render(<AppShell>เนื้อหา</AppShell>);
+    expect(container.querySelector('[data-clarity-mask="true"]')?.textContent).toContain("เนื้อหา");
+  });
+});

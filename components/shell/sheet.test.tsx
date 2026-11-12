@@ -75,3 +75,21 @@ describe("Sheet", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Sheet portal and mask", () => {
+  it("portals into #app-portal when present and masks the panel", async () => {
+    const portal = document.createElement("div");
+    portal.id = "app-portal";
+    document.body.appendChild(portal);
+    render(<Sheet open title="t" onClose={() => {}}><span>x</span></Sheet>);
+    const dialog = screen.getByRole("dialog");
+    expect(portal.contains(dialog)).toBe(true);
+    expect(dialog.getAttribute("data-clarity-mask")).toBe("true");
+    cleanup();
+    portal.remove();
+  });
+  it("falls back to document.body", () => {
+    render(<Sheet open title="t" onClose={() => {}}><span>x</span></Sheet>);
+    expect(document.body.contains(screen.getByRole("dialog"))).toBe(true);
+  });
+});

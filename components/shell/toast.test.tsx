@@ -28,6 +28,7 @@ describe("Toast", () => {
     // live region is mounted up front so assistive tech announces the inserted text
     const region = screen.getByRole("status");
     expect(region.getAttribute("aria-live")).toBe("polite");
+    expect(region.getAttribute("data-clarity-mask")).toBe("true");
     expect(region.textContent).toBe("");
     act(() => screen.getByRole("button", { name: "go" }).click());
     expect(region.textContent).toContain("บันทึกแล้ว");

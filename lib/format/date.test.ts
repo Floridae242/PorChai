@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatThaiDate } from "./date";
+import { formatThaiDate, formatThaiTime } from "./date";
 
 describe("formatThaiDate", () => {
   it('short: "2026-11-23" -> "23 พ.ย."', () => {
@@ -17,5 +17,15 @@ describe("formatThaiDate", () => {
   });
   it('throws RangeError on non-padded "2026-1-5"', () => {
     expect(() => formatThaiDate("2026-1-5", "short")).toThrow(/YYYY-MM-DD/);
+  });
+});
+
+describe("formatThaiTime", () => {
+  it("converts UTC to Bangkok HH:mm", () => {
+    expect(formatThaiTime("2026-11-11T05:10:00Z")).toBe("12:10");
+  });
+  it("crosses midnight UTC", () => {
+    expect(formatThaiTime("2026-11-11T17:05:00Z")).toBe("00:05");
+    expect(formatThaiTime("2026-11-11T16:59:00Z")).toBe("23:59");
   });
 });

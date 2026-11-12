@@ -7,6 +7,7 @@ import { createLiveApi } from "@/lib/client/live";
 import { createLiffAuth } from "@/lib/client/liff-auth";
 import { ApiContext } from "@/lib/client/use-api";
 import type { PorchaiApi } from "@/lib/client/types";
+import { MockBadge } from "@/components/shell/mock-badge";
 import { getLiff } from "@/lib/liff/client";
 import { API_MODE } from "./liff-provider";
 
@@ -30,5 +31,8 @@ export function ApiProvider({ children }: { children: ReactNode }) {
   }, []);
 
   if (!api) return null;
-  return <ApiContext.Provider value={api}>{children}</ApiContext.Provider>;
+  return <ApiContext.Provider value={api}>
+      <MockBadge mode={API_MODE} />
+      {children}
+    </ApiContext.Provider>;
 }

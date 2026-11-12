@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { Banner } from "@/components/ui/banner";
 import { Button, type ButtonVariant } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -21,6 +22,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export const instant = false;
 
 export default function UiDemoPage() {
+  if (process.env.NODE_ENV === "production") notFound();
   return (
     <main className="mx-auto flex max-w-md flex-col gap-8 p-6">
       <h1 className="font-display text-3xl text-primary">UI primitives</h1>

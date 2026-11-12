@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export type BannerKind = "info" | "warn" | "error";
 
 export type BannerProps = {
@@ -24,9 +26,9 @@ export function Banner({ kind, text, action }: BannerProps) {
       <p className="flex-1 text-sm text-primary">{text}</p>
       {action ? (
         action.href ? (
-          <a href={action.href} onClick={action.onClick} className={LINK}>
+          <Link href={action.href} onClick={action.onClick} className={LINK}>
             {action.label}
-          </a>
+          </Link>
         ) : (
           <button type="button" onClick={action.onClick} className={LINK}>
             {action.label}

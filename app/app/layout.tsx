@@ -10,6 +10,7 @@ export const instant = false;
 export default function AppLayout({ children }: LayoutProps<"/app">) {
   return (
     <div
+      data-app-root
       className={`${fontBody.variable} ${fontDisplay.variable} min-h-full flex-1 bg-app font-body text-primary`}
     >
       <LiffProvider>
@@ -19,6 +20,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
           </ConsentGate>
         </ApiProvider>
       </LiffProvider>
+      <div id="app-portal" />
     </div>
   );
 }

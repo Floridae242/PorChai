@@ -16,13 +16,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/app";
   const [chooserOpen, setChooserOpen] = useState(false);
 
-  if (hideNav(pathname)) return <ToastProvider>{children}</ToastProvider>;
+  if (hideNav(pathname)) {
+    return (
+      <ToastProvider>
+        <div data-clarity-mask="true">{children}</div>
+      </ToastProvider>
+    );
+  }
 
   const active = tabForPath(pathname);
   return (
     <ToastProvider>
       <Sidebar active={active} onRecord={() => setChooserOpen(true)} />
-      <div className="xl:pl-60">
+      <div data-clarity-mask="true" className="xl:pl-60">
         <div className="mx-auto w-full max-w-[704px] px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] xl:max-w-[760px] xl:pb-8">
           {children}
         </div>

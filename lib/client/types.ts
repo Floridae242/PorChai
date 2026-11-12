@@ -38,7 +38,7 @@ export interface Reward {
 export type PlanActionName = "pay" | "unpay" | "cancel" | "postpone" | "keep";
 
 export interface PorchaiApi {
-  me(): Promise<{ userId: string; hasActiveCycle: boolean }>;
+  me(): Promise<{ hasActiveCycle: boolean }>;
   createCycle(req: NewCycleRequest): Promise<{ summary: Summary }>;
   summary(): Promise<Summary>;
   entries(): Promise<EntriesResponse>;

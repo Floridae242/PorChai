@@ -36,3 +36,9 @@ describe("app theme tokens", () => {
     expect(css).not.toContain('@import "tailwindcss"');
   });
 });
+
+describe("always-light /app", () => {
+  it("forces light color-scheme when the app root is present", () => {
+    expect(css).toMatch(/html:has\(\[data-app-root\]\)\s*\{[^}]*color-scheme:\s*light/);
+  });
+});

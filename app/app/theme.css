@@ -80,3 +80,9 @@
 
   --background-image-hero: var(--hero-gradient);
 }
+
+/* /app is always light: the root globals follow the OS dark scheme. */
+html:has([data-app-root]) {
+  color-scheme: light;
+  background: var(--bg-app);
+}

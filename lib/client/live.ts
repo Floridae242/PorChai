@@ -74,7 +74,10 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
   const seg = encodeURIComponent;
 
   return {
-    me: () => request({ method: "GET", path: "/api/me" }),
+    me: async () => {
+      const r = await request<{ hasActiveCycle: boolean }>({ method: "GET", path: "/api/me" });
+      return { hasActiveCycle: r.hasActiveCycle };
+    },
     createCycle: (req) => request({ method: "POST", path: "/api/cycle", body: req }),
     summary: () => request({ method: "GET", path: "/api/summary" }),
     entries: () => request({ method: "GET", path: "/api/entries" }),
