@@ -111,6 +111,9 @@ export const reminderNotFoundMessage = (): TextMessage => text("ไม่พบ�
 
 export const reminderEditCancelledMessage = (): TextMessage => text("ยกเลิกการแก้แล้วครับ ยังไม่ได้จดอะไร");
 
+export const demoReadyMessage = (title: string, amount: number, time: string): TextMessage =>
+  text(`เตรียมเดโมแล้วครับ ✓ ใส่ ${title} ${baht(amount)} บาท ย้อนหลัง 3 วัน (เวลา ${time}) พิมพ์ «เดโมเตือน» เพื่อดูการ์ดเตือนได้เลย`);
+
 export const demoNoHabitMessage = (): TextMessage =>
   text("ยังไม่มีรายการประจำครับ ต้องจดชื่อเดียวกันอย่างน้อย 3 วันใน 7 วันล่าสุด เช่น «ข้าวเที่ยง 50»");
 

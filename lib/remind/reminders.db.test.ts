@@ -309,6 +309,28 @@ describe("demo command — the presenter cannot wait for 12:30", () => {
     expect(pushes).toEqual([]); // a reply, not a push: no quota
   });
 
+  it("«เดโมเตรียม» gives the presenter's own account ข้าวเที่ยง 50 on the last 3 days, once; then «เดโมเตือน» shows the card", async () => {
+    vi.stubEnv("DEMO_MODE", "1");
+    await figma();
+    await chat("เดโมเตรียม");
+    expect(flat(lastReply())).toContain("เตรียมเดโมแล้วครับ");
+    await chat("เดโมเตรียม"); // twice: still 3 days, not 6
+    const { data } = await db.from("entries").select("note, amount, spent_on").eq("user_id", await userId()).order("spent_on");
+    expect(data).toEqual([1, 2, 3].reverse().map((n) => ({ note: "ข้าวเที่ยง", amount: 5000, spent_on: addDays(today(), -n) })));
+    await chat("เดโมเตือน");
+    expect(lastReply().type).toBe("flex");
+    expect(flat(lastReply())).toContain("ข้าวเที่ยง");
+  });
+
+  it("«เดโมเตรียม» does nothing without DEMO_MODE, and asks to set up the cycle first", async () => {
+    await figma();
+    await chat("เดโมเตรียม");
+    expect((await db.from("entries").select("id").eq("user_id", await userId())).data).toEqual([]);
+    vi.stubEnv("DEMO_MODE", "1");
+    await chat("เดโมเตรียม", lineB);
+    expect(flat(lastReply())).toContain("ยังไม่ได้ตั้งรอบเงิน");
+  });
+
   it("no habit yet: says what is needed", async () => {
     vi.stubEnv("DEMO_MODE", "1");
     await figma();

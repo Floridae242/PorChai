@@ -11,6 +11,7 @@ import {
   categoryChangedMessage,
   deletedMessage,
   demoNoHabitMessage,
+  demoReadyMessage,
   reminderAlreadyMessage,
   reminderCard,
   reminderEditCancelledMessage,
@@ -51,7 +52,7 @@ import {
 import { amountOnly, categoryOf, MAX_TITLE, parseExpense } from "@/lib/chat/parse";
 import { loadBudget, loadSummary, summaryOf } from "@/lib/db/budget";
 import { proposalFor, recentChat, remember, type ChatLine, type Pending } from "@/lib/db/chat-memory";
-import { demoReminder, markReminder, reminderById, type ReminderLog } from "@/lib/db/reminders";
+import { DEMO_HABIT, demoReminder, markReminder, reminderById, seedDemoHabit, type ReminderLog } from "@/lib/db/reminders";
 import { addEntry, cancelEntry, editEntry, entryExists, entryForChat } from "@/lib/db/entries";
 import { actOnPlan, addPlan, planIdByKey } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
@@ -133,6 +134,10 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   const parsed = parseExpense(body);
 
   // Card 58 demo: the presenter cannot wait for the reminder time (only with DEMO_MODE=1)
+  if (process.env.DEMO_MODE === "1" && body.trim() === "เดโมเตรียม") {
+    await seedDemoHabit(userId);
+    return say(demoReadyMessage(DEMO_HABIT.title, DEMO_HABIT.amount, DEMO_HABIT.time));
+  }
   if (process.env.DEMO_MODE === "1" && body.trim() === "เดโมเตือน") {
     const demo = await demoReminder(userId);
     return say(demo ? reminderCard(demo.log, demo.time) : demoNoHabitMessage());

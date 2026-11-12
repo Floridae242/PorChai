@@ -1,5 +1,6 @@
 import type { UserCategory } from "@/lib/api-types";
 import { addDays, thaiDate } from "@/lib/calc/time";
+import { requireActiveCycle } from "@/lib/db/budget";
 import { getDb } from "@/lib/db/client";
 import { dueHabit, findHabits, type EntryForHabit, type Habit } from "@/lib/remind/habits";
 import type { ReminderSettingsChange } from "@/lib/validate";
@@ -130,6 +131,32 @@ export async function demoReminder(userId: string, now = new Date()): Promise<{ 
   if (habits.length === 0) return null;
   const { log } = await logFor(userId, habits[0], today);
   return { log, time: habits[0].time };
+}
+
+// Demo command «เดโมเตรียม» (DEMO_MODE only, user's choice 13 Nov): ข้าวเที่ยง 50 at 12:10 on the last 3
+// days of the presenter's own account, so «เดโมเตือน» has a habit. Real spends in the cycle (agreed: it is a
+// demo account). Keyed by day, so running it twice adds nothing.
+export const DEMO_HABIT = { title: "ข้าวเที่ยง", amount: 5000, time: "12:10" };
+
+export async function seedDemoHabit(userId: string, now = new Date()): Promise<void> {
+  const cycle = await requireActiveCycle(userId); // no cycle → the caller says set it up first
+  const today = thaiDate(now);
+  const rows = [1, 2, 3].map((n) => {
+    const day = addDays(today, -n);
+    return {
+      user_id: userId,
+      cycle_id: cycle.id,
+      amount: DEMO_HABIT.amount,
+      category: "food",
+      note: DEMO_HABIT.title,
+      spent_on: day,
+      source: "chat",
+      idempotency_key: `demo-habit:${day}`,
+      created_at: new Date(`${day}T${DEMO_HABIT.time}:00+07:00`).toISOString(),
+    };
+  });
+  const { error } = await getDb().from("entries").upsert(rows, { onConflict: "user_id,idempotency_key", ignoreDuplicates: true });
+  if (error) throw error;
 }
 
 // A reminder card's button: the owner's row only
