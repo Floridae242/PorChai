@@ -1,5 +1,6 @@
 import type { Liff } from "@line/liff";
 import { ApiError } from "./errors";
+import { loginRedirectUri } from "@/lib/liff/login-redirect";
 
 const MSG_LOGIN_FAILED = "เข้าสู่ระบบ LINE ไม่สำเร็จ";
 const MSG_EXPIRED = "หมดเวลาเข้าสู่ระบบ ปิดแล้วเปิดพอใช้ใหม่อีกครั้ง";
@@ -27,7 +28,10 @@ export function createLiffAuth(getLiff: () => Promise<Liff>) {
     try {
       if (op === "set") window.sessionStorage.setItem(LOGIN_FLAG, "1");
       else if (op === "clear") window.sessionStorage.removeItem(LOGIN_FLAG);
-      else return attemptedThisLoad || window.sessionStorage.getItem(LOGIN_FLAG) === "1";
+      else
+        return (
+          attemptedThisLoad || window.sessionStorage.getItem(LOGIN_FLAG) === "1"
+        );
     } catch {
       // storage blocked: the in-memory flag still stops a loop within one page load
     }
@@ -36,7 +40,12 @@ export function createLiffAuth(getLiff: () => Promise<Liff>) {
 
   // Sends the user to LINE login; the page navigates away, so this never resolves.
   async function loginAndWait(liff: Liff): Promise<never> {
-    liff.login({ redirectUri: window.location.href });
+    liff.login({
+      redirectUri: loginRedirectUri(
+        window.location.origin,
+        window.location.pathname,
+      ),
+    });
     return new Promise<never>(() => {});
   }
 
@@ -44,7 +53,8 @@ export function createLiffAuth(getLiff: () => Promise<Liff>) {
     return guarded(async () => {
       const liff = await getLiff();
       if (!liff.isLoggedIn()) {
-        if (flag("get")) throw new ApiError(401, "unauthorized", MSG_LOGIN_FAILED);
+        if (flag("get"))
+          throw new ApiError(401, "unauthorized", MSG_LOGIN_FAILED);
         flag("set");
         return loginAndWait(liff);
       }
@@ -60,7 +70,8 @@ export function createLiffAuth(getLiff: () => Promise<Liff>) {
   function refreshIdToken(): Promise<string> {
     return guarded(async () => {
       const liff = await getLiff();
-      if (liff.isInClient() || flag("get")) throw new ApiError(401, "unauthorized", MSG_EXPIRED);
+      if (liff.isInClient() || flag("get"))
+        throw new ApiError(401, "unauthorized", MSG_EXPIRED);
       flag("set");
       return loginAndWait(liff);
     });

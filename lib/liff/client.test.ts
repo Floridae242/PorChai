@@ -11,7 +11,9 @@ describe("getLiff", () => {
 
   it("calls liff.init once however many times it is called", async () => {
     const { getLiff } = await import("./client");
+    const { initializeLiff } = await import("@/lib/line/liff-client");
     const [a, b] = await Promise.all([getLiff(), getLiff()]);
+    await initializeLiff("2012545176-udYyTUiA");
     await getLiff();
     expect(a).toBe(b);
     expect(init).toHaveBeenCalledTimes(1);

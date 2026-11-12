@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { HttpError } from "@/lib/http";
 import {
   parseBalanceCheck,
+  parseBufferChange,
   parseEntryPatch,
   parseNewCycle,
   parseNewEntry,
@@ -271,7 +272,13 @@ describe("parseTrial", () => {
   const id = "11111111-1111-4111-8111-111111111111";
 
   it("W11: an item to try, nothing else", () => {
-    expect(parseTrial({ amount: 48000 })).toEqual({ amount: 48000, dueOn: null, postponePlanIds: [], essentials: null });
+    expect(parseTrial({ amount: 48000 })).toEqual({
+      amount: 48000,
+      dueOn: null,
+      postponePlanIds: [],
+      essentials: null,
+      emergencyBuffer: null,
+    });
   });
 
   it("14: postponing held plans, with or without an item; duplicates once", () => {
@@ -299,5 +306,24 @@ describe("parseEssentials", () => {
     expect(parseEssentials({ food: 5000, transport: 0 })).toEqual({ food: 5000, transport: 0 });
     rejects(() => parseEssentials({ food: 5000 }), "ทั้งคู่");
     rejects(() => parseEssentials({ food: -1, transport: 0 }), "ค่ากิน");
+  });
+});
+
+describe("parseBufferChange", () => {
+  it("the new amount and the one the screen showed", () => {
+    expect(parseBufferChange({ amount: 0, previous: 12000 })).toEqual({ amount: 0, previous: 12000 });
+  });
+
+  it("rejects a missing or negative amount or previous", () => {
+    rejects(() => parseBufferChange({ amount: -1, previous: 0 }), "เงินเผื่อ");
+    rejects(() => parseBufferChange({ amount: 100 }), "ค่าเดิม");
+  });
+});
+
+describe("parseTrial — card 19 buffer", () => {
+  it("a try may change only the buffer", () => {
+    expect(parseTrial({ emergencyBuffer: 0 })).toMatchObject({ amount: 0, emergencyBuffer: 0 });
+    expect(parseTrial({ amount: 100 }).emergencyBuffer).toBeNull();
+    rejects(() => parseTrial({ emergencyBuffer: -1 }), "เงินเผื่อ");
   });
 });

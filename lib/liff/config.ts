@@ -1,2 +1,3 @@
-// LIFF app in the "PorChai Login" channel. Public: it is part of every LIFF URL.
-export const LIFF_ID = "2012545176-udYyTUiA";
+// Prefer the deployed MINI App/LIFF ID; retain the original Login app fallback.
+// This public ID must match the server's LINE_LOGIN_CHANNEL_ID audience.
+export const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || "2012545176-udYyTUiA";
