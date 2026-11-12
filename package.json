@@ -9,15 +9,16 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:db": "vitest run --config vitest.db.config.mts",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "line:check": "node scripts/check-line.mjs",
+    "test:db": "vitest run --config vitest.db.config.mts"
   },
   "dependencies": {
-    "@line/liff": "2.31.2",
-    "@supabase/supabase-js": "2.119.0",
+    "@line/liff": "^2.32.0",
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "@supabase/supabase-js": "2.119.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
