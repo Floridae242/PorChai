@@ -277,12 +277,11 @@ describe("mock T1b surface (income, aggregates, quota, reminders, delete)", () =
     expect(days.filter((d) => d.spent === null)).toHaveLength(11);
   });
 
-  it("planQuota counts reserved/paid purchases; the 4th reserved purchase is quota_full", async () => {
+  it("allows keeping unlimited purchase plans without hitting any quota limit", async () => {
     const api = createMockApi();
-    expect(await api.planQuota()).toEqual({ used: 0, limit: 3 });
-    for (let i = 0; i < 3; i++) await api.addPlan({ title: `p${i}`, amount: 1000 }, `k${i}`);
-    expect(await api.planQuota()).toEqual({ used: 3, limit: 3 });
-    await expectApiError(api.addPlan({ title: "p4", amount: 1000 }, "k4"), 409, "quota_full");
+    for (let i = 0; i < 5; i++) await api.addPlan({ title: `p${i}`, amount: 1000 }, `k${i}`);
+    const { plans } = await api.plans();
+    expect(plans.filter((p) => p.kind === "purchase" && p.status === "reserved")).toHaveLength(5);
     // retrying an accepted key is still fine
     await api.addPlan({ title: "p0", amount: 1000 }, "k0");
   });
@@ -324,7 +323,6 @@ describe("mock T1b surface (income, aggregates, quota, reminders, delete)", () =
     await expectApiError(api.addIncome({ amount: 100 }, "k"), 403, "no_consent");
     await expectApiError(api.dailySpend(), 403, "no_consent");
     await expectApiError(api.categoryTotals(), 403, "no_consent");
-    await expectApiError(api.planQuota(), 403, "no_consent");
     await expectApiError(api.reminderSettings(), 403, "no_consent");
     await expectApiError(api.saveReminderSettings({ enabled: false, time: "12:30", pausedUntil: null }), 403, "no_consent");
     await expectApiError(api.deleteMyData(), 403, "no_consent");

@@ -30,9 +30,6 @@ describe("tabForPath", () => {
     ["/app/try/result", null],
     ["/app/try/decide", null],
     ["/app/try/saved", null],
-    ["/app/plus", null],
-    ["/app/plus/pay", null],
-    ["/app/plus/status", null],
     ["/app/unknown", null],
     ["/app/planet", null],
     ["/shop/verify", null], // shop owners live outside the shell: it is never mounted there

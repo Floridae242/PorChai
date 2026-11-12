@@ -328,26 +328,14 @@ describe("TryDecideView (C3)", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/try"));
   });
 
-  it("planQuota not_implemented: no quota banner at all", async () => {
+  it("allows keeping in plan and confirming real payment without any quota banner", async () => {
     const api = mk();
-    vi.spyOn(api, "planQuota").mockRejectedValue(new ApiError(501, "not_implemented", "ยังไม่พร้อมใช้งาน"));
-    renderWith(api, <TryDecideView />);
-    await screen.findByRole("button", { name: "เก็บไว้ในแผน" });
-    expect(screen.queryByText(/ใช้สิทธิ์แผนฟรี/)).toBeNull();
-    expect(screen.queryByRole("link", { name: /Plus/ })).toBeNull();
-  });
-
-  it("quota_full: C3b banner with the planQuota numbers, keep disabled, pay and postpone still work", async () => {
-    const api = mk();
-    vi.spyOn(api, "planQuota").mockResolvedValue({ used: 3, limit: 3 });
-    vi.spyOn(api, "addPlan").mockRejectedValue(new ApiError(409, "quota_full", "ใช้สิทธิ์ครบแล้ว"));
     const addEntry = vi.spyOn(api, "addEntry");
     renderWith(api, <TryDecideView />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
-    expect(await screen.findByText("ใช้สิทธิ์แผนฟรีครบแล้ว (3/3) แผนเพิ่มต้องใช้ Plus")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "ดู Plus ›" }).getAttribute("href")).toBe("/app/plus");
-    expect((screen.getByRole("radio", { name: /^เก็บไว้ในแผน/ }) as HTMLInputElement).disabled).toBe(true);
+    await screen.findByRole("button", { name: "เก็บไว้ในแผน" });
+    expect(screen.queryByText(/ใช้สิทธิ์แผนฟรี/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Plus/ })).toBeNull();
 
     // stacked, ยกเลิก right under the confirm button
     const buttons = screen.getAllByRole("button").map((b) => b.textContent);
@@ -358,18 +346,6 @@ describe("TryDecideView (C3)", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/record/done?mode=normal"));
     expect(addEntry).toHaveBeenCalledTimes(1);
     expect(addEntry.mock.calls[0][0]).toEqual({ amount: 48000, category: "other", note: "รองเท้า" });
-  });
-
-  it("quota_full without usable quota numbers: server message in an alert, no invented count", async () => {
-    const api = mk();
-    vi.spyOn(api, "planQuota").mockRejectedValue(new ApiError(501, "not_implemented", "ยังไม่พร้อมใช้งาน"));
-    vi.spyOn(api, "addPlan").mockRejectedValue(new ApiError(409, "quota_full", "ใช้สิทธิ์ครบแล้ว"));
-    renderWith(api, <TryDecideView />);
-    await userEvent.setup().click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
-    const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("ใช้สิทธิ์ครบแล้ว");
-    expect(screen.queryByText(/\d\/\d/)).toBeNull();
-    expect((screen.getByRole("radio", { name: /^เก็บไว้ในแผน/ }) as HTMLInputElement).disabled).toBe(true);
   });
 
   it.each([

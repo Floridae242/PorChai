@@ -17,10 +17,9 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({}),
 }));
 
-import { BalanceAdjustView, PlanEditView, PlanMainView, PlusView } from "./plan-views";
+import { BalanceAdjustView, PlanEditView, PlanMainView } from "./plan-views";
 
 const mk = () => createMockApi({ scenario: "default" });
-const NOT_READY = "ยังไม่พร้อมใช้งาน";
 
 function renderWith(api: PorchaiApi, ui: React.ReactElement) {
   return render(
@@ -109,27 +108,6 @@ describe("PlanMainView — tabs and filters (a11y)", () => {
     expect(income.getAttribute("aria-pressed")).toBe("true");
     expect(all.getAttribute("aria-pressed")).toBe("false");
     expect(screen.getByText("ยังไม่มีรายการในหมวดนี้")).toBeTruthy();
-  });
-});
-
-describe("PlanMainView — quota (H1)", () => {
-  it("planQuota not_implemented: no banner and no 'x/y ฟรี' counter", async () => {
-    const api = mk();
-    currentSearch = "tab=pending";
-    vi.spyOn(api, "planQuota").mockRejectedValue(new ApiError(501, "not_implemented", NOT_READY));
-    renderWith(api, <PlanMainView />);
-    await screen.findByText("รายการที่เก็บไว้ในแผน");
-    expect(screen.queryByText(/ใช้สิทธิ์แผนฟรี/)).toBeNull();
-    expect(screen.queryByText(/รายการฟรี/)).toBeNull();
-  });
-
-  it("planQuota full: banner with the server's numbers", async () => {
-    const api = mk();
-    currentSearch = "tab=pending";
-    vi.spyOn(api, "planQuota").mockResolvedValue({ used: 3, limit: 3 });
-    renderWith(api, <PlanMainView />);
-    expect(await screen.findByText("ใช้สิทธิ์แผนฟรีแล้ว 3/3 ในรอบนี้")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "ดู Plus ›" }).getAttribute("href")).toBe("/app/plus");
   });
 });
 
@@ -333,27 +311,5 @@ describe("BalanceAdjustView (E4)", () => {
     vi.spyOn(api, "summary").mockRejectedValue(new ApiError(500, "internal", "โหลดไม่ได้"));
     renderWith(api, <BalanceAdjustView />);
     expect((await screen.findByRole("alert")).textContent).toContain("โหลดไม่ได้");
-  });
-});
-
-describe("PlusView (C5)", () => {
-  it("shows only Figma's wording, no invented price or bullets; buying says ยังไม่พร้อมใช้งาน", async () => {
-    const api = mk();
-    vi.spyOn(api, "planQuota").mockResolvedValue({ used: 3, limit: 3 });
-    renderWith(api, <PlusView />);
-    expect(await screen.findByText("รอบนี้ใช้สิทธิ์แผนฟรีครบแล้ว (3/3)")).toBeTruthy();
-    expect(document.body.textContent).not.toMatch(/39|ไม่จำกัด|เปรียบเทียบผลกระทบ/);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "ซื้อ Plus 29 บาท" }));
-    expect(screen.getByText(/ยังไม่พร้อมใช้งาน/)).toBeTruthy();
-    expect(screen.getByRole("link", { name: "ไว้ก่อน" }).getAttribute("href")).toBe("/app");
-  });
-
-  it("planQuota not_implemented: no quota line", async () => {
-    const api = mk();
-    vi.spyOn(api, "planQuota").mockRejectedValue(new ApiError(501, "not_implemented", NOT_READY));
-    renderWith(api, <PlusView />);
-    await screen.findByRole("button", { name: "ซื้อ Plus 29 บาท" });
-    expect(screen.queryByText(/ใช้สิทธิ์แผนฟรี/)).toBeNull();
   });
 });
