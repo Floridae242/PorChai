@@ -29,11 +29,36 @@ async function submit(err: unknown) {
   await user.click(screen.getByRole("button", { name: "เริ่มต้นใช้งาน" }));
 }
 
-describe("ConsentPage errors", () => {
+describe("ConsentPage (A1 / A1b / A1c)", () => {
+  it("expands privacy details (A1b) and redirects to /app/setup/income after accepting (A1c)", async () => {
+    const api = createMockApi({ consented: false });
+    const spy = vi.spyOn(api, "acceptConsent");
+    render(
+      <ApiContext.Provider value={api}>
+        <ConsentPage />
+      </ApiContext.Provider>,
+    );
+    const user = userEvent.setup();
+    const startBtn = screen.getByRole("button", { name: "เริ่มต้นใช้งาน" }) as HTMLButtonElement;
+    expect(startBtn.disabled).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: /อ่านรายละเอียดการใช้ข้อมูล/ }));
+    expect(screen.getByText(/รูปใบเสร็จและสลิป \(OCR\)/)).toBeTruthy();
+
+    await user.click(screen.getByRole("checkbox"));
+    expect(startBtn.disabled).toBe(false);
+
+    await user.click(startBtn);
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    expect(replace).toHaveBeenCalledWith("/app/setup/income");
+  });
+
   it("shows an ApiError message and re-enables the button", async () => {
     await submit(new ApiError(500, "boom", "เซิร์ฟเวอร์ขัดข้อง"));
     expect((await screen.findByRole("alert")).textContent).toBe("เซิร์ฟเวอร์ขัดข้อง");
-    await waitFor(() => expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() =>
+      expect((screen.getByRole("button", { name: "เริ่มต้นใช้งาน" }) as HTMLButtonElement).disabled).toBe(false),
+    );
     expect(replace).not.toHaveBeenCalled();
   });
 
