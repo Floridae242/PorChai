@@ -35,6 +35,8 @@ describe("tabForPath", () => {
     ["/app/plus/status", null],
     ["/app/unknown", null],
     ["/app/planet", null],
+    ["/shop/verify", null], // shop owners live outside the shell: it is never mounted there
+    ["/app/shop/verify", null],
   ];
   it.each(cases)("%s -> %s", (path, tab) => {
     expect(tabForPath(path)).toBe(tab);
@@ -46,7 +48,7 @@ describe("hideNav", () => {
     "hides on %s",
     (p) => expect(hideNav(p)).toBe(true),
   );
-  it.each(["/app", "/app/plan", "/app/record/new", "/app/settings/bills", "/app/setupx"])("shows on %s", (p) =>
+  it.each(["/app", "/app/plan", "/app/record/new", "/app/settings/bills", "/app/setupx", "/shop/verify"])("shows on %s", (p) =>
     expect(hideNav(p)).toBe(false),
   );
 });

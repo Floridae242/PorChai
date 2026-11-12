@@ -94,7 +94,7 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     planAction: (id, action, body) =>
       request({ method: "POST", path: `/api/plans/${seg(id)}/${action}`, body }),
 
-    // --- NOT ON THE SERVER YET (backend-gaps 13-19): wire each to its route when it ships ---
+    // --- NOT ON THE SERVER YET (backend-gaps 13-20): wire each to its route when it ships ---
     consent: notImplemented,
     acceptConsent: notImplemented,
     points: notImplemented,
@@ -105,6 +105,13 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     rewards: notImplemented,
     redeemReward: notImplemented,
     shopRedeem: notImplemented,
+    addIncome: notImplemented,
+    dailySpend: notImplemented,
+    categoryTotals: notImplemented,
+    planQuota: notImplemented,
+    reminderSettings: notImplemented,
+    saveReminderSettings: notImplemented,
+    deleteMyData: notImplemented,
     // --- end not-implemented block ---
   };
 }

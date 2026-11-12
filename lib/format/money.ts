@@ -18,6 +18,18 @@ export function formatBaht(satang: Satang): string {
     : `${sign}${wholeText}.${String(frac).padStart(2, "0")}`;
 }
 
+// Satang -> text for an <input> (what parseBahtInput accepts back): no thousands separators, no
+// trailing zeros (4550 -> "45.5", 4500 -> "45"). Inputs are never negative.
+export function satangToInputString(satang: Satang): string {
+  if (!Number.isSafeInteger(satang) || satang < 0) {
+    throw new RangeError(`satang must be a non-negative safe integer, got ${satang}`);
+  }
+  const whole = Math.floor(satang / 100);
+  const frac = satang % 100;
+  if (frac === 0) return String(whole);
+  return `${whole}.${String(frac).padStart(2, "0").replace(/0$/, "")}`;
+}
+
 export function formatBahtOrUnknown(
   satang: Satang | null,
   unknownLabel: string,
@@ -40,7 +52,9 @@ export type ParseBahtResult =
 const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
 
 // Parse user-typed baht into integer satang using string math (no float error).
-export function parseBahtInput(text: string): ParseBahtResult {
+// `allowZero` is for balance fields ("I have 0 left" is a true answer); amounts keep the default (> 0).
+// Negatives are always `not_positive`.
+export function parseBahtInput(text: string, opts?: { allowZero?: boolean }): ParseBahtResult {
   const trimmed = text.trim();
   if (trimmed === "") return { ok: false, reason: "empty" };
 
@@ -61,7 +75,8 @@ export function parseBahtInput(text: string): ParseBahtResult {
   const big =
     BigInt((wholeRaw ?? "0").replace(/,/g, "")) * BigInt(100) +
     BigInt(frac.padEnd(2, "0"));
-  if (minus || big <= BigInt(0)) return { ok: false, reason: "not_positive" };
+  if (minus) return { ok: false, reason: "not_positive" };
+  if (big === BigInt(0) && !opts?.allowZero) return { ok: false, reason: "not_positive" };
   if (big > BigInt(Number.MAX_SAFE_INTEGER))
     return { ok: false, reason: "too_large" };
   return { ok: true, satang: Number(big) };

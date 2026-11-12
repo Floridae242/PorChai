@@ -16,7 +16,7 @@ import {
   START_POINTS,
   type PromoFixture,
 } from "./mock-fixtures";
-import type { PlanActionName, PorchaiApi, Promo, Reward } from "./types";
+import type { CategoryTotal, PlanActionName, PorchaiApi, Promo, ReminderSettings, Reward } from "./types";
 
 export type MockScenario = "fresh" | "default" | "midCycle" | "shortfall" | "tight" | "paydayPassed";
 
@@ -43,6 +43,8 @@ interface StoredEntry extends Entry {
 type StoredPlan = Omit<Plan, "heldThisCycle">;
 
 const MSG_NO_CONSENT = "ต้องยินยอมก่อนใช้งาน";
+const PLAN_QUOTA_LIMIT = 3; // TODO(team): real server limit undecided (3 vs 5); the mock follows 3
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MSG_NO_CYCLE = "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าก่อนเริ่มใช้";
 
 // Why a plan action is refused, by the plan's current status (same texts as lib/db/plans)
@@ -80,6 +82,8 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   const plans: StoredPlan[] = [];
   const entryKeys = new Map<string, string>(); // idempotency key -> entry id
   const planKeys = new Map<string, string>();
+  const incomeKeys = new Set<string>();
+  let reminders: ReminderSettings = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
 
   function pushEntry(
     amount: number,
@@ -217,22 +221,26 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   function promoOf(f: PromoFixture): Promo {
     let fitsBudget: boolean | null = null;
     let leftAfter: number | null = null;
+    let overBy: number | null = null;
     // Money facts stay hidden until consent, like the rest of the financial surface
     if (consented && cycle) {
       const budget = computeBudget(inputOf(cycle));
       if (budget.kind === "ok") {
         leftAfter = budget.todayRemaining - f.price;
         fitsBudget = leftAfter >= 0;
+        overBy = Math.max(0, f.price - budget.todayRemaining);
       }
     }
     const { id, shop, title, price, validDays, terms } = f;
-    return { id, shop, title, price, validDays, terms, sponsored: true, fitsBudget, leftAfter };
+    return { id, shop, title, price, validDays, terms, sponsored: true, fitsBudget, leftAfter, overBy };
   }
   function findPromo(id: string): PromoFixture {
     const f = PROMO_FIXTURES.find((p) => p.id === id);
     if (!f) throw new ApiError(404, "not_found", "ไม่พบโปรนี้");
     return f;
   }
+  const quotaUsed = () =>
+    plans.filter((p) => p.kind === "purchase" && (p.status === "reserved" || p.status === "paid")).length;
   const rewardOf = (r: (typeof REWARD_FIXTURES)[number]): Reward => ({ ...r, stock: stock.get(r.id) ?? 0 });
 
   return {
@@ -381,13 +389,17 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       const known = planKeys.get(key);
       if (known) return planOut(c, findPlan(known));
       const kind = req.kind ?? "purchase";
+      const status = req.status ?? "reserved";
+      if (kind === "purchase" && status === "reserved" && quotaUsed() >= PLAN_QUOTA_LIMIT) {
+        throw new ApiError(409, "quota_full", "ใช้สิทธิ์เก็บไว้ในแผนครบ 3 รายการแล้ว");
+      }
       const p = pushPlan({
         kind,
         title: req.title,
         amount: req.amount,
         dueOn: req.dueOn ?? null,
         category: kind === "purchase" ? (req.category ?? null) : null,
-        status: req.status ?? "reserved",
+        status,
       });
       planKeys.set(key, p.id);
       return planOut(c, p);
@@ -478,6 +490,81 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       const result = { balance: points, code: `RW-${shortCode(`${r.id}:${key}`)}` };
       redeemed.set(key, result);
       return result;
+    },
+
+    async addIncome(req, key) {
+      const c = requireCycle();
+      if (incomeKeys.has(key)) return { summary: summaryOf(c) };
+      const receivedOn = req.receivedOn ?? today;
+      if (!(req.amount > 0)) throw new ApiError(422, "invalid_input", "จำนวนเงินไม่ถูกต้อง");
+      if (receivedOn > today) throw new ApiError(422, "invalid_input", "วันที่รับเงินต้องไม่เกินวันนี้");
+      // Income raises the money on hand: shift the balance anchor (entries after it still come off)
+      c.anchor = { ...c.anchor, amount: c.anchor.amount + req.amount };
+      incomeKeys.add(key);
+      return { summary: summaryOf(c) };
+    },
+
+    async dailySpend() {
+      const c = requireCycle();
+      const rows = entries
+        .filter((e) => e.cancelledAt === null)
+        .map((e) => ({ amount: e.amount, spentOn: e.spentOn, createdAt: e.at, fromPlan: e.source === "plan" }));
+      const budget = computeBudget(inputOf(c));
+      const start = addDays(c.payday, -CYCLE_DAYS);
+      const days = [];
+      for (let date = start; date < c.payday; date = addDays(date, 1)) {
+        const spent = date > today ? null : spentOnDay(rows, date);
+        days.push({ date, spent, over: spent !== null && budget.kind === "ok" && spent > budget.dailyBudget });
+      }
+      return { days };
+    },
+
+    async categoryTotals() {
+      requireCycle();
+      const by = new Map<Entry["category"], CategoryTotal>();
+      for (const e of entries) {
+        if (e.cancelledAt !== null) continue;
+        const t = by.get(e.category) ?? { category: e.category, amount: 0, count: 0 };
+        t.amount += e.amount;
+        t.count += 1;
+        by.set(e.category, t);
+      }
+      return { items: [...by.values()].sort((a, b) => b.amount - a.amount) };
+    },
+
+    async planQuota() {
+      if (!consented) throw new ApiError(403, "no_consent", MSG_NO_CONSENT);
+      return { used: quotaUsed(), limit: PLAN_QUOTA_LIMIT };
+    },
+
+    async reminderSettings() {
+      if (!consented) throw new ApiError(403, "no_consent", MSG_NO_CONSENT);
+      return { ...reminders, habits: [...reminders.habits] };
+    },
+
+    async saveReminderSettings(req) {
+      if (!consented) throw new ApiError(403, "no_consent", MSG_NO_CONSENT);
+      if (!HHMM.test(req.time)) throw new ApiError(422, "invalid_input", "เวลาไม่ถูกต้อง");
+      reminders = { enabled: req.enabled, time: req.time, pausedUntil: req.pausedUntil, habits: reminders.habits };
+      return { ...reminders, habits: [...reminders.habits] };
+    },
+
+    async deleteMyData() {
+      if (!consented) throw new ApiError(403, "no_consent", MSG_NO_CONSENT);
+      consented = false;
+      cycle = null;
+      entries.length = 0;
+      plans.length = 0;
+      entryKeys.clear();
+      planKeys.clear();
+      incomeKeys.clear();
+      reminders = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
+      points = START_POINTS;
+      claimedOn = null;
+      for (const r of REWARD_FIXTURES) stock.set(r.id, r.stock);
+      redeemed.clear();
+      claimedCodes.clear();
+      usedCodes.clear();
     },
 
     async shopRedeem(code) {

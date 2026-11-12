@@ -2,10 +2,13 @@ import type { MockScenario } from "./mock";
 
 export type ApiMode = "mock" | "live";
 
-// NEXT_PUBLIC_API_MODE wins; unset (or invalid) = mock while developing, live in production builds.
+// Production builds are ALWAYS live, even if NEXT_PUBLIC_API_MODE=mock leaks into the build env:
+// real users must never see mock data. Outside production, NEXT_PUBLIC_API_MODE wins;
+// unset (or invalid) = mock.
 export function resolveApiMode(env: string | undefined, nodeEnv: string | undefined): ApiMode {
+  if (nodeEnv === "production") return "live";
   if (env === "mock" || env === "live") return env;
-  return nodeEnv === "production" ? "live" : "mock";
+  return "mock";
 }
 
 const SCENARIOS: readonly MockScenario[] = ["fresh", "default", "midCycle", "shortfall", "tight", "paydayPassed"];

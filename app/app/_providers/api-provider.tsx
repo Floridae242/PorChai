@@ -21,9 +21,13 @@ export function ApiProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (API_MODE !== "mock") return;
+    // Lets the bundler drop the mock chunk from production builds (API_MODE is always live there).
+    if (process.env.NODE_ENV === "production") return;
     let cancelled = false;
     import("@/lib/client/mock").then(({ createMockApi }) => {
-      if (!cancelled) setApi(createMockApi({ scenario: parseScenario(window.location.search) }));
+      if (!cancelled) setApi(createMockApi({
+          scenario: process.env.NODE_ENV !== "production" ? parseScenario(window.location.search) : "default",
+        }));
     });
     return () => {
       cancelled = true;

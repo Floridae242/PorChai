@@ -1,6 +1,7 @@
 // The one interface every screen uses for data. Live and mock implementations both satisfy it.
 import type {
   BalanceCheckRequest,
+  Category,
   EditEntryRequest,
   EntriesResponse,
   EntryResponse,
@@ -15,6 +16,7 @@ import type {
   SimulateResponse,
   Summary,
 } from "@/lib/api-types";
+import type { Satang } from "@/lib/calc/money";
 
 export interface Promo {
   id: string;
@@ -26,6 +28,9 @@ export interface Promo {
   sponsored: true;
   fitsBudget: boolean | null;
   leftAfter: number | null;
+  // How far the promo price is over today's remaining budget: 0 when it fits, null when the
+  // budget is not 'ok' / unknown. Screens show this and never negate leftAfter themselves.
+  overBy: Satang | null;
 }
 
 export interface Reward {
@@ -33,6 +38,53 @@ export interface Reward {
   name: string;
   cost: number; // points
   stock: number;
+}
+
+export interface NewIncomeRequest {
+  amount: Satang;
+  note?: string | null;
+  receivedOn?: string; // YYYY-MM-DD, default today, never future
+}
+
+export interface DailySpendDay {
+  date: string;
+  spent: Satang | null; // null = future day
+  over: boolean;
+}
+export interface DailySpend {
+  days: DailySpendDay[];
+}
+
+export interface CategoryTotal {
+  category: Category;
+  amount: Satang;
+  count: number;
+}
+export interface CategoryTotals {
+  items: CategoryTotal[]; // sorted by amount desc
+}
+
+export interface PlanQuota {
+  used: number;
+  limit: number;
+}
+
+export interface ReminderHabit {
+  id: string;
+  label: string;
+  amount: Satang;
+  time: string; // HH:mm
+}
+export interface ReminderSettings {
+  enabled: boolean;
+  time: string; // HH:mm
+  pausedUntil: string | null;
+  habits: ReminderHabit[];
+}
+export interface SaveReminderSettings {
+  enabled: boolean;
+  time: string;
+  pausedUntil: string | null;
 }
 
 export type PlanActionName = "pay" | "unpay" | "cancel" | "postpone" | "keep";
@@ -61,6 +113,13 @@ export interface PorchaiApi {
   claimPromo(id: string): Promise<{ code: string; expiresAt: string }>;
   rewards(): Promise<Reward[]>;
   redeemReward(id: string, idempotencyKey: string): Promise<{ balance: number; code: string }>;
+  addIncome(req: NewIncomeRequest, idempotencyKey: string): Promise<{ summary: Summary }>;
+  dailySpend(): Promise<DailySpend>;
+  categoryTotals(): Promise<CategoryTotals>;
+  planQuota(): Promise<PlanQuota>;
+  reminderSettings(): Promise<ReminderSettings>;
+  saveReminderSettings(req: SaveReminderSettings): Promise<ReminderSettings>;
+  deleteMyData(): Promise<void>;
   shopRedeem(code: string): Promise<{
     status: "redeemed" | "already_redeemed" | "invalid" | "expired";
     promoTitle?: string;

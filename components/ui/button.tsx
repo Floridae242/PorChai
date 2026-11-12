@@ -17,7 +17,7 @@ const VARIANT: Record<ButtonVariant, string> = {
 };
 
 export function buttonClass(variant: ButtonVariant = "primary", block = false): string {
-  return `inline-flex h-12 items-center justify-center gap-2 rounded-pill px-6 font-body text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${
+  return `inline-flex h-[52px] items-center justify-center gap-2 rounded-pill px-6 font-body text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${
     block ? "w-full" : ""
   } ${VARIANT[variant]}`;
 }

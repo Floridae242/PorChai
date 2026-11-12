@@ -22,7 +22,7 @@ export function tabForPath(pathname: string): TabKey | null {
   return null;
 }
 
-/** Pages rendered without tab bar / sidebar: consent, first-time setup, demo menu, app-open loading. */
+/** Pages rendered without tab bar / sidebar: consent, first-time setup, dev UI gallery, app-open loading. */
 export function hideNav(pathname: string): boolean {
   const p = normalise(pathname);
   return (
