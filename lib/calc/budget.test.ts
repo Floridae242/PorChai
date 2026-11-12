@@ -360,6 +360,12 @@ describe("tryOut — card 14 (try before paying; nothing is saved)", () => {
     expect(r).toMatchObject({ verdict: "ask", needs: ["payday"], before: null });
   });
 
+  it("19: a new buffer counts only after — using the 120 buffer takes 120 a day to 130", () => {
+    const r = tryOut(figma(), { buy: 0, release: 0, emergencyBuffer: 0 });
+    expect(r.before).toMatchObject({ dailyBudget: baht(120) });
+    expect(r.after).toMatchObject({ dailyBudget: baht(130) });
+  });
+
   it("does not change the input it was given", () => {
     const i = central();
     const copy = { ...i };

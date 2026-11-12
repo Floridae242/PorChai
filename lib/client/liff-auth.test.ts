@@ -70,9 +70,13 @@ describe("createLiffAuth.getIdToken login loop guard", () => {
   beforeEach(() => window.sessionStorage.clear());
 
   it("logs in once, then throws 401 when still not logged in (flag set)", async () => {
+    window.history.replaceState(null, "", "/app/consent");
     const { liff, auth } = fakeLiff({ isLoggedIn: vi.fn(() => false) });
     expect(await pending(auth.getIdToken())).toBe("pending");
     expect(liff.login).toHaveBeenCalledTimes(1);
+    const callback = new URL(liff.login.mock.calls[0][0].redirectUri);
+    expect(callback.pathname).toBe("/miniapp");
+    expect(callback.searchParams.get("returnTo")).toBe("/app/consent");
     // a fresh page load: new auth instance, flag survives in sessionStorage
     const again = fakeLiff({ isLoggedIn: vi.fn(() => false) });
     await expect(again.auth.getIdToken()).rejects.toMatchObject({ status: 401, code: "unauthorized", message: "เข้าสู่ระบบ LINE ไม่สำเร็จ" });

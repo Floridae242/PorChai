@@ -118,6 +118,7 @@ export interface SimulateRequest {
   dueOn?: string | null; // after payday = next cycle, changes nothing now (W8)
   postponePlanIds?: string[]; // held plans to try postponing (card 14 / 15 / 23)
   essentials?: { food: number; transport: number }; // just answered, for this try only
+  emergencyBuffer?: number; // card 19: try a new buffer (summary screen before confirming)
 }
 
 export interface SimulateResponse {
@@ -142,4 +143,10 @@ export interface SimulateResponse {
 export interface EssentialsRequest {
   food: number;
   transport: number;
+}
+
+// PUT /api/cycle/buffer — card 19: the new buffer, and the one the summary screen showed
+export interface BufferRequest {
+  amount: number; // the new buffer, not how much to take off (a double tap sets it once)
+  previous: number; // summary.emergencyBuffer as shown; changed meanwhile → 409 stale
 }

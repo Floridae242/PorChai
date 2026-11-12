@@ -6,6 +6,7 @@ import { initializeLiff } from "@/lib/line/liff-client";
 import { verifyMiniAppUser, type MiniAppUser } from "@/lib/line/miniapp-user";
 import { demoCampaign } from "@/lib/campaigns/demo";
 import { formatBaht } from "@/lib/campaigns/money";
+import { appReturnPath } from "@/lib/liff/login-redirect";
 
 type Connection =
   | { status: "loading" }
@@ -29,25 +30,27 @@ export default function MiniApp() {
     async function connect() {
       try {
         const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-        if (!liffId)
-          throw new Error(
-            "ยังไม่ได้ตั้งค่าการเชื่อมต่อ LINE กรุณาติดต่อทีมพอใช้",
-          );
+        if (!liffId) throw new Error("ยังไม่ได้ตั้งค่าการเชื่อมต่อ LINE กรุณาติดต่อทีมพอใช้");
         const liff = await initializeLiff(liffId);
         if (!liff.isLoggedIn()) {
           if (active) setConnection({ status: "login" });
           return;
         }
         const user = await verifyMiniAppUser(liff.getIDToken());
+        const returnTo = appReturnPath(
+          new URLSearchParams(window.location.search).get("returnTo"),
+        );
+        if (active && returnTo) {
+          window.location.replace(returnTo);
+          return;
+        }
         if (active) setConnection({ status: "ready", user });
       } catch (error) {
         if (active)
           setConnection({
             status: "error",
             message:
-              error instanceof Error
-                ? error.message
-                : "เชื่อมต่อ LINE ไม่สำเร็จ",
+              error instanceof Error ? error.message : "เชื่อมต่อ LINE ไม่สำเร็จ",
           });
       }
     }
@@ -60,8 +63,13 @@ export default function MiniApp() {
   async function login() {
     try {
       const liff = await initializeLiff(process.env.NEXT_PUBLIC_LIFF_ID!);
+      const callback = new URL("/miniapp", window.location.origin);
+      const returnTo = appReturnPath(
+        new URLSearchParams(window.location.search).get("returnTo"),
+      );
+      if (returnTo) callback.searchParams.set("returnTo", returnTo);
       liff.login({
-        redirectUri: new URL("/miniapp", window.location.origin).href,
+        redirectUri: callback.href,
       });
     } catch {
       setConnection({
@@ -91,9 +99,7 @@ export default function MiniApp() {
           <h1 className="mt-2 text-3xl font-bold tracking-tight">
             คิดก่อนจ่าย ใช้ได้พอดี
           </h1>
-          <p className="mt-3 text-slate-600">
-            ตัวช่วยเรื่องเงินสำหรับชีวิตนักศึกษา
-          </p>
+          <p className="mt-3 text-slate-600">ตัวช่วยเรื่องเงินสำหรับชีวิตนักศึกษา</p>
         </header>
         <main className="flex-1 space-y-5 px-5 pb-8">
           {connection.status === "loading" && (
@@ -147,8 +153,8 @@ export default function MiniApp() {
                   </a>
                 )}
                 <p className="mt-4 text-xs leading-6 text-slate-500">
-                  Developing ใช้บัญชีที่มีสิทธิ์ทดสอบใน channel
-                  ขณะนี้มีหน้าโปรสมมติ ฟีเจอร์การเงินจริงยังอยู่ระหว่างพัฒนา
+                  Developing ใช้บัญชีที่มีสิทธิ์ทดสอบใน channel ขณะนี้มีหน้าโปรสมมติ
+                  ฟีเจอร์การเงินจริงยังอยู่ระหว่างพัฒนา
                 </p>
               </div>
             </section>
@@ -180,8 +186,7 @@ export default function MiniApp() {
                       ยินดีต้อนรับสู่พอใช้
                     </h2>
                     <p className="mt-3 text-sm leading-7 text-emerald-100">
-                      เชื่อมตัวตนแล้ว
-                      ลองดูข้อเสนอตัวอย่างและแนวทางการใช้งานได้เลย
+                      เชื่อมตัวตนแล้ว ลองดูข้อเสนอตัวอย่างและแนวทางการใช้งานได้เลย
                     </p>
                     <button
                       onClick={() => setSection("offers")}
@@ -232,8 +237,7 @@ export default function MiniApp() {
                   <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
                     <p className="font-semibold">ยังไม่มีโปรที่เปิดรับสิทธิ์</p>
                     <p className="mt-2 text-sm leading-6">
-                      ระหว่างนี้ดูข้อเสนอตัวอย่างด้านล่างได้
-                      ยังไม่เชื่อมแผนเงินส่วนตัวของคุณ
+                      ระหว่างนี้ดูข้อเสนอตัวอย่างด้านล่างได้ ยังไม่เชื่อมแผนเงินส่วนตัวของคุณ
                     </p>
                   </div>
                   <article className="rounded-3xl bg-white p-6 shadow-sm">
@@ -267,15 +271,9 @@ export default function MiniApp() {
                         id="offer-details"
                         className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6"
                       >
-                        <li>
-                          ราคาเสนอ 129 บาทต่อคน รวมค่าใช้จ่ายทั้งหมดตามตัวอย่าง
-                        </li>
-                        <li>
-                          เสนอให้ใช้วันอังคาร วันเริ่ม/หมดอายุและสาขายังรอยืนยัน
-                        </li>
-                        <li>
-                          ยังไม่เปิดรับสิทธิ์ จึงไม่มีการออกโค้ดหรือตัดยอดเงิน
-                        </li>
+                        <li>ราคาเสนอ 129 บาทต่อคน รวมค่าใช้จ่ายทั้งหมดตามตัวอย่าง</li>
+                        <li>เสนอให้ใช้วันอังคาร วันเริ่ม/หมดอายุและสาขายังรอยืนยัน</li>
+                        <li>ยังไม่เปิดรับสิทธิ์ จึงไม่มีการออกโค้ดหรือตัดยอดเงิน</li>
                       </ul>
                     )}
                   </article>
@@ -284,8 +282,7 @@ export default function MiniApp() {
                 <section className="rounded-3xl bg-white p-6">
                   <h2 className="text-xl font-bold">รู้จักพอใช้</h2>
                   <p className="mt-4 leading-7">
-                    พอใช้ตั้งใจช่วยให้จดรายจ่ายง่ายขึ้น
-                    และช่วยคิดก่อนจ่ายจากแผนเงินของตัวเอง
+                    พอใช้ตั้งใจช่วยให้จดรายจ่ายง่ายขึ้น และช่วยคิดก่อนจ่ายจากแผนเงินของตัวเอง
                     นักศึกษาใช้เครื่องมือหลักฟรี
                   </p>
                   <p className="mt-4 leading-7">

@@ -79,15 +79,23 @@ export interface TrialResult {
   overLimitBy: Satang | null; // how far past the purchase limit (W14 "เกินวงเงิน"); null if short or asking
 }
 
-// Try buying `buy` (held this cycle) and postponing held plans worth `release`, without saving anything.
-export function tryOut(input: BudgetInput, change: { buy: Satang; release: Satang }): TrialResult {
+// Try buying `buy` (held this cycle), postponing held plans worth `release` and/or a new emergency
+// buffer (card 19), without saving anything. Only `after` sees the change.
+export function tryOut(
+  input: BudgetInput,
+  change: { buy: Satang; release: Satang; emergencyBuffer?: Satang },
+): TrialResult {
   const needs: Missing[] = [];
   if (input.essentialPerDay === null) needs.push("essentials");
   if (daysBetween(input.today, input.payday) <= 0) needs.push("payday");
   if (needs.length > 0) return { verdict: "ask", needs, before: null, after: null, overLimitBy: null };
 
   const before = computeBudget(input);
-  const after = computeBudget({ ...input, reserved: input.reserved + change.buy - change.release });
+  const after = computeBudget({
+    ...input,
+    reserved: input.reserved + change.buy - change.release,
+    emergencyBuffer: change.emergencyBuffer ?? input.emergencyBuffer,
+  });
   if (after.kind !== "ok") return { verdict: "shortfall", needs, before, after, overLimitBy: null };
   // Both are known here: essentials were checked above
   const spare = after.spare!;
