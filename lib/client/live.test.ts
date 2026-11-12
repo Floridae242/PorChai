@@ -99,6 +99,13 @@ describe("createLiveApi", () => {
       () => api.rewards(),
       () => api.redeemReward("r", "k"),
       () => api.shopRedeem("c"),
+      () => api.addIncome({ amount: 100 }, "k"),
+      () => api.dailySpend(),
+      () => api.categoryTotals(),
+      () => api.planQuota(),
+      () => api.reminderSettings(),
+      () => api.saveReminderSettings({ enabled: true, time: "12:30", pausedUntil: null }),
+      () => api.deleteMyData(),
     ];
     for (const fn of calls) {
       await expect(fn()).rejects.toMatchObject({ status: 501, code: "not_implemented", message: "ฟีเจอร์นี้ยังไม่พร้อมใช้งาน" });

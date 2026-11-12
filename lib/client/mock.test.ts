@@ -239,3 +239,87 @@ describe("mock promos", () => {
     await expectApiError(api.promo("nope"), 404, "not_found");
   });
 });
+
+describe("mock T1b surface (income, aggregates, quota, reminders, delete)", () => {
+  it("addIncome raises balance once per key; rejects 0, negative and future dates", async () => {
+    const api = createMockApi();
+    const first = await api.addIncome({ amount: 50000, note: "ค่าขนม" }, "i1");
+    expect(first.summary.balance).toBe(290000);
+    const again = await api.addIncome({ amount: 50000, note: "ค่าขนม" }, "i1");
+    expect(again.summary.balance).toBe(290000);
+    expect((await api.summary()).balance).toBe(290000);
+    await expectApiError(api.addIncome({ amount: 0 }, "i2"), 422, "invalid_input");
+    await expectApiError(api.addIncome({ amount: -5 }, "i3"), 422, "invalid_input");
+    await expectApiError(api.addIncome({ amount: 100, receivedOn: "2026-11-12" }, "i4"), 422, "invalid_input");
+    expect((await api.summary()).balance).toBe(290000);
+  });
+
+  it("categoryTotals and dailySpend agree with the entries added", async () => {
+    const api = createMockApi();
+    await api.addEntry(food, "a");
+    await api.addEntry({ amount: 3000, category: "food" }, "b");
+    await api.addEntry({ amount: 9000, category: "transport" }, "c");
+    expect((await api.categoryTotals()).items).toEqual([
+      { category: "transport", amount: 9000, count: 1 },
+      { category: "food", amount: 7500, count: 2 },
+    ]);
+    const { days } = await api.dailySpend();
+    expect(days).toHaveLength(12);
+    expect(days[0]).toEqual({ date: "2026-11-11", spent: 16500 + 0, over: true });
+    expect(days[1]).toEqual({ date: "2026-11-12", spent: null, over: false });
+    expect(days.filter((d) => d.spent === null)).toHaveLength(11);
+  });
+
+  it("planQuota counts reserved/paid purchases; the 4th reserved purchase is quota_full", async () => {
+    const api = createMockApi();
+    expect(await api.planQuota()).toEqual({ used: 0, limit: 3 });
+    for (let i = 0; i < 3; i++) await api.addPlan({ title: `p${i}`, amount: 1000 }, `k${i}`);
+    expect(await api.planQuota()).toEqual({ used: 3, limit: 3 });
+    await expectApiError(api.addPlan({ title: "p4", amount: 1000 }, "k4"), 409, "quota_full");
+    // retrying an accepted key is still fine
+    await api.addPlan({ title: "p0", amount: 1000 }, "k0");
+  });
+
+  it("reminderSettings round-trip; invalid time rejected; habits stay empty", async () => {
+    const api = createMockApi();
+    expect(await api.reminderSettings()).toEqual({ enabled: false, time: "12:30", pausedUntil: null, habits: [] });
+    const saved = await api.saveReminderSettings({ enabled: true, time: "08:05", pausedUntil: "2026-12-01" });
+    expect(saved).toEqual({ enabled: true, time: "08:05", pausedUntil: "2026-12-01", habits: [] });
+    expect(await api.reminderSettings()).toEqual(saved);
+    await expectApiError(api.saveReminderSettings({ enabled: true, time: "25:00", pausedUntil: null }), 422, "invalid_input");
+    await expectApiError(api.saveReminderSettings({ enabled: true, time: "8:5", pausedUntil: null }), 422, "invalid_input");
+    expect(await api.reminderSettings()).toEqual(saved);
+  });
+
+  it("deleteMyData returns the instance to fresh and not consented", async () => {
+    const api = createMockApi();
+    await api.addEntry(food, "a");
+    await api.deleteMyData();
+    expect((await api.consent()).accepted).toBe(false);
+    await expectApiError(api.summary(), 403, "no_consent");
+    await api.acceptConsent("v");
+    expect(await api.me()).toEqual({ hasActiveCycle: false });
+    await expectApiError(api.summary(), 409, "no_cycle");
+  });
+
+  it("promos expose overBy: 0 when it fits, positive when over, null without a budget", async () => {
+    const [over, fits] = await createMockApi().promos();
+    expect(over.overBy).toBe(900);
+    expect(fits.overBy).toBe(0);
+    const [moo] = await createMockApi({ scenario: "tight" }).promos();
+    expect(moo.overBy).toBe(12900 - 4000);
+    const [none] = await createMockApi({ scenario: "shortfall" }).promos();
+    expect(none.overBy).toBeNull();
+  });
+
+  it("not consented: new financial methods throw 403 no_consent", async () => {
+    const api = createMockApi({ consented: false });
+    await expectApiError(api.addIncome({ amount: 100 }, "k"), 403, "no_consent");
+    await expectApiError(api.dailySpend(), 403, "no_consent");
+    await expectApiError(api.categoryTotals(), 403, "no_consent");
+    await expectApiError(api.planQuota(), 403, "no_consent");
+    await expectApiError(api.reminderSettings(), 403, "no_consent");
+    await expectApiError(api.saveReminderSettings({ enabled: false, time: "12:30", pausedUntil: null }), 403, "no_consent");
+    await expectApiError(api.deleteMyData(), 403, "no_consent");
+  });
+});
