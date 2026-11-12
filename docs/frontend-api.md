@@ -97,7 +97,7 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 | `essentials` | W7 | ไม่ต้อง | ใส่ `food` + `transport` คู่กัน · **ไม่ใส่ = ยังไม่รู้** (ซื้อได้ไม่เกินจะเป็น `null` ข้อ 5) |
 | `flexibleItems[]` | W8 | ไม่ต้อง | ไม่เกิน 20 · ถ้า `dueOn` หลังวันเงินเข้า = รอบหน้า ไม่หักรอบนี้ |
 
-- ส่ง Figma ชุดข้างบน (ไม่มี `flexibleItems`) → `summary.budget.dailyBudget` = 12000 (120/วัน) · `maxPurchase` = 60000 (600)
+- ส่ง Figma ชุดข้างบน (ไม่มี `flexibleItems`) → `summary.budget.dailyBudget` = 12000 (120/วัน) · `maxPurchase` = 60000 (600) · `dailyBudget` ปัดลงเป็นขั้น 25 สตางค์ (233.33 → 233.25)
 - ตั้งรอบได้ทีละรอบ: มีรอบที่ยังไม่ถึงวันเงินเข้าอยู่แล้ว → 409 `cycle_exists` · ถึงวันเงินเข้าแล้วตั้งใหม่ได้ (รอบเก่าปิด บิล/รายการที่ยังไม่จ่ายย้ายมารอบใหม่)
 - ส่งซ้ำ (กดสองที) ได้รอบเดียว ครั้งที่สองได้ 409 `cycle_exists` → ไปหน้าหลักได้เลย
 
@@ -177,7 +177,7 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 | ช่อง | ตัวอย่าง W12 รองเท้า 480 | W14 หูฟัง 700 |
 |---|---|---|
 | `before.dailyBudget` / `before.maxPurchase` | "ตอนนี้ 120 บาท/วัน · ซื้อได้ไม่เกิน 600" | เหมือนกัน |
-| `after.dailyBudget` | ซื้อทันที **80** บาท/วัน | **61** บาท/วัน |
+| `after.dailyBudget` | ซื้อทันที **80** บาท/วัน | **61.50** บาท/วัน (740÷12 = 61.67 ปัดลงขั้น 25 สตางค์) |
 | ไม่ซื้อ / เลื่อน | ใช้ `before.dailyBudget` (120) | 120 |
 | `overLimitBy` | 0 | **10000** → "เกินวงเงิน 100" |
 | `after.essentialShortPerDay` | 0 | 900 → "ขาดวันละ 9" |

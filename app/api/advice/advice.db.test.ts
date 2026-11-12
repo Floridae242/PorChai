@@ -80,15 +80,15 @@ describe("card 15: POST /api/advice", () => {
     expect(a.explanation).toContain("งบต่อวันจาก 120 เหลือ 95 บาท");
   });
 
-  it("เงินตึง: headphones 700 → short 9 a day; options: spend at most 600, or use the 120 buffer if allowed (→ 71 a day)", async () => {
+  it("เงินตึง: headphones 700 → short 8.50 a day; options: spend at most 600, or use the 120 buffer if allowed (→ 71.50 a day)", async () => {
     await figma();
     const a = await advise("ซื้อหูฟัง 700 ได้มั้ย");
     expect(a.verdict).toBe("tight");
     expect(a.options).toEqual([
       { kind: "spend_less", maxAmount: 60000 },
-      expect.objectContaining({ kind: "use_buffer", buffer: 12000, verdict: "enough", after: expect.objectContaining({ dailyBudget: 7100 }) }),
+      expect.objectContaining({ kind: "use_buffer", buffer: 12000, verdict: "enough", after: expect.objectContaining({ dailyBudget: 7150 }) }),
     ]);
-    expect(a.explanation).toContain("ขาดวันละ 9");
+    expect(a.explanation).toContain("ขาดวันละ 8.5");
     expect(a.explanation).toContain("ลดงบ: ไม่เกิน 600 บาท");
     expect(a.explanation).toContain("ถ้าอนุญาตใช้เงินเผื่อ 120 บาท");
   });

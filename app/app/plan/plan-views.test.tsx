@@ -216,27 +216,34 @@ describe("PlanMainView — plan actions (E1–E3, docs 3.2)", () => {
 });
 
 describe("PlanEditView (E1)", () => {
-  it("E1a change payday: no API, so it says ยังไม่พร้อมใช้งาน and goes nowhere", async () => {
+  it("shows the three Figma option cards with their exact labels", () => {
     renderWith(mk(), <PlanEditView />);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("radio", { name: /เปลี่ยนวันเงินเข้า/ }));
-    await user.click(screen.getByRole("button", { name: "ไปกรอกข้อมูล" }));
-    expect(screen.getByText(/ยังไม่พร้อมใช้งาน/)).toBeTruthy();
-    expect(push).not.toHaveBeenCalled();
+    for (const [t, d] of [
+      ["เปลี่ยนวันเงินเข้า", "เงินเข้าช้าหรือเร็วกว่าที่ตั้งไว้"],
+      ["จดรายรับนอกรอบ", "มีเงินเข้ามานอกรอบ"],
+      ["ปรับยอดให้ตรงเงินจริง", "เงินในแอปไม่ตรงกับเงินที่มีอยู่จริง"],
+    ]) {
+      expect(screen.getByText(t)).toBeTruthy();
+      expect(screen.getByText(d)).toBeTruthy();
+    }
   });
 
-  it("balance option goes to the adjust page", async () => {
-    renderWith(mk(), <PlanEditView />);
-    await userEvent.setup().click(screen.getByRole("button", { name: "ไปกรอกข้อมูล" }));
-    expect(push).toHaveBeenCalledWith("/app/balance/adjust");
-  });
-
-  it("E1b off-cycle income routes to the income form (its not_implemented message is covered in record-views.test.tsx)", async () => {
+  it("the primary button label follows the selected card, and routes there", async () => {
     renderWith(mk(), <PlanEditView />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("radio", { name: /เพิ่มรายรับนอกรอบ/ }));
-    await user.click(screen.getByRole("button", { name: "ไปกรอกข้อมูล" }));
-    expect(push).toHaveBeenCalledWith("/app/record/new?type=income");
+    // default: payday
+    await user.click(screen.getByRole("button", { name: "ไปกรอกวันเงินเข้า" }));
+    expect(push).toHaveBeenLastCalledWith("/app/plan/edit/payday");
+
+    await user.click(screen.getByRole("radio", { name: /จดรายรับนอกรอบ/ }));
+    expect(screen.queryByRole("button", { name: "ไปกรอกวันเงินเข้า" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "ไปกรอกจำนวนเงิน" }));
+    expect(push).toHaveBeenLastCalledWith("/app/record/new?type=income");
+
+    await user.click(screen.getByRole("radio", { name: /ปรับยอดให้ตรงเงินจริง/ }));
+    await user.click(screen.getByRole("button", { name: "ไปปรับยอดให้ตรง" }));
+    expect(push).toHaveBeenLastCalledWith("/app/balance/adjust?back=edit");
+    expect(screen.queryByText(/ยังไม่พร้อมใช้งาน/)).toBeNull();
   });
 });
 
@@ -246,29 +253,67 @@ describe("BalanceAdjustView (E4)", () => {
     const real = await api.summary();
     const adjust = vi.spyOn(api, "adjustBalance");
     renderWith(api, <BalanceAdjustView />);
-    const field = (await screen.findByLabelText("เงินที่มีอยู่จริงตอนนี้ (บาท)")) as HTMLInputElement;
+    const field = (await screen.findByLabelText("เงินจริงที่มีตอนนี้ (บาท)")) as HTMLInputElement;
     await waitFor(() => expect(field.value).toBe(String(real.balance / 100)));
     expect(field.value).not.toContain(",");
 
     fireEvent.change(field, { target: { value: "2,300.5" } });
-    const save = screen.getByRole("button", { name: "ยืนยันปรับยอด" });
+    const save = screen.getByRole("button", { name: "ปรับยอด" });
     fireEvent.click(save);
     fireEvent.click(save);
     await waitFor(() => expect(adjust).toHaveBeenCalledTimes(1));
-    expect(adjust).toHaveBeenCalledWith({ balance: 230050 });
-    expect(await screen.findByText(/ยอดเงินจริงปัจจุบันคือ 2,300\.50 บาท/)).toBeTruthy();
+    expect(adjust).toHaveBeenCalledWith({ balance: 230050, basis: real.basis });
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/balance/done"));
   });
 
   it("a balance of exactly 0 is accepted and sent as satang 0", async () => {
     const api = mk();
     const adjust = vi.spyOn(api, "adjustBalance");
+    const realBasis = (await api.summary()).basis;
     renderWith(api, <BalanceAdjustView />);
     const user = userEvent.setup();
-    const field = (await screen.findByLabelText("เงินที่มีอยู่จริงตอนนี้ (บาท)")) as HTMLInputElement;
+    const field = (await screen.findByLabelText("เงินจริงที่มีตอนนี้ (บาท)")) as HTMLInputElement;
     await user.clear(field);
     await user.type(field, "0");
-    await user.click(screen.getByRole("button", { name: "ยืนยันปรับยอด" }));
-    await waitFor(() => expect(adjust).toHaveBeenCalledWith({ balance: 0 }));
+    await user.click(screen.getByRole("button", { name: "ปรับยอด" }));
+    await waitFor(() => expect(adjust).toHaveBeenCalledWith({ balance: 0, basis: realBasis }));
+  });
+
+  it("shows the Figma card: ยอดในพอใช้ตอนนี้ + อัปเดตล่าสุด, and no preview of a difference", async () => {
+    renderWith(mk(), <BalanceAdjustView />);
+    await screen.findByText(/ยอดในพอใช้ตอนนี้/);
+    expect(screen.getByText("2,400 บาท")).toBeTruthy();
+    expect(screen.getByText(/อัปเดตล่าสุด/)).toBeTruthy();
+    expect(screen.queryByText(/ต่างจากยอด/)).toBeNull();
+  });
+
+  it("409 stale: reloads the summary, says so, keeps what was typed, and the next tap uses the NEW basis", async () => {
+    const api = mk();
+    const first = await api.summary();
+    const adjust = vi.spyOn(api, "adjustBalance");
+    renderWith(api, <BalanceAdjustView />);
+    const user = userEvent.setup();
+    const field = (await screen.findByLabelText("เงินจริงที่มีตอนนี้ (บาท)")) as HTMLInputElement;
+    await user.clear(field);
+    await user.type(field, "2000");
+    // the numbers change elsewhere (a spend logged from the chat)
+    await api.addEntry({ amount: 4500, category: "food" }, "elsewhere");
+    const fresh = await api.summary();
+    expect(fresh.basis).not.toBe(first.basis);
+
+    await user.click(screen.getByRole("button", { name: "ปรับยอด" }));
+    expect(await screen.findByText("ข้อมูลเปลี่ยนไปแล้ว ตรวจยอดอีกครั้งแล้วกดปรับยอดใหม่")).toBeTruthy();
+    expect(adjust).toHaveBeenCalledTimes(1);
+    expect(adjust.mock.calls[0][0]).toEqual({ balance: 200000, basis: first.basis });
+    expect(field.value).toBe("2000");
+    // reloaded: the card shows the new balance, the button is enabled again
+    expect(await screen.findByText("2,355 บาท")).toBeTruthy();
+    const btn = screen.getByRole("button", { name: "ปรับยอด" }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    await user.click(btn);
+    await waitFor(() => expect(adjust).toHaveBeenCalledTimes(2));
+    expect(adjust.mock.calls[1][0]).toEqual({ balance: 200000, basis: fresh.basis });
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/balance/done"));
   });
 
   it("invalid amount: message, no call; server failure: alert, data kept, can retry", async () => {
@@ -276,23 +321,23 @@ describe("BalanceAdjustView (E4)", () => {
     const adjust = vi.spyOn(api, "adjustBalance").mockRejectedValue(new ApiError(500, "internal", "ระบบผิดพลาด"));
     renderWith(api, <BalanceAdjustView />);
     const user = userEvent.setup();
-    const field = (await screen.findByLabelText("เงินที่มีอยู่จริงตอนนี้ (บาท)")) as HTMLInputElement;
+    const field = (await screen.findByLabelText("เงินจริงที่มีตอนนี้ (บาท)")) as HTMLInputElement;
     await user.clear(field);
-    await user.click(screen.getByRole("button", { name: "ยืนยันปรับยอด" }));
+    await user.click(screen.getByRole("button", { name: "ปรับยอด" }));
     expect(screen.getByText("กรุณากรอกจำนวนเงิน")).toBeTruthy();
     expect(screen.queryByText(/มากกว่า 0/)).toBeNull();
     expect(adjust).not.toHaveBeenCalled();
     await user.type(field, "-5");
-    await user.click(screen.getByRole("button", { name: "ยืนยันปรับยอด" }));
+    await user.click(screen.getByRole("button", { name: "ปรับยอด" }));
     expect(screen.getByText("ใส่จำนวนเงินตั้งแต่ 0 ขึ้นไป")).toBeTruthy();
     expect(adjust).not.toHaveBeenCalled();
     await user.clear(field);
 
     await user.type(field, "500");
-    await user.click(screen.getByRole("button", { name: "ยืนยันปรับยอด" }));
+    await user.click(screen.getByRole("button", { name: "ปรับยอด" }));
     expect((await screen.findByRole("alert")).textContent).toContain("ระบบผิดพลาด");
     expect(field.value).toBe("500");
-    await user.click(screen.getByRole("button", { name: "ยืนยันปรับยอด" }));
+    await user.click(screen.getByRole("button", { name: "ปรับยอด" }));
     await waitFor(() => expect(adjust).toHaveBeenCalledTimes(2));
   });
 
@@ -301,8 +346,8 @@ describe("BalanceAdjustView (E4)", () => {
     const real = await api.summary();
     vi.spyOn(api, "summary").mockResolvedValue({ ...real, balance: -1500 });
     renderWith(api, <BalanceAdjustView />);
-    const field = (await screen.findByLabelText("เงินที่มีอยู่จริงตอนนี้ (บาท)")) as HTMLInputElement;
-    await screen.findByText(/ยอดในแอปตอนนี้/);
+    const field = (await screen.findByLabelText("เงินจริงที่มีตอนนี้ (บาท)")) as HTMLInputElement;
+    await screen.findByText(/ยอดในพอใช้ตอนนี้/);
     expect(field.value).toBe("");
   });
 
@@ -311,5 +356,19 @@ describe("BalanceAdjustView (E4)", () => {
     vi.spyOn(api, "summary").mockRejectedValue(new ApiError(500, "internal", "โหลดไม่ได้"));
     renderWith(api, <BalanceAdjustView />);
     expect((await screen.findByRole("alert")).textContent).toContain("โหลดไม่ได้");
+  });
+});
+
+describe("BalanceAdjustView back target", () => {
+  it.each([
+    ["back=edit", "/app/plan/edit"],
+    ["", "/app"],
+    ["back=http://evil.test", "/app"],
+    ["back=EDIT", "/app"],
+  ])("?%s -> %s", async (search, href) => {
+    currentSearch = search;
+    renderWith(mk(), <BalanceAdjustView />);
+    await screen.findByText(/ยอดในพอใช้ตอนนี้/);
+    expect(screen.getByRole("link", { name: "ย้อนกลับ" }).getAttribute("href")).toBe(href);
   });
 });
