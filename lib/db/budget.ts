@@ -1,6 +1,13 @@
 import type { Summary } from "@/lib/api-types";
-import { computeBudget } from "@/lib/calc/budget";
-import { balanceNow, latestAnchor, reservedTotal, spentOnDay, type BalanceAnchor } from "@/lib/calc/inputs";
+import { computeBudget, type BudgetInput } from "@/lib/calc/budget";
+import {
+  balanceNow,
+  latestAnchor,
+  reservedTotal,
+  spentOnDay,
+  type BalanceAnchor,
+  type PlanLike,
+} from "@/lib/calc/inputs";
 import { thaiDate } from "@/lib/calc/time";
 import { getDb } from "@/lib/db/client";
 import { HttpError } from "@/lib/http";
@@ -40,14 +47,29 @@ export async function currentAnchor(cycle: ActiveCycle): Promise<BalanceAnchor> 
   );
 }
 
-// The one place stored rows become calculator input, so chat, screens and reminders agree.
-export async function loadSummary(userId: string, now = new Date()): Promise<Summary> {
+export interface PlanRow {
+  id: string;
+  kind: "bill" | "purchase";
+  amount: number;
+  status: PlanLike["status"];
+  due_on: string | null;
+}
+
+export interface LoadedBudget {
+  cycle: ActiveCycle;
+  anchor: BalanceAnchor;
+  plans: PlanRow[];
+  input: BudgetInput;
+}
+
+// The one place stored rows become calculator input, so chat, screens, tries and reminders agree.
+export async function loadBudget(userId: string, now = new Date()): Promise<LoadedBudget> {
   const db = getDb();
   const cycle = await requireActiveCycle(userId);
   const [anchor, entries, plans] = await Promise.all([
     currentAnchor(cycle),
     db.from("entries").select("amount, spent_on, created_at, source").eq("cycle_id", cycle.id).is("cancelled_at", null),
-    db.from("plans").select("amount, status, due_on").eq("cycle_id", cycle.id),
+    db.from("plans").select("id, kind, amount, status, due_on").eq("cycle_id", cycle.id),
   ]);
   if (entries.error) throw entries.error;
   if (plans.error) throw plans.error;
@@ -59,13 +81,14 @@ export async function loadSummary(userId: string, now = new Date()): Promise<Sum
     createdAt: new Date(e.created_at as string),
     fromPlan: e.source === "plan",
   }));
-  const input = {
+  const planRows = plans.data as PlanRow[];
+  const input: BudgetInput = {
     balance: balanceNow(anchor, rows),
     spentToday: spentOnDay(rows, today),
     emergencyBuffer: cycle.emergency_buffer,
     savings: cycle.savings_amount,
     reserved: reservedTotal(
-      plans.data.map((p) => ({ amount: p.amount, status: p.status, dueOn: p.due_on })),
+      planRows.map((p) => ({ amount: p.amount, status: p.status, dueOn: p.due_on })),
       cycle.payday,
     ),
     // Set together (DB check); null until the user says
@@ -76,9 +99,14 @@ export async function loadSummary(userId: string, now = new Date()): Promise<Sum
     today,
     payday: cycle.payday,
   };
+  return { cycle, anchor, plans: planRows, input };
+}
+
+export async function loadSummary(userId: string, now = new Date()): Promise<Summary> {
+  const { anchor, input } = await loadBudget(userId, now);
   return {
-    today,
-    payday: cycle.payday,
+    today: input.today,
+    payday: input.payday,
     balance: input.balance,
     balanceAsOf: anchor.asOf.toISOString(),
     spentToday: input.spentToday,

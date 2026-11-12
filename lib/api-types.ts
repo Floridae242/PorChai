@@ -1,6 +1,6 @@
 // Request/response shapes shared by the API and the LIFF screens.
 // Money is integer satang everywhere (100 = 1 baht); dates are YYYY-MM-DD in Thai time.
-import type { BudgetResult } from "@/lib/calc/budget";
+import type { BudgetResult, Missing, TrialVerdict } from "@/lib/calc/budget";
 
 export const USER_CATEGORIES = ["food", "transport", "supplies", "other"] as const;
 export type UserCategory = (typeof USER_CATEGORIES)[number];
@@ -110,4 +110,36 @@ export interface EntryResponse {
 
 export interface EntriesResponse {
   entries: Entry[];
+}
+
+// POST /api/simulate — W11–W14 "ลองก่อนจ่าย": nothing is saved
+export interface SimulateRequest {
+  amount?: number; // the item to try; leave out to only try postponing
+  dueOn?: string | null; // after payday = next cycle, changes nothing now (W8)
+  postponePlanIds?: string[]; // held plans to try postponing (card 14 / 15 / 23)
+  essentials?: { food: number; transport: number }; // just answered, for this try only
+}
+
+export interface SimulateResponse {
+  verdict: TrialVerdict; // ok · essentials_short (W14) · shortfall · ask
+  needs: Missing[]; // ask these first: "essentials" (W7) · "payday" (has the money come?)
+  before: BudgetResult | null; // null while asking
+  after: BudgetResult | null;
+  overLimitBy: number | null; // W14 "เกินวงเงิน 100"
+  countsThisCycle: boolean; // false = the item is due after payday
+  checks: {
+    bills: number; // unpaid bills held this cycle
+    billsCovered: boolean;
+    essentialPerDay: number;
+    essentialsCovered: boolean; // W12 "ค่าจำเป็น 70/วัน ยังพอ"
+    savings: number; // never touched by a try
+    emergencyBuffer: number;
+    otherPlans: number; // other held purchases this cycle
+  } | null;
+}
+
+// PUT /api/cycle/essentials — W7 food + transport a day (also answers needs: ["essentials"])
+export interface EssentialsRequest {
+  food: number;
+  transport: number;
 }

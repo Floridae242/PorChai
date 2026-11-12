@@ -1,6 +1,7 @@
+import { requireActiveCycle } from "@/lib/db/budget";
 import { getDb } from "@/lib/db/client";
 import { HttpError } from "@/lib/http";
-import type { NewCycle } from "@/lib/validate";
+import type { Essentials, NewCycle } from "@/lib/validate";
 
 // One transaction in the database (create_cycle): the cycle and every bill / item, or nothing.
 export async function createCycle(userId: string, c: NewCycle, today: string): Promise<void> {
@@ -31,5 +32,16 @@ export async function createCycle(userId: string, c: NewCycle, today: string): P
   if (error?.code === "PR409" || error?.code === "23505") {
     throw new HttpError(409, "cycle_exists", "มีรอบเงินที่ยังไม่ถึงวันเงินเข้าอยู่แล้ว");
   }
+  if (error) throw error;
+}
+
+// W7 / card 14 "ask first": food + transport a day for the active cycle
+export async function setEssentials(userId: string, e: Essentials): Promise<void> {
+  const cycle = await requireActiveCycle(userId);
+  const { error } = await getDb()
+    .from("cycles")
+    .update({ essential_food_daily: e.food, essential_transport_daily: e.transport })
+    .eq("id", cycle.id)
+    .eq("user_id", userId);
   if (error) throw error;
 }

@@ -62,3 +62,34 @@ export function simulatePurchase(input: BudgetInput, amount: Satang): BudgetResu
 export function tomorrowBudget(input: BudgetInput): BudgetResult {
   return computeBudget({ ...input, today: addDays(input.today, 1), spentToday: 0 });
 }
+
+// What must be asked before a try can be answered (card 14 / 03)
+export type Missing = "essentials" | "payday";
+
+// ok = fits, essentials still covered every day · essentials_short = affordable, but the daily budget
+// falls below food + transport (W14) · shortfall = not even the bills, savings and buffer are covered ·
+// ask = something in `needs` must be answered first
+export type TrialVerdict = "ok" | "essentials_short" | "shortfall" | "ask";
+
+export interface TrialResult {
+  verdict: TrialVerdict;
+  needs: Missing[];
+  before: BudgetResult | null;
+  after: BudgetResult | null;
+  overLimitBy: Satang | null; // how far past the purchase limit (W14 "เกินวงเงิน"); null if short or asking
+}
+
+// Try buying `buy` (held this cycle) and postponing held plans worth `release`, without saving anything.
+export function tryOut(input: BudgetInput, change: { buy: Satang; release: Satang }): TrialResult {
+  const needs: Missing[] = [];
+  if (input.essentialPerDay === null) needs.push("essentials");
+  if (daysBetween(input.today, input.payday) <= 0) needs.push("payday");
+  if (needs.length > 0) return { verdict: "ask", needs, before: null, after: null, overLimitBy: null };
+
+  const before = computeBudget(input);
+  const after = computeBudget({ ...input, reserved: input.reserved + change.buy - change.release });
+  if (after.kind !== "ok") return { verdict: "shortfall", needs, before, after, overLimitBy: null };
+  // Both are known here: essentials were checked above
+  const spare = after.spare!;
+  return { verdict: spare < 0 ? "essentials_short" : "ok", needs, before, after, overLimitBy: Math.max(0, -spare) };
+}

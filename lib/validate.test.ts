@@ -6,7 +6,9 @@ import {
   parseNewCycle,
   parseNewEntry,
   parseNewPlan,
+  parseEssentials,
   parsePayPlan,
+  parseTrial,
 } from "@/lib/validate";
 
 const TODAY = "2026-11-11";
@@ -262,5 +264,40 @@ describe("parsePayPlan", () => {
   it("rejects 'bills' or an unknown category", () => {
     rejects(() => parsePayPlan({ category: "bills" }), "หมวด");
     rejects(() => parsePayPlan({ category: "x" }), "หมวด");
+  });
+});
+
+describe("parseTrial", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+
+  it("W11: an item to try, nothing else", () => {
+    expect(parseTrial({ amount: 48000 })).toEqual({ amount: 48000, dueOn: null, postponePlanIds: [], essentials: null });
+  });
+
+  it("14: postponing held plans, with or without an item; duplicates once", () => {
+    expect(parseTrial({ postponePlanIds: [id, id] })).toMatchObject({ amount: 0, postponePlanIds: [id] });
+  });
+
+  it("14: the essentials the user just answered, for this try", () => {
+    expect(parseTrial({ amount: 100, essentials: { food: 5000, transport: 2000 } }).essentials).toEqual({
+      food: 5000,
+      transport: 2000,
+    });
+  });
+
+  it("rejects an empty try, a bad amount, bad plan ids or half the essentials", () => {
+    rejects(() => parseTrial({}), "ราคา");
+    rejects(() => parseTrial({ amount: 0 }), "ยอดเงิน");
+    rejects(() => parseTrial({ postponePlanIds: "x" }), "รายการ");
+    rejects(() => parseTrial({ postponePlanIds: ["x"] }), "แผน");
+    rejects(() => parseTrial({ amount: 100, essentials: { food: 5000 } }), "ทั้งคู่");
+  });
+});
+
+describe("parseEssentials", () => {
+  it("food and transport a day, both required", () => {
+    expect(parseEssentials({ food: 5000, transport: 0 })).toEqual({ food: 5000, transport: 0 });
+    rejects(() => parseEssentials({ food: 5000 }), "ทั้งคู่");
+    rejects(() => parseEssentials({ food: -1, transport: 0 }), "ค่ากิน");
   });
 });

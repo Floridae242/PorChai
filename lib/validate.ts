@@ -175,15 +175,7 @@ export function parseNewCycle(body: unknown, today: string, now: Date): NewCycle
     b.emergencyBuffer === undefined ? 0 : nonNegative(b.emergencyBuffer, "เงินเผื่อต้องเป็นจำนวนสตางค์ ไม่ติดลบ");
   if (savingsAmount + emergencyBuffer > balance) throw invalid("เงินออมรวมเงินเผื่อเกินเงินที่มี");
 
-  let essentials: NewCycle["essentials"] = null;
-  if (b.essentials !== undefined && b.essentials !== null) {
-    const e = asObject(b.essentials);
-    if (e.food === undefined || e.transport === undefined) throw invalid("ค่ากินและค่าเดินทางต่อวันต้องใส่ทั้งคู่");
-    essentials = {
-      food: nonNegative(e.food, "ค่ากินต่อวันต้องเป็นจำนวนสตางค์ ไม่ติดลบ"),
-      transport: nonNegative(e.transport, "ค่าเดินทางต่อวันต้องเป็นจำนวนสตางค์ ไม่ติดลบ"),
-    };
-  }
+  const essentials = b.essentials === undefined || b.essentials === null ? null : parseEssentials(b.essentials);
 
   const bills: NewPlan[] = list(b.bills, "บิล").map((x) => {
     const status = x.status === undefined ? "unpaid" : x.status;
@@ -257,4 +249,44 @@ export function parseNewPlan(body: unknown): PlanRequest {
 export function parsePayPlan(body: unknown): { category: UserCategory | null } {
   const b = asObject(body);
   return { category: b.category === undefined || b.category === null ? null : category(b.category) };
+}
+
+export interface Essentials {
+  food: number;
+  transport: number;
+}
+
+// W7 food + transport a day: both or neither (PUT /api/cycle/essentials, setup, a try)
+export function parseEssentials(body: unknown): Essentials {
+  const e = asObject(body);
+  if (e.food === undefined || e.transport === undefined) throw invalid("ค่ากินและค่าเดินทางต่อวันต้องใส่ทั้งคู่");
+  return {
+    food: nonNegative(e.food, "ค่ากินต่อวันต้องเป็นจำนวนสตางค์ ไม่ติดลบ"),
+    transport: nonNegative(e.transport, "ค่าเดินทางต่อวันต้องเป็นจำนวนสตางค์ ไม่ติดลบ"),
+  };
+}
+
+// POST /api/simulate — try an item and/or postponing held plans; nothing is saved
+export interface Trial {
+  amount: number; // 0 = no item, only postponing
+  dueOn: string | null;
+  postponePlanIds: string[];
+  essentials: Essentials | null; // answered for this try only (null = use the cycle's)
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function parseTrial(body: unknown): Trial {
+  const b = asObject(body);
+  const ids = b.postponePlanIds === undefined ? [] : b.postponePlanIds;
+  if (!Array.isArray(ids)) throw invalid("แผนที่จะลองเลื่อนต้องเป็นรายการ");
+  if (ids.length > MAX_ITEMS) throw invalid(`แผนที่จะลองเลื่อนใส่ได้ไม่เกิน ${MAX_ITEMS} รายการ`);
+  if (!ids.every((id) => typeof id === "string" && UUID.test(id))) throw invalid("รหัสแผนที่จะลองเลื่อนไม่ถูกต้อง");
+  if (b.amount === undefined && ids.length === 0) throw invalid("ใส่ราคาของที่จะลอง หรือแผนที่จะลองเลื่อน");
+  return {
+    amount: b.amount === undefined ? 0 : amount(b.amount),
+    dueOn: b.dueOn === undefined || b.dueOn === null ? null : isoDate(b.dueOn),
+    postponePlanIds: [...new Set(ids as string[])],
+    essentials: b.essentials === undefined || b.essentials === null ? null : parseEssentials(b.essentials),
+  };
 }

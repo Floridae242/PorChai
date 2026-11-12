@@ -5,6 +5,7 @@ import {
   computeBudget,
   simulatePurchase,
   tomorrowBudget,
+  tryOut,
   type BudgetInput,
 } from "@/lib/calc/budget";
 
@@ -304,5 +305,65 @@ describe("computeBudget", () => {
   it("essentials set to 0 on purpose: all usable money is spare", () => {
     const r = computeBudget(input({ balance: baht(1000), days: 10, essentialPerDay: 0 }));
     expect(r).toMatchObject({ kind: "ok", spare: baht(1000), maxPurchase: baht(1000), essentialShortPerDay: 0 });
+  });
+});
+
+describe("tryOut — card 14 (try before paying; nothing is saved)", () => {
+  // Central example: 1,000 · 10 days · essentials 70 a day · equipment 250 + activity 200 held
+  const central = (over: Partial<BudgetInput> = {}) =>
+    input({ balance: baht(1000), reserved: baht(450), essentialPerDay: baht(70), ...over });
+
+  it("W12: shoes 480 → 80 a day, within the 600 limit", () => {
+    const r = tryOut(figma(), { buy: baht(480), release: 0 });
+    expect(r).toMatchObject({ verdict: "ok", needs: [], overLimitBy: 0 });
+    expect(r.before).toMatchObject({ dailyBudget: baht(120), maxPurchase: baht(600) });
+    expect(r.after).toMatchObject({ dailyBudget: baht(80), essentialShortPerDay: 0 });
+  });
+
+  it("W14: headphones 700 → over the limit by 100, 61 a day, essentials short 9 a day", () => {
+    const r = tryOut(figma(), { buy: baht(700), release: 0 });
+    expect(r).toMatchObject({ verdict: "essentials_short", overLimitBy: baht(100) });
+    expect(r.after).toMatchObject({ dailyBudget: baht(61), essentialShortPerDay: baht(9) });
+  });
+
+  it("14: doing every plan leaves the central example 150 short", () => {
+    const r = tryOut(central(), { buy: 0, release: 0 });
+    expect(r).toMatchObject({ verdict: "essentials_short", overLimitBy: baht(150) });
+  });
+
+  it("14: trying to postpone activity 200 leaves 50 spare", () => {
+    const r = tryOut(central(), { buy: 0, release: baht(200) });
+    expect(r.verdict).toBe("ok");
+    expect(r.after).toMatchObject({ spare: baht(50) });
+  });
+
+  it("14: income still to come is not money today — 1,200 on 1,000 is short 200", () => {
+    const r = tryOut(central({ reserved: 0 }), { buy: baht(1200), release: 0 });
+    expect(r.verdict).toBe("shortfall");
+    expect(r.after).toMatchObject({ kind: "shortfall", shortfall: baht(200) });
+    expect(r.overLimitBy).toBeNull();
+  });
+
+  it("14: the daily average is not the purchase limit — 100 a day, but 300 is the most for one item", () => {
+    const r = tryOut(central({ reserved: 0 }), { buy: 0, release: 0 });
+    expect(r.before).toMatchObject({ dailyBudget: baht(100), maxPurchase: baht(300) });
+    expect(tryOut(central({ reserved: 0 }), { buy: baht(301), release: 0 }).verdict).toBe("essentials_short");
+  });
+
+  it("14: essentials unknown → ask first, no numbers", () => {
+    const r = tryOut(central({ essentialPerDay: null }), { buy: baht(100), release: 0 });
+    expect(r).toEqual({ verdict: "ask", needs: ["essentials"], before: null, after: null, overLimitBy: null });
+  });
+
+  it("03: payday today → ask whether the money came, never divide by zero", () => {
+    const r = tryOut(central({ payday: TODAY }), { buy: baht(100), release: 0 });
+    expect(r).toMatchObject({ verdict: "ask", needs: ["payday"], before: null });
+  });
+
+  it("does not change the input it was given", () => {
+    const i = central();
+    const copy = { ...i };
+    tryOut(i, { buy: baht(300), release: baht(200) });
+    expect(i).toEqual(copy);
   });
 });
