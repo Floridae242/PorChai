@@ -10,6 +10,7 @@ import type {
   NewEntryRequest,
   NewPlanRequest,
   PayPlanRequest,
+  PaydayRequest,
   PlanResponse,
   PlansResponse,
   SimulateRequest,
@@ -94,6 +95,8 @@ export interface PorchaiApi {
   cancelEntry(id: string): Promise<EntryResponse>;
   adjustBalance(req: BalanceCheckRequest): Promise<{ summary: Summary }>;
   simulate(req: SimulateRequest): Promise<SimulateResponse>;
+  // Card 23: confirm a moved payday with the basis of the simulate that showed it; 409 'stale' if it changed
+  changePayday(req: PaydayRequest): Promise<{ summary: Summary }>;
   setEssentials(req: EssentialsRequest): Promise<{ summary: Summary }>;
   plans(): Promise<PlansResponse>;
   addPlan(req: NewPlanRequest, idempotencyKey: string): Promise<PlanResponse>;

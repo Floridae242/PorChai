@@ -97,7 +97,7 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 | `essentials` | W7 | ไม่ต้อง | ใส่ `food` + `transport` คู่กัน · **ไม่ใส่ = ยังไม่รู้** (ซื้อได้ไม่เกินจะเป็น `null` ข้อ 5) |
 | `flexibleItems[]` | W8 | ไม่ต้อง | ไม่เกิน 20 · ถ้า `dueOn` หลังวันเงินเข้า = รอบหน้า ไม่หักรอบนี้ |
 
-- ส่ง Figma ชุดข้างบน (ไม่มี `flexibleItems`) → `summary.budget.dailyBudget` = 12000 (120/วัน) · `maxPurchase` = 60000 (600)
+- ส่ง Figma ชุดข้างบน (ไม่มี `flexibleItems`) → `summary.budget.dailyBudget` = 12000 (120/วัน) · `maxPurchase` = 60000 (600) · `dailyBudget` ปัดลงเป็นขั้น 25 สตางค์ (233.33 → 233.25)
 - ตั้งรอบได้ทีละรอบ: มีรอบที่ยังไม่ถึงวันเงินเข้าอยู่แล้ว → 409 `cycle_exists` · ถึงวันเงินเข้าแล้วตั้งใหม่ได้ (รอบเก่าปิด บิล/รายการที่ยังไม่จ่ายย้ายมารอบใหม่)
 - ส่งซ้ำ (กดสองที) ได้รอบเดียว ครั้งที่สองได้ 409 `cycle_exists` → ไปหน้าหลักได้เลย
 

@@ -38,6 +38,7 @@ export function computeBudget(input: BudgetInput): BudgetResult {
 
   // Today's spending is added back so the daily budget and purchase limit stay stable as the day goes on.
   const usableAtDayStart = usable + input.spentToday;
+  // Rounded down to 25 satang (QA rule R3-quarter), so it never promises money that is not there.
   const dailyBudget = floorToQuarter(usableAtDayStart / daysLeft);
   const essential = input.essentialPerDay;
   const spare = essential === null ? null : floorToBaht(usableAtDayStart - essential * daysLeft);

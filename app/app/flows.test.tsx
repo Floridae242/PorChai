@@ -79,7 +79,8 @@ describe("Phase 2 Core Flows (G05–G12)", () => {
       </ApiContext.Provider>,
     );
     expect(await screen.findByText(/เกินวงเงินที่ซื้อได้โดยไม่กระทบค่าจำเป็นไป 100 บาท/)).toBeTruthy();
-    expect(screen.getByText("61.50")).toBeTruthy(); // R3-quarter: 740 / 12 = 61.67 → 61.50
+    // (1,440 − 700) ÷ 12 = 61.666… → 61.50 (25-satang step)
+    expect(screen.getByText("61.50")).toBeTruthy();
   });
 
   it("G06: saves plan via เก็บไว้ในแผน on TryDecideView (C3 -> C4)", async () => {

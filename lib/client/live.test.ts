@@ -154,3 +154,46 @@ describe("createLiveApi", () => {
     expect(calls[11].init.body).toBeUndefined();
   });
 });
+
+describe("createLiveApi card 23 (payday / basis)", () => {
+  it("changePayday is PUT /api/cycle/payday with {payday, basis}", async () => {
+    const { api, calls } = setup([json(200, { summary: { payday: "2026-11-26" } })]);
+    const res = await api.changePayday({ payday: "2026-11-26", basis: "b-1" });
+    expect(res.summary.payday).toBe("2026-11-26");
+    expect(calls[0].url).toBe("https://x.test/api/cycle/payday");
+    expect(calls[0].init.method).toBe("PUT");
+    expect(hdr(calls[0], "Authorization")).toBe("Bearer tok-1");
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ payday: "2026-11-26", basis: "b-1" });
+  });
+
+  it("changePayday refreshes the token once on 401", async () => {
+    const { api, calls, refreshIdToken } = setup([
+      json(401, { error: { code: "unauthorized", message: "x" } }),
+      json(200, { summary: {} }),
+    ]);
+    await api.changePayday({ payday: "2026-11-26", basis: "b-1" });
+    expect(refreshIdToken).toHaveBeenCalledTimes(1);
+    expect(hdr(calls[1], "Authorization")).toBe("Bearer tok-2");
+  });
+
+  it("a 409 stale from the server surfaces as ApiError code stale (payday, balance, plans)", async () => {
+    const stale = () => json(409, { error: { code: "stale", message: "ข้อมูลเปลี่ยนไปแล้ว ดูผลคำนวณใหม่ก่อนยืนยัน" } });
+    const { api } = setup([stale(), stale(), stale()]);
+    for (const p of [
+      api.changePayday({ payday: "2026-11-26", basis: "old" }),
+      api.adjustBalance({ balance: 100, basis: "old" }),
+      api.addPlan({ title: "x", amount: 100, basis: "old" }, "k"),
+    ]) {
+      await expect(p).rejects.toMatchObject({ status: 409, code: "stale" });
+      await expect(p).rejects.toBeInstanceOf(ApiError);
+    }
+  });
+
+  it("adjustBalance and addPlan pass basis through in the body", async () => {
+    const { api, calls } = setup([json(200, { summary: {} }), json(201, { plan: {}, summary: {} })]);
+    await api.adjustBalance({ balance: 100, basis: "b-2" });
+    await api.addPlan({ title: "x", amount: 100, basis: "b-3" }, "k");
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ balance: 100, basis: "b-2" });
+    expect(JSON.parse(String(calls[1].init.body))).toMatchObject({ basis: "b-3" });
+  });
+});

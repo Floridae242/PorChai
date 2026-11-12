@@ -14,11 +14,12 @@ import { ApiError } from "@/lib/client/errors";
 import { clearTryDraft, loadTryDraft, saveTryDraft, type TryItemDraft } from "@/lib/client/try-draft";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
-import { essentialsFromDaily } from "@/lib/client/essentials";
+import { essentialsFromDaily, parseEssentialsInput } from "@/lib/client/essentials";
 import { formatBaht, parseBahtInput, type ParseBahtResult } from "@/lib/format/money";
 
 // Shown when the user leaves the name empty. A label, not data.
 const DEFAULT_TITLE = "ของที่อยากซื้อ";
+const MSG_STALE_TRY = "ข้อมูลเปลี่ยนไปแล้ว ลองดูผลใหม่";
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
@@ -37,19 +38,6 @@ const AMOUNT_MESSAGES: Record<AmountFailure, string> = {
   too_many_decimals: "ใส่ทศนิยมได้ไม่เกิน 2 ตำแหน่ง",
   too_large: "ราคาสูงเกินไป ตรวจตัวเลขอีกครั้ง",
 };
-
-// "No daily essentials at all" is a real answer (docs 5: set 0), but parseBahtInput rejects zero.
-const ZERO_TEXT = /^[0๐]+(\.[0๐]*)?$/;
-const MSG_ESSENTIALS_EMPTY = "ใส่ค่าจำเป็นต่อวันก่อน (ถ้าไม่มีเลยให้ใส่ 0)";
-
-function parseEssentialsInput(text: string): { ok: true; satang: Satang } | { ok: false; message: string } {
-  const trimmed = text.trim();
-  if (trimmed === "") return { ok: false, message: MSG_ESSENTIALS_EMPTY };
-  if (ZERO_TEXT.test(trimmed)) return { ok: true, satang: 0 };
-  const parsed = parseBahtInput(trimmed);
-  if (parsed.ok) return { ok: true, satang: parsed.satang };
-  return { ok: false, message: AMOUNT_MESSAGES[parsed.reason].replace("ราคา", "ค่าจำเป็น") };
-}
 
 // ---------------------------------------------------------------- C1
 
@@ -187,6 +175,8 @@ export function TryResultView() {
         if (cancelled) return;
         setSim(res);
         setLoading(false);
+        // card 23: the decide page confirms with the basis of the try it came from
+        saveTryDraft({ ...item, basis: res.basis });
       })
       .catch((err) => {
         if (cancelled) return;
@@ -494,6 +484,7 @@ export function TryDecideView() {
   const [item, setItem] = useState<TryItemDraft | null>(null);
   const [decision, setDecision] = useState<Decision | null>("keep");
   const [error, setError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
   // One guard for all three actions: one lock, key follows {action, item}.
   const { submit, busy } = useSubmit<string | null>();
 
@@ -514,6 +505,7 @@ export function TryDecideView() {
   async function handleConfirm() {
     if (!item || !decision) return;
     setError(null);
+    setStale(false);
     const payload = { action: decision, title: item.title, amount: item.amount, dueOn: item.dueOn };
     const result = await submit(payload, async (key) => {
       if (decision === "pay") {
@@ -528,6 +520,8 @@ export function TryDecideView() {
           kind: "purchase",
           status: decision === "keep" ? "reserved" : "postponed",
           dueOn: item.dueOn,
+          // card 23: confirm against the numbers the result page showed; changed since → 409 stale
+          ...(item.basis ? { basis: item.basis } : {}),
         },
         key,
       );
@@ -544,6 +538,12 @@ export function TryDecideView() {
     }
     if ("skipped" in result) return;
 
+    if (isCode(result.error, "stale")) {
+      setStale(true);
+      setError(MSG_STALE_TRY);
+      return;
+    }
+    setStale(false);
     setError(errorText(result.error, "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง"));
   }
 
@@ -596,7 +596,13 @@ export function TryDecideView() {
         })}
       </div>
 
-      {error ? <Banner kind="error" text={error} /> : null}
+      {error ? (
+        <Banner
+          kind="error"
+          text={error}
+          action={stale ? { label: "ลองดูผลใหม่", href: "/app/try/result" } : undefined}
+        />
+      ) : null}
 
       <div className="flex flex-col gap-4">
         <Button
