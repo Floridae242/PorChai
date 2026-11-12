@@ -190,11 +190,11 @@ export function SummaryView() {
         </Link>
       </div>
 
-      <section className="flex items-center justify-between gap-3 rounded-md border border-line bg-accent-reward-bg p-4">
+      <section className="flex items-center justify-between gap-3 rounded-md border border-line bg-reward-bg p-4">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-primary">สะสมแต้มรายวัน</span>
-            <span className="rounded-pill bg-accent-reward px-2 py-0.5 text-xs font-bold text-primary">
+            <span className="rounded-pill bg-reward px-2 py-0.5 text-xs font-bold text-primary">
               {points.balance} แต้ม
             </span>
           </div>
@@ -203,7 +203,7 @@ export function SummaryView() {
           </Link>
         </div>
         {points.claimedToday ? (
-          <span className="rounded-pill border border-line-strong bg-card px-4 py-2 text-xs font-semibold text-status-ok">
+          <span className="rounded-pill border border-line-strong bg-card px-4 py-2 text-xs font-semibold text-ok">
             รับแต้มฟรีแล้ววันนี้ ✓
           </span>
         ) : (

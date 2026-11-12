@@ -153,7 +153,7 @@ export function TodayHero({ summary, daily, initialView = "today" }: TodayHeroPr
             {bars.map((bar) => (
               <div key={bar.date} className="flex h-full flex-col items-center justify-end gap-1">
                 {bar.over ? (
-                  <span className="rounded-pill bg-status-warn-bg px-1 text-[9px] font-bold text-status-warn">
+                  <span className="rounded-pill bg-warn-bg px-1 text-[9px] font-bold text-warn">
                     เกิน
                   </span>
                 ) : null}
@@ -166,7 +166,7 @@ export function TodayHero({ summary, daily, initialView = "today" }: TodayHeroPr
                     bar.spent === null
                       ? "bg-white/15"
                       : bar.over
-                        ? "bg-accent-reward"
+                        ? "bg-reward"
                         : bar.isToday
                           ? "bg-action-primary"
                           : "bg-[var(--chart-past)]"

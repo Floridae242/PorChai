@@ -150,7 +150,7 @@ export function ConsentView() {
         </label>
 
         {error ? (
-          <p role="alert" className="rounded-sm bg-status-danger-bg px-3 py-2 text-sm text-status-danger">
+          <p role="alert" className="rounded-sm bg-danger-bg px-3 py-2 text-sm text-danger">
             {error}
           </p>
         ) : null}

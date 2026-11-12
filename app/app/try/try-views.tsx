@@ -402,7 +402,7 @@ export function TryResultView() {
               <span className="text-sm font-semibold text-secondary">บาท/วัน</span>
             </div>
           ) : afterShortfall !== null ? (
-            <span className="text-xl font-bold text-status-danger">ขาดอีก {formatBaht(afterShortfall)} บาท</span>
+            <span className="text-xl font-bold text-danger">ขาดอีก {formatBaht(afterShortfall)} บาท</span>
           ) : null}
           <span className="text-xs text-secondary">งบรายวันตลอดรอบที่เหลือ</span>
         </button>
@@ -431,7 +431,7 @@ export function TryResultView() {
           <h3 className="font-semibold text-primary">ถ้าซื้อ {formatBaht(item.amount)} บาท จะกระทบอะไร</h3>
           <ul className="flex flex-col gap-1.5 text-xs">
             <li className="flex items-center gap-2">
-              <span className={checks.billsCovered ? "font-bold text-status-ok" : "font-bold text-status-danger"}>
+              <span className={checks.billsCovered ? "font-bold text-ok" : "font-bold text-danger"}>
                 {checks.billsCovered ? "✓" : "✕"}
               </span>
               <span className="text-primary">
@@ -439,7 +439,7 @@ export function TryResultView() {
               </span>
             </li>
             <li className="flex items-center gap-2">
-              <span className={checks.essentialsCovered ? "font-bold text-status-ok" : "font-bold text-status-warn"}>
+              <span className={checks.essentialsCovered ? "font-bold text-ok" : "font-bold text-warn"}>
                 {checks.essentialsCovered ? "✓" : "⚠"}
               </span>
               <span className="text-primary">
@@ -453,7 +453,7 @@ export function TryResultView() {
               </span>
             </li>
             <li className="flex items-center gap-2">
-              <span className="font-bold text-status-ok">✓</span>
+              <span className="font-bold text-ok">✓</span>
               <span className="text-primary">
                 เป้าออม {formatBaht(checks.savings)} บาท และเงินเผื่อ {formatBaht(checks.emergencyBuffer)} บาท ไม่ถูกแตะ
               </span>

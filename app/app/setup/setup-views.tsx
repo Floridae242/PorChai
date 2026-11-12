@@ -465,7 +465,7 @@ function ReviewForm({ draft }: { draft: SetupDraft }) {
           </>
         ) : (
           <>
-            <span className="text-sm font-medium text-status-danger">{`ยังขาดอีก ${formatBaht(budget.kind === "shortfall" ? budget.shortfall : 0)} บาท`}</span>
+            <span className="text-sm font-medium text-danger">{`ยังขาดอีก ${formatBaht(budget.kind === "shortfall" ? budget.shortfall : 0)} บาท`}</span>
             <p className="text-xs text-secondary">
               อีก {budget.daysLeft} วันถึงวันเงินเข้า ({paydayLabel}) · ตรวจตัวเลขที่กรอกอีกครั้ง
               หรือเลื่อนบิลที่จ่ายทีหลังได้ออกจากรอบนี้
