@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "@/components/shell/toast";
@@ -22,7 +22,8 @@ import { ShopVerifyView } from "../shop/verify/shop-verify-view";
 import { PlanMainView } from "./plan/plan-views";
 import { RecordNewView } from "./record/record-views";
 import { SettingsNotificationsView } from "./settings/settings-views";
-import { saveTryDraft, TryDecideView, TryResultView } from "./try/try-views";
+import { saveTryDraft } from "@/lib/client/try-draft";
+import { TryDecideView, TryResultView } from "./try/try-views";
 
 describe("Phase 2 Core Flows (G05–G12)", () => {
   beforeEach(() => {
@@ -90,8 +91,8 @@ describe("Phase 2 Core Flows (G05–G12)", () => {
       </ApiContext.Provider>,
     );
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "เก็บไว้ในแผน" }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/try/saved"));
+    await user.click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(expect.stringMatching(/^\/app\/try\/saved\?plan=plan-/)));
 
     const sum = await api.summary();
     expect(sum.budget.kind === "ok" && sum.budget.dailyBudget).toBe(8000);
@@ -154,8 +155,9 @@ describe("Phase 2 Core Flows (G05–G12)", () => {
     );
     const user = userEvent.setup();
     expect(await screen.findByText("รองเท้า")).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "ยืนยันจ่ายจริง" }));
-    expect((await screen.findAllByText("ยืนยันจ่ายจริงแล้ว ✓")).length).toBeGreaterThan(0);
+    const row = screen.getByText("รองเท้า").closest("li") as HTMLElement;
+    await user.click(within(row).getByRole("button", { name: "จ่ายแล้ว" }));
+    expect((await screen.findAllByText("จ่ายแล้ว ✓")).length).toBeGreaterThan(0);
     unmount();
 
     const { unmount: unmountR1 } = render(
