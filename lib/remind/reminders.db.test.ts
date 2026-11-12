@@ -273,6 +273,18 @@ describe("the reminder card's buttons (โฟรวิว's card, card 58)", () 
     expect((await entries()).filter((x) => x.source === "reminder")).toEqual([expect.objectContaining({ amount: 6000 })]);
   });
 
+  it("phone 13 Nov: ใช่ จดเลย, then แก้ยอด → «20» changes that entry to 20 (not «จดไว้แล้ว 50»), still one entry", async () => {
+    const bs = await reminded();
+    await tap(data(bs, "ใช่ จดเลย"));
+    await tap(data(bs, "แก้ยอด"));
+    expect(flat(lastReply())).toContain("พิมพ์ยอดใหม่ของ ข้าวเที่ยง");
+    expect(flat(lastReply())).toContain("ตอนนี้ 50 บาท");
+    await chat("20");
+    expect(lastReply().type).toBe("flex");
+    expect(flat(lastReply())).toContain("แก้แล้ว ✓ ข้าวเที่ยง 20 บาท");
+    expect((await entries()).filter((x) => x.source === "reminder")).toEqual([expect.objectContaining({ amount: 2000 })]);
+  });
+
   it("วันนี้ไม่ได้ซื้อ: nothing recorded, and not reminded again today", async () => {
     const bs = await reminded();
     await tap(data(bs, "วันนี้ไม่ได้ซื้อ"));

@@ -52,6 +52,19 @@ describe("parseExpense — unclear messages are asked, never recorded", () => {
     }
   });
 
+  it("money in or another day is asked back, never recorded as today's spend", () => {
+    for (const t of ["รับ 500", "รับเงิน 500", "เงินเข้า 1000", "ได้เงิน 300", "รายรับ 200"]) {
+      expect(parseExpense(t), t).toEqual({ kind: "ask", reason: "income" });
+    }
+    for (const t of ["เมื่อวาน ข้าว 45", "ข้าว 45 เมื่อวาน", "เมื่อคืน ชาบู 300", "วานนี้ กาแฟ 40"]) {
+      expect(parseExpense(t), t).toEqual({ kind: "ask", reason: "backdated" });
+    }
+  });
+
+  it("names that only contain those words are still spends", () => {
+    for (const t of ["ค่ารับส่ง 50", "ข้าวมื้อเย็น 60", "ของขวัญวันเกิด 300"]) expect(parseExpense(t).kind, t).toBe("entry");
+  });
+
   it("an amount with no name", () => {
     expect(parseExpense("50")).toEqual({ kind: "ask", reason: "no_title" });
     expect(parseExpense("50 บาท")).toEqual({ kind: "ask", reason: "no_title" });

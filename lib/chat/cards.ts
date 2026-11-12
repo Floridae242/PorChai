@@ -92,6 +92,20 @@ export const askNewAmountMessage = (e: RecordedEntry): TextMessage =>
 
 export const entryNotFoundMessage = (): TextMessage => text("ไม่พบรายการนี้ อาจถูกลบไปแล้วครับ");
 
+// Rich menu [จดรายรับ/จ่าย]: only what the chat records today. โฟรวิว's how-to card also shows «รับ 500»
+// and «เมื่อวาน ข้าว 45», which the chat cannot record yet (they are asked back), so it is not used here.
+export const howToRecordMessage = (): TextMessage =>
+  text(
+    "จดรายจ่าย พิมพ์ชื่อกับยอดได้เลยครับ เช่น «ข้าว 45»\nหลายรายการพิมพ์ในข้อความเดียวได้ เช่น «ข้าว 45 กาแฟ 55» แล้วกดยืนยัน\nรายรับหรือจดย้อนหลัง กรอกในแอปได้เลย",
+    [{ type: "uri", label: "กรอกในแอป", uri: miniAppUrl("/app/record/new") }],
+  );
+
+// Rich menu [ลองก่อนจ่าย]
+export const howToTryMessage = (): TextMessage =>
+  text("ลองก่อนจ่าย พิมพ์ของกับราคาแล้วถามได้เลยครับ เช่น «ชาบู 300 ไหวไหม» หรือ «ถ้าซื้อรองเท้า 500 จะเหลือวันละเท่าไร»", [
+    { type: "uri", label: "ลองในแอป", uri: miniAppUrl("/app/try") },
+  ]);
+
 export const notWiredMessage = (): TextMessage => text("ปุ่มนี้ยังใช้ไม่ได้ครับ ทำในแอปได้เลย");
 
 // Card 58 (Figma F2): the reminder, and the answers to its buttons

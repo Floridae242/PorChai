@@ -3,7 +3,7 @@ import type { UserCategory } from "@/lib/api-types";
 // Card 09: read a short chat message such as «ข้าว 50». Pure, so every rule is a unit test.
 // Anything unclear is asked back, never guessed (no number words, no AI: "ไม่ขยายรองรับภาษาทุกแบบ").
 
-export type AskReason = "no_amount" | "many_amounts" | "approximate" | "no_title" | "too_large";
+export type AskReason = "no_amount" | "many_amounts" | "approximate" | "no_title" | "too_large" | "income" | "backdated";
 
 export type ParsedExpense =
   | { kind: "entry"; title: string; amount: number; category: UserCategory }
@@ -15,6 +15,10 @@ export const MAX_TITLE = 40; // fits a LINE postback with room to spare
 const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
 // «ร้อยกว่า», «ประมาณ 50», «~50», «40-50»: the user does not know the exact amount yet
 const APPROXIMATE = /กว่า|ประมาณ|ราว|เกือบ|~|\d\s*-\s*\d/;
+// Not spends the chat can record yet: money in (no income in chat) and another day (it would be saved as
+// today). Asked back, never recorded as a spend (โฟรวิว's how-to card showed «รับ 500», «เมื่อวาน ข้าว 45»).
+const INCOME = /^(รับเงิน|รับ|เงินเข้า|ได้เงิน|รายรับ)/;
+const BACKDATED = /เมื่อวาน|วานนี้|เมื่อคืน/;
 const NUMBER = /\d+(?:\.\d{1,2})?/g;
 const CURRENCY = /บาท|฿|\.-/g;
 
@@ -61,6 +65,8 @@ export function amountOnly(raw: string): number | null {
 export function parseExpense(raw: string): ParsedExpense {
   const text = clean(raw);
 
+  if (INCOME.test(text)) return { kind: "ask", reason: "income" };
+  if (BACKDATED.test(text)) return { kind: "ask", reason: "backdated" };
   if (APPROXIMATE.test(text)) return { kind: "ask", reason: "approximate" };
   const numbers = text.match(NUMBER) ?? [];
   if (numbers.length === 0) return { kind: "ask", reason: "no_amount" };

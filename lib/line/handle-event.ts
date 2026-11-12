@@ -20,6 +20,8 @@ import {
   reminderSkippedMessage,
   entryNotFoundMessage,
   isUserCategory,
+  howToRecordMessage,
+  howToTryMessage,
   notWiredMessage,
   recordedCard,
   todayCard,
@@ -171,7 +173,7 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     return spend(userId, { title: parsed.title, amount: parsed.amount, category: parsed.category, key: eventId });
   }
   if (parsed.reason === "no_title" && amount !== null) return say(askTitleMessage(amount), { kind: "title", amount });
-  if (parsed.reason === "too_large" || parsed.reason === "no_title") return say(askMessage(parsed.reason));
+  if (["too_large", "no_title", "income", "backdated"].includes(parsed.reason)) return say(askMessage(parsed.reason));
 
   if (parsed.reason === "many_amounts") {
     const { budget } = await loadSummary(userId); // no cycle → set up first, before using the AI
@@ -295,6 +297,8 @@ const FLEX_LABEL: Partial<Record<DecodedPostback["action"], string>> = {
   entry_del: "ลบ",
   entry_del_ok: "ลบเลย",
   menu_today: "วันนี้ใช้ได้",
+  menu_record: "จดรายรับ/จ่าย",
+  menu_try: "ลองก่อนจ่าย",
   rem_yes: "ใช่ จดเลย",
   rem_edit: "แก้ยอด",
   rem_skip: "วันนี้ไม่ได้ซื้อ",
@@ -313,6 +317,9 @@ const asRecorded = (e: { id: string; note: string | null; amount: number; catego
 // Every entry id is checked against the user: someone else's id is "not found", never touched.
 async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer> {
   if (p.action === "menu_today") return say(todayCard(await loadSummary(userId)));
+  // Rich menu (โฟรวิว's spec): how to record / how to ask before paying
+  if (p.action === "menu_record") return say(howToRecordMessage());
+  if (p.action === "menu_try") return say(howToTryMessage());
   if (p.action.startsWith("rem_")) return onReminderButton(userId, p);
   if (!["entry_edit", "entry_cat", "entry_cat_set", "entry_del", "entry_del_ok"].includes(p.action)) return say(notWiredMessage());
   try {
@@ -343,7 +350,17 @@ async function onReminderButton(userId: string, p: DecodedPostback): Promise<Ans
   const log = await reminderById(userId, p.id);
   if (!log) return say(reminderNotFoundMessage());
   if (p.action === "rem_yes") return say(await recordReminder(userId, log, log.amount));
-  if (p.action === "rem_edit") return say(reminderEditMessage(log), { kind: "reminder", reminderId: log.id });
+  if (p.action === "rem_edit") {
+    // Already recorded (phone 13 Nov: ใช่ จดเลย, then แก้ยอด): edit that entry, as the recorded card's [แก้] does
+    if (log.status === "recorded" && log.entry_id) {
+      const { entry, cancelled } = await entryForChat(userId, log.entry_id);
+      if (!cancelled) {
+        const e = asRecorded(entry);
+        return say(askNewAmountMessage(e), { kind: "edit", entryId: e.id, title: e.title });
+      }
+    }
+    return say(reminderEditMessage(log), { kind: "reminder", reminderId: log.id });
+  }
   if (p.action === "rem_edit_cancel") return say(reminderEditCancelledMessage());
   // rem_skip: not today, and not reminded again today (its row stays)
   if (log.status !== "recorded") await markReminder(log.id, "skipped");

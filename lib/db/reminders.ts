@@ -23,9 +23,10 @@ export interface ReminderLog {
   category: UserCategory;
   day: string;
   status: "sent" | "recorded" | "skipped";
+  entry_id: string | null; // the entry ใช่ จดเลย / แก้ยอด made
 }
 
-const LOG_COLUMNS = "id, label, amount, category, day, status";
+const LOG_COLUMNS = "id, label, amount, category, day, status, entry_id";
 
 export const thaiTime = (now: Date) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);

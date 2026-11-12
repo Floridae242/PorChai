@@ -648,3 +648,58 @@ describe("card 10: the recorded card's buttons (โฟรวิว's Flex card, 
     expect(lastText()).toContain("จดแล้ว ✓ 2 รายการ");
   });
 });
+
+describe("rich menu (โฟรวิว's spec and image) and what the bot cannot record yet", () => {
+  beforeEach(() => {
+    replies.length = 0;
+    vi.stubEnv("LINE_CHANNEL_SECRET", secret);
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-channel");
+    vi.mocked(generate).mockReset().mockResolvedValue(null);
+  });
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    await db.from("users").delete().eq("line_user_id", lineA);
+  });
+
+  it("จดรายรับ/จ่าย: how to record — only what works (no «รับ 500», no «เมื่อวาน»)", async () => {
+    await figma();
+    await tap("v1.menu_record.richmenu");
+    expect(lastText()).toContain("«ข้าว 45»");
+    expect(lastText()).not.toContain("รับ 500");
+    expect(lastText()).not.toContain("เมื่อวาน");
+    expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "กรอกในแอป" }));
+  });
+
+  it("ลองก่อนจ่าย: how to ask, with the app's try screen", async () => {
+    await figma();
+    await tap("v1.menu_try.richmenu");
+    expect(lastText()).toContain("ไหวไหม");
+    expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "ลองในแอป" }));
+  });
+
+  it("วันนี้ใช้ได้ from the menu: today's card", async () => {
+    await figma();
+    await tap("v1.menu_today.richmenu");
+    expect(last().type).toBe("flex");
+    expect(lastText()).toContain("120 บาท");
+  });
+
+  it("«รับ 500» is income, not a 500 baht spend: nothing recorded, pointed to the app", async () => {
+    await figma();
+    for (const t of ["รับ 500", "เงินเข้า 1000", "ได้เงิน 300", "รายรับ 200"]) {
+      await chat(t);
+      expect(lastText(), t).toContain("รายรับ");
+    }
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("«เมื่อวาน ข้าว 45» is not recorded as today: nothing recorded, pointed to the app", async () => {
+    await figma();
+    for (const t of ["เมื่อวาน ข้าว 45", "ข้าว 45 เมื่อวาน", "เมื่อคืน ชาบู 300"]) {
+      await chat(t);
+      expect(lastText(), t).toContain("ย้อนหลัง");
+    }
+    expect(await screenEntries()).toEqual([]);
+  });
+});
