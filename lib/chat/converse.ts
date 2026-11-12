@@ -52,10 +52,20 @@ export function knownNumbers(f: ChatFacts, userTexts: string[]): number[] {
 // Only the code saves: a reply that says it did would be a lie
 const CLAIMS_SAVED = /จดแล้ว|จดให้แล้ว|บันทึกแล้ว|บันทึกให้แล้ว|เพิ่มแล้ว/;
 
-export function replyOk(text: string, known: number[]): boolean {
+export type ReplyProblem = "empty" | "length" | "numbers" | "forbidden" | "claims_saved";
+
+// Which guard a reply breaks, if any
+export function replyProblem(text: string, known: number[]): ReplyProblem | null {
   const t = text.trim();
-  return t.length > 0 && t.length <= MAX_REPLY && onlyKnownNumbers(t, known) && !FORBIDDEN.test(t) && !CLAIMS_SAVED.test(t);
+  if (t.length === 0) return "empty";
+  if (t.length > MAX_REPLY) return "length";
+  if (!onlyKnownNumbers(t, known)) return "numbers";
+  if (FORBIDDEN.test(t)) return "forbidden";
+  if (CLAIMS_SAVED.test(t)) return "claims_saved";
+  return null;
 }
+
+export const replyOk = (text: string, known: number[]) => replyProblem(text, known) === null;
 
 const squash = (s: string) => s.toLowerCase().replace(/\s+/g, "");
 
@@ -116,17 +126,36 @@ export type Reading = { kind: "spend"; item: string } | { kind: "chat"; reply: s
 const TOPICS = ["money", "app", "greeting", "other"];
 
 const SYSTEM =
-  "คุณคือ 'พอใช้' ผู้ช่วยเรื่องเงินของนักศึกษาในแชต LINE อ่าน message (ข้อความล่าสุด) โดยดู history ประกอบ ตอบเป็น JSON " +
+  "คุณคือ 'พอใช้' ผู้ช่วยเรื่องเงินของนักศึกษาในแชต LINE เป็นผู้ชาย อ่าน message (ข้อความล่าสุด) โดยดู history ประกอบ ตอบเป็น JSON " +
   "intent = spend ถ้าผู้ใช้บอกว่าจ่ายหรือซื้ออะไรไปแต่ไม่ได้บอกยอดเป็นตัวเลขชัด ๆ (item = ชื่อของสั้น ๆ ตามที่พิมพ์) " +
-  "นอกนั้น intent = chat และเขียน reply: ภาษาไทย เป็นกันเอง ไม่เกิน 3 บรรทัด ไม่ใช้ markdown " +
-  "topic = money (เงิน งบ รายจ่าย การซื้อ) · app (วิธีใช้แอปพอใช้) · greeting (ทักทาย ขอบคุณ) · other (เรื่องอื่นทั้งหมด เช่น การบ้าน สูตรอาหาร ข่าว การเมือง สุขภาพ ความรัก) " +
+  "นอกนั้น intent = chat และเขียน reply: ภาษาไทย เป็นกันเอง สุภาพ ลงท้ายด้วย ครับ ห้ามใช้ ค่ะ คะ จ้า ไม่เกิน 3 บรรทัด ไม่ใช้ markdown " +
+  "topic = money (เงิน งบ รายจ่าย การซื้อ) · app (วิธีใช้แอปพอใช้) · greeting (ทักทาย ขอบคุณ หัวเราะ เช่น 555 อีโมจิ หรือจุดเดียว) · other (เรื่องอื่นทั้งหมด เช่น การบ้าน สูตรอาหาร ข่าว การเมือง สุขภาพ ความรัก การลงทุน) " +
   "ถ้า topic = other ไม่ต้องตอบเนื้อหาเรื่องนั้นเลย ให้ reply เป็นค่าว่าง " +
   "ใช้ตัวเลขได้เฉพาะที่อยู่ใน facts (หน่วยบาท) หรือที่ผู้ใช้พิมพ์ ห้ามคำนวณหรือเขียนตัวเลขอื่น " +
+  "ห้ามเดาว่าเงินพอหรือไม่พอถึงวันเงินเข้า ให้บอกตัวเลขจาก facts แทน เช่น วันนี้ใช้ได้อีกเท่าไร งบต่อวันเท่าไร อีกกี่วันเงินเข้า " +
+  "ห้ามอธิบายขั้นตอนกดปุ่ม เมนู หรือหน้าจอในแอป เพราะคุณไม่เห็นหน้าจอ ถ้าถามวิธีแก้ ลบ ตั้งค่า หรือดูอะไรในแอป ให้บอกว่าทำได้ในแอป กดปุ่ม เปิดแอป ด้านล่างได้เลย " +
   "ห้ามแนะนำให้ลดค่ากินหรือค่าเดินทาง ห้ามแนะนำใช้เงินออม ห้ามบอกว่าจดหรือบันทึกอะไรแล้ว " +
   "ถ้า facts.setUp เป็น false ให้ชวนตั้งรอบเงินในแอปก่อน ถ้าถามว่าซื้ออะไรไหวไหมแต่ไม่บอกราคา ให้ถามราคา " +
-  "สิ่งที่ทำได้: จดรายจ่ายโดยพิมพ์ชื่อกับยอด เช่น ข้าว 45 · ถามก่อนจ่าย เช่น ชาบู 300 ไหวไหม · ดูสรุปและตั้งค่าในแอป";
+  "สิ่งที่ทำในแชตได้: จดรายจ่ายโดยพิมพ์ชื่อกับยอด เช่น ข้าว 45 · ถามก่อนจ่าย เช่น ชาบู 300 ไหวไหม";
+
+// Why a reading came out as it did; logged in production (never the message or the AI's words)
+export type ChatOutcome = "ok" | "no_answer" | "unparseable" | "off_topic" | "spend" | "spend_not_in_text" | `guard:${ReplyProblem}`;
+
+export interface TracedReading {
+  reading: Reading | null;
+  outcome: ChatOutcome;
+  ms: number;
+  aiReply: string | null; // for scripts/eval-chat only
+}
 
 export async function readChat(message: string, history: ChatLine[], facts: ChatFacts): Promise<Reading | null> {
+  const t = await readChatTraced(message, history, facts);
+  console.info(`chat-ai outcome=${t.outcome} ms=${t.ms}`);
+  return t.reading;
+}
+
+export async function readChatTraced(message: string, history: ChatLine[], facts: ChatFacts): Promise<TracedReading> {
+  const started = Date.now();
   const raw = await generate({
     system: SYSTEM,
     input: JSON.stringify({ facts, history: history.map((l) => ({ role: l.role, text: l.body })), message }),
@@ -142,17 +171,26 @@ export async function readChat(message: string, history: ChatLine[], facts: Chat
     },
     maxOutputTokens: 300,
   });
+  const ms = Date.now() - started;
   const ai = parse(raw) as { intent?: unknown; topic?: unknown; item?: unknown; reply?: unknown } | null;
-  if (!ai || (ai.intent !== "chat" && ai.intent !== "spend") || !TOPICS.includes(ai.topic as string)) return null;
-  // Whatever it wrote about another subject is dropped, not filtered
-  if (ai.topic === "other") return { kind: "off_topic" };
+  const aiReply = typeof ai?.reply === "string" ? ai.reply : null;
+  const done = (reading: Reading | null, outcome: ChatOutcome): TracedReading => ({ reading, outcome, ms, aiReply });
 
-  if (ai.intent === "spend" && typeof ai.item === "string" && inText(ai.item, message)) {
-    return { kind: "spend", item: ai.item.trim().slice(0, MAX_TITLE) };
+  if (raw === null) return done(null, "no_answer"); // AI off, failed or timed out (lib/ai/gemini.ts logs which)
+  if (!ai || (ai.intent !== "chat" && ai.intent !== "spend") || !TOPICS.includes(ai.topic as string)) return done(null, "unparseable");
+  // Whatever it wrote about another subject is dropped, not filtered
+  if (ai.topic === "other") return done({ kind: "off_topic" }, "off_topic");
+
+  if (ai.intent === "spend") {
+    if (typeof ai.item === "string" && inText(ai.item, message)) {
+      return done({ kind: "spend", item: ai.item.trim().slice(0, MAX_TITLE) }, "spend");
+    }
+    return done({ kind: "chat", reply: null }, "spend_not_in_text");
   }
   const userTexts = [...history.filter((l) => l.role === "user").map((l) => l.body), message];
-  const ok = ai.intent === "chat" && typeof ai.reply === "string" && replyOk(ai.reply, knownNumbers(facts, userTexts));
-  return { kind: "chat", reply: ok ? (ai.reply as string).trim() : null };
+  const problem = replyProblem(aiReply ?? "", knownNumbers(facts, userTexts));
+  if (problem) return done({ kind: "chat", reply: null }, `guard:${problem}`);
+  return done({ kind: "chat", reply: aiReply!.trim() }, "ok");
 }
 
 function parse(raw: string | null): unknown {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Summary } from "@/lib/api-types";
 import { generate } from "@/lib/ai/gemini";
-import { factsOf, inText, itemsFrom, knownNumbers, readChat, replyOk, splitItems } from "@/lib/chat/converse";
+import { factsOf, inText, itemsFrom, knownNumbers, readChat, readChatTraced, replyOk, replyProblem, splitItems } from "@/lib/chat/converse";
 
 vi.mock("@/lib/ai/gemini", () => ({ generate: vi.fn(async () => null) }));
 const ai = vi.mocked(generate);
@@ -173,5 +173,51 @@ describe("splitItems", () => {
     expect(await splitItems("ข้าว 45 น้ำ 20")).toBeNull();
     ai.mockResolvedValueOnce(null);
     expect(await splitItems("ข้าว 45 น้ำ 20")).toBeNull();
+  });
+});
+
+describe("why the template was used (diagnostics, card 15)", () => {
+  beforeEach(() => ai.mockReset());
+  const facts = factsOf(summary);
+
+  it("replyProblem names the guard that failed", () => {
+    expect(replyProblem("วันนี้ใช้ได้อีก 75 บาท", [75])).toBeNull();
+    expect(replyProblem(" ", [])).toBe("empty");
+    expect(replyProblem("ก".repeat(401), [])).toBe("length");
+    expect(replyProblem("เหลือ 80", [75])).toBe("numbers");
+    expect(replyProblem("ลดค่ากินหน่อย", [])).toBe("forbidden");
+    expect(replyProblem("จดแล้วนะ", [])).toBe("claims_saved");
+  });
+
+  it("readChatTraced gives the outcome, how long it took and what the AI wrote", async () => {
+    ai.mockResolvedValueOnce(JSON.stringify({ intent: "chat", topic: "money", item: null, reply: "เหลือ 999" }));
+    const t = await readChatTraced("เหลือเท่าไร", [], facts);
+    expect(t).toMatchObject({ outcome: "guard:numbers", reading: { kind: "chat", reply: null }, aiReply: "เหลือ 999" });
+    expect(t.ms).toBeGreaterThanOrEqual(0);
+
+    const cases: [string | null, string][] = [
+      [null, "no_answer"],
+      ["not json", "unparseable"],
+      [JSON.stringify({ intent: "chat" }), "unparseable"],
+      [JSON.stringify({ intent: "chat", topic: "other", item: null, reply: "x" }), "off_topic"],
+      [JSON.stringify({ intent: "spend", topic: "money", item: "ข้าว", reply: "" }), "spend"],
+      [JSON.stringify({ intent: "spend", topic: "money", item: "ชาบู", reply: "" }), "spend_not_in_text"],
+      [JSON.stringify({ intent: "chat", topic: "greeting", item: null, reply: "สวัสดี" }), "ok"],
+    ];
+    for (const [raw, outcome] of cases) {
+      ai.mockResolvedValueOnce(raw);
+      expect((await readChatTraced("ข้าว", [], facts)).outcome, String(raw)).toBe(outcome);
+    }
+  });
+
+  it("production logs the outcome and time only — never the message or the AI's words", async () => {
+    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    ai.mockResolvedValueOnce(JSON.stringify({ intent: "chat", topic: "money", item: null, reply: "เหลือ 999" }));
+    await readChat("ความลับของฉัน", [], facts);
+    const line = log.mock.calls.map((c) => c.join(" ")).join("\n");
+    expect(line).toMatch(/chat-ai outcome=guard:numbers ms=\d+/);
+    expect(line).not.toContain("ความลับ");
+    expect(line).not.toContain("999");
+    log.mockRestore();
   });
 });

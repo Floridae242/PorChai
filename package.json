@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "next typegen && tsc --noEmit",
     "line:check": "node scripts/check-line.mjs",
-    "test:db": "vitest run --config vitest.db.config.mts"
+    "test:db": "vitest run --config vitest.db.config.mts",
+    "eval:chat": "vitest run --config vitest.eval.config.mts"
   },
   "dependencies": {
     "@line/liff": "^2.32.0",

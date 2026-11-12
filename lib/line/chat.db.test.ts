@@ -183,7 +183,7 @@ describe("card 09: expenses from the chat", () => {
     expect(lastText()).toContain("จดแล้ว ✓ ชาบู 350 บาท (อาหาร)");
     expect(lastText()).toContain("เกินงบวันนี้ 230 บาท");
     expect(lastText()).toContain("พรุ่งนี้ใช้ได้ 99 บาท/วัน (เดิม 120)");
-    expect(lastText()).toContain("ไม่เป็นไรนะ งบพรุ่งนี้ปรับให้แล้ว");
+    expect(lastText()).toContain("ไม่เป็นไรครับ งบพรุ่งนี้ปรับให้แล้ว");
 
     await tap(data);
     expect(lastText()).toContain("จดไว้แล้ว");
