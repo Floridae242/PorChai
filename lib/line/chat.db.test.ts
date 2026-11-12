@@ -191,6 +191,7 @@ describe("card 09: expenses from the chat", () => {
   it("L6: «ชาบู 350» is over today's 120 → held, not recorded, with ยืนยันจ่ายจริง / ลองก่อนซื้อ", async () => {
     await figma();
     await chat("ชาบู 350");
+    expect(last().type).toBe("flex"); // hold card
     expect(lastText()).toContain("350 บาท สูงกว่างบที่เหลือวันนี้ (120 บาท)");
     expect(lastButtons().map((b) => b.label)).toEqual(["ยืนยันจ่ายจริง", "ลองก่อนซื้อ", "เปิดแอป"]);
     expect(await screenEntries()).toEqual([]);
@@ -508,14 +509,15 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     await figma();
     aiSays({ items: [{ title: "ข้าว", amount_baht: 45 }, { title: "น้ำ", amount_baht: 20 }] });
     await chat("ข้าว 45 น้ำ 20");
-    expect(lastText()).toContain("• ข้าว 45 บาท (อาหาร)");
-    expect(lastText()).toContain("• น้ำ 20 บาท (อาหาร)");
-    expect(lastText()).toContain("รวม 65 บาท");
+    expect(last().type).toBe("flex"); // proposal card
+    expect(lastText()).toContain("เจอ 2 รายการ รวม 65 บาท");
+    for (const t of ["ข้าว", "45 บาท", "น้ำ", "20 บาท", "อาหาร"]) expect(lastText()).toContain(t);
     expect(lastButtons().map((b) => b.label)).toEqual(["จดทั้งหมด", "ไม่ใช่", "กรอกเองในแอป", "เปิดแอป"]);
     expect(await screenEntries()).toEqual([]);
 
     const all = button("จดทั้งหมด").data;
     await tap(all);
+    expect(last().type).toBe("flex"); // โฟรวิว's recorded card with 2 items (Figma L10)
     expect(lastText()).toContain("จดแล้ว ✓ 2 รายการ");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 55 บาท");
     await tap(all);
@@ -648,13 +650,15 @@ describe("card 10: the recorded card's buttons (โฟรวิว's Flex card, 
     expect(lastText()).toContain("ปุ่มนี้ยังใช้ไม่ได้");
   });
 
-  it("several at once ([จดทั้งหมด]) stays a text list: the card's [แก้] [ลบ] fit one entry only", async () => {
+  it("several at once ([จดทั้งหมด]): the recorded card lists them, without [แก้] [ลบ] (they fit one entry only)", async () => {
     await figma();
     vi.mocked(generate).mockResolvedValueOnce(JSON.stringify({ items: [{ title: "ข้าว", amount_baht: 45 }, { title: "น้ำ", amount_baht: 20 }] }));
     await chat("ข้าว 45 น้ำ 20");
     await tap(data("จดทั้งหมด"));
-    expect(last().type).toBe("text");
+    expect(last().type).toBe("flex");
     expect(lastText()).toContain("จดแล้ว ✓ 2 รายการ");
+    expect(lastButtons().map((b) => b.label)).not.toEqual(expect.arrayContaining(["แก้"]));
+    expect(lastButtons().map((b) => b.label)).not.toEqual(expect.arrayContaining(["ลบ"]));
   });
 });
 
@@ -697,6 +701,7 @@ describe("rich menu (โฟรวิว's spec and image) and what the bot canno
   it("«รับ 500» is income, never a spend: money on hand +500, a day 120 → 161.50; LINE redelivering it adds it once", async () => {
     await figma();
     await chat("รับ 500", `E_${run}_income`);
+    expect(last().type).toBe("flex"); // income card
     expect(lastText()).toContain("รับเงินแล้ว ✓ +500 บาท");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 161.50 บาท");
     await db.from("line_events").delete().eq("webhook_event_id", `E_${run}_income`); // as if handling failed

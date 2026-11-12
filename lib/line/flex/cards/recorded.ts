@@ -448,14 +448,16 @@ export function buildRecordedCard(vm: RecordedCardViewModel): FlexMessage {
         backgroundColor: FLEX_COLORS.white,
         contents: bodyContents,
       },
-      footer: {
-        type: "box",
-        layout: "horizontal",
-        spacing: "xs",
-        paddingAll: "12px",
-        backgroundColor: FLEX_COLORS.white,
-        contents: footerButtons,
-      },
+      ...(!vm.hideEntryActions && {
+        footer: {
+          type: "box",
+          layout: "horizontal",
+          spacing: "xs",
+          paddingAll: "12px",
+          backgroundColor: FLEX_COLORS.white,
+          contents: footerButtons,
+        },
+      }),
     },
     quickReply: {
       items: quickActions.map((action) => ({ type: "action", action })),

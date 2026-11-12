@@ -6,6 +6,10 @@ import { isQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
   adviceCard,
+  holdCard,
+  incomeCard,
+  proposalCard,
+  recordedManyCard,
   askCategoryMessage,
   askDeleteMessage,
   askNewAmountMessage,
@@ -54,12 +58,8 @@ import {
   declinedMessage,
   expiredMessage,
   keptMessage,
-  holdMessage,
-  incomeMessage,
   noCycleMessage,
   offTopicMessage,
-  proposalMessage,
-  recordedManyMessage,
   recordedMessage,
   type Draft,
 } from "@/lib/chat/messages";
@@ -76,7 +76,7 @@ import { simulate } from "@/lib/db/simulate";
 import { userIdForLine } from "@/lib/db/users";
 import { HttpError } from "@/lib/http";
 import { decodePostback, type DecodedPostback } from "@/lib/line/flex/postback";
-import { reply, text, withAppButton, type ReplyMessage, type TextMessage } from "@/lib/line/reply";
+import { reply, text, withAppButton, type ReplyMessage } from "@/lib/line/reply";
 
 interface LineEvent {
   type?: unknown;
@@ -198,7 +198,7 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // «รับ 500»: income, saved once under this message (a redelivery adds nothing)
   if (parsed.kind === "income") {
     await addIncome(userId, { amount: parsed.amount, note: parsed.note, receivedOn: thaiDate(new Date()) }, `line:${eventId}`, "chat");
-    return say(incomeMessage(parsed.amount, await loadSummary(userId)));
+    return say(incomeCard(parsed.amount, await loadSummary(userId)));
   }
   if (parsed.kind === "entry") {
     return spend(userId, { title: parsed.title, amount: parsed.amount, category: parsed.category, key: eventId });
@@ -211,7 +211,7 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     const items = await splitItems(body);
     if (!items) return say(askMessage("many_amounts"));
     const left = budget.kind === "ok" ? budget.todayRemaining : null;
-    return say(proposalMessage(items, eventId, left), { kind: "items", key: eventId, items });
+    return say(proposalCard(items, eventId, left), { kind: "items", key: eventId, items });
   }
 
   // No amount or an approximate one: the AI reads it with the recent chat
@@ -243,7 +243,7 @@ async function converse(
 async function spend(userId: string, draft: Draft): Promise<Answer> {
   const { budget } = await loadSummary(userId);
   if (budget.kind === "ok" && budget.todayRemaining >= 0 && draft.amount > budget.todayRemaining) {
-    return say(holdMessage(draft, budget.todayRemaining));
+    return say(holdCard(draft, budget.todayRemaining));
   }
   const { entry } = await record(userId, draft);
   return say(await recorded(userId, { ...draft, category: draft.category as UserCategory, id: entry.id }));
@@ -274,19 +274,21 @@ async function onPostback(userId: string, data: string): Promise<{ label: string
 }
 
 // [จดทั้งหมด] / [ไม่ใช่] on several spends the AI split. Each item is saved once under its own key.
-async function onChoice(userId: string, action: "all" | "no", key: string): Promise<TextMessage> {
+async function onChoice(userId: string, action: "all" | "no", key: string): Promise<ReplyMessage> {
   if (action === "no") return declinedMessage();
   const items = await proposalFor(userId, key);
   if (!items) return expiredMessage();
   const today = thaiDate(new Date());
   let created = false;
+  const entries: RecordedEntry[] = [];
   for (const [i, it] of items.entries()) {
     const r = await addEntry(userId, { amount: it.amount, category: it.category, note: it.title, spentOn: today }, `line:${key}:${i}`, "chat");
     created ||= r.created;
+    entries.push({ id: r.entry.id, title: it.title, amount: it.amount, category: it.category });
   }
   if (!created) return alreadyManyMessage();
   const loaded = await loadBudget(userId);
-  return recordedManyMessage(items, summaryOf(loaded), tomorrowBudget(loaded.input));
+  return recordedManyCard(entries, summaryOf(loaded), tomorrowBudget(loaded.input));
 }
 
 async function onDraft(userId: string, draft: Draft & { action: "pay" | "try" | "keep" }): Promise<ReplyMessage> {
@@ -466,7 +468,7 @@ async function onOcrButton(userId: string, p: DecodedPostback): Promise<Answer> 
   const key = `ocr:${draft.id}`;
   if (draft.kind === "income") {
     const { created } = await addIncome(userId, { amount: draft.amount, note: draft.merchant, receivedOn: draft.date }, key, "chat");
-    return say(created ? incomeMessage(draft.amount, await loadSummary(userId)) : ocrAlreadyMessage(draft));
+    return say(created ? incomeCard(draft.amount, await loadSummary(userId)) : ocrAlreadyMessage(draft));
   }
   const { entry, created } = await addEntry(
     userId,

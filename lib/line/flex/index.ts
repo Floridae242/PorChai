@@ -6,6 +6,7 @@ export * from "./cards/habit-reminder";
 export * from "./cards/ai-compare";
 export * from "./cards/core-cards";
 export * from "./cards/extras";
+export * from "./cards/chat-extras";
 
 import { buildRecordedCard } from "./cards/recorded";
 import {

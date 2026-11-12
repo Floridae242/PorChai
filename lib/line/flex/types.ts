@@ -129,6 +129,8 @@ export interface RecordedCardViewModel {
   compactActions?: boolean;
   /** When true (C-3b backdated), show [แก้รายการ] [แก้วันที่] [ลบ] */
   isBackdated?: boolean;
+  /** Several entries at once (Figma L10): no [แก้]/[ลบ] — they point at one entry (added by Por 13 Nov) */
+  hideEntryActions?: boolean;
   appOrigin?: string;
 }
 

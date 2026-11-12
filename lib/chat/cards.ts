@@ -1,6 +1,7 @@
 import { USER_CATEGORIES, type SimulateResponse, type Summary, type UserCategory } from "@/lib/api-types";
 import type { BudgetResult } from "@/lib/calc/budget";
-import { adviceMessage, baht, budgetLine, cheer, recordedMessage, tryMessage } from "@/lib/chat/messages";
+import { adviceMessage, baht, budgetLine, cheer, choiceData, draftData, recordedManyMessage, recordedMessage, tryMessage, type Draft } from "@/lib/chat/messages";
+import type { ProposedItem } from "@/lib/db/chat-memory";
 import type { Advice } from "@/lib/advice/advise";
 import { addDays } from "@/lib/calc/time";
 import type { OcrDraft, TryDraft } from "@/lib/db/chat-memory";
@@ -11,6 +12,9 @@ import {
   buildHabitReminderCard,
   buildHabitSkippedMessage,
   buildAiCompareCard,
+  buildHoldCard,
+  buildIncomeCard,
+  buildProposalCard,
   buildOcrDraftCard,
   buildTryBeforeBuyCard,
   buildWelcomeCard,
@@ -49,6 +53,64 @@ export function recordedCard(e: RecordedEntry, s: Summary, tomorrow: BudgetResul
     subnote: cheer(b, over) ?? undefined, // the friendly last line (no AI, no numbers)
   });
 }
+
+// [จดทั้งหมด]: โฟรวิว's recorded card with every item (Figma L10), without [แก้]/[ลบ] — they fit one entry
+export function recordedManyCard(entries: RecordedEntry[], s: Summary, tomorrow: BudgetResult): ReplyMessage {
+  const b = s.budget;
+  if (b.kind !== "ok") return recordedManyMessage(entries, s, tomorrow);
+  const over = b.todayRemaining < 0 && tomorrow.kind === "ok";
+  return buildRecordedCard({
+    entryId: entries[0].id,
+    items: entries.map((e) => ({ id: e.id, title: e.title, amount: e.amount, category: e.category })),
+    totalAmount: entries.reduce((sum, e) => sum + e.amount, 0),
+    dailyBudget: b.dailyBudget,
+    spentToday: s.spentToday,
+    todayRemaining: b.todayRemaining,
+    tomorrowDailyBudget: over ? tomorrow.dailyBudget : null,
+    subnote: cheer(b, over) ?? undefined,
+    hideEntryActions: true,
+  });
+}
+
+// «รับ 500»
+export function incomeCard(amount: number, s: Summary): ReplyMessage {
+  const b = s.budget;
+  return {
+    ...buildIncomeCard({
+      amount,
+      balance: s.balance,
+      todayRemaining: b.kind === "ok" ? b.todayRemaining : null,
+      dailyBudget: b.kind === "ok" ? b.dailyBudget : null,
+    }),
+    quickReply: { items: [{ type: "action", action: { type: "postback", label: "วันนี้ใช้ได้", data: encodePostback("menu_today", "income"), displayText: "วันนี้ใช้ได้เท่าไหร่" } }] },
+  };
+}
+
+// Several spends split by the AI (card 15): nothing recorded until [จดทั้งหมด]
+export function proposalCard(items: ProposedItem[], key: string, todayRemaining: number | null): ReplyMessage {
+  const total = items.reduce((sum, i) => sum + i.amount, 0);
+  const label = items.length > 1 ? "จดทั้งหมด" : "จดเลย";
+  return {
+    ...buildProposalCard({
+      items,
+      total,
+      overToday: todayRemaining !== null && todayRemaining >= 0 && total > todayRemaining ? { remaining: todayRemaining, by: total - todayRemaining } : null,
+      record: { label, data: choiceData("all", key) },
+      notThis: { label: "ไม่ใช่", data: choiceData("no", key) },
+    }),
+    quickReply: { items: [{ type: "action", action: { type: "uri", label: "กรอกเองในแอป", uri: miniAppUrl("/app/record/new") } }] },
+  };
+}
+
+// L6: over what is left today — held, [ยืนยันจ่ายจริง] / [ลองก่อนซื้อ] (the same buttons as before)
+export const holdCard = (d: Draft, todayRemaining: number): ReplyMessage =>
+  buildHoldCard({
+    title: d.title,
+    amount: d.amount,
+    todayRemaining,
+    pay: { label: "ยืนยันจ่ายจริง", data: draftData("pay", d) },
+    tryFirst: { label: "ลองก่อนซื้อ", data: draftData("try", d) },
+  });
 
 // [วันนี้ใช้ได้]
 export function todayCard(s: Summary): ReplyMessage {
