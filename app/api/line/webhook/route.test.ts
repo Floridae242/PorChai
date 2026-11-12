@@ -1,5 +1,9 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/lib/db/line-events", () => ({ recordEvent: vi.fn() }));
+vi.mock("@/lib/line/handle-event", () => ({ handleEvent: vi.fn() }));
+import { recordEvent } from "@/lib/db/line-events";
+import { handleEvent } from "@/lib/line/handle-event";
 let POST: typeof import("./route").POST;
 
 const secret = randomBytes(32).toString("hex");
@@ -19,6 +23,10 @@ beforeEach(async () => {
   vi.resetModules();
   ({ POST } = await import("./route"));
   vi.stubEnv("LINE_CHANNEL_SECRET", secret);
+  vi.stubEnv("SUPABASE_URL", "");
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
+  vi.mocked(recordEvent).mockReset().mockResolvedValue(true);
+  vi.mocked(handleEvent).mockReset().mockResolvedValue(undefined);
   vi.stubEnv("LINE_CHANNEL_ACCESS_TOKEN", "");
   vi.stubEnv("NEXT_PUBLIC_LIFF_ID", "2012545254-6025ZG1r");
   fetchMock.mockReset().mockResolvedValue(new Response(null, { status: 200 }));
@@ -30,6 +38,38 @@ afterEach(() => {
 });
 
 describe("LINE webhook", () => {
+  it("retries a failed OA reply after the backend event has already been recorded", async () => {
+    vi.stubEnv("SUPABASE_URL", "http://127.0.0.1:54321");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "dummy-service-key");
+    vi.stubEnv("LINE_CHANNEL_ACCESS_TOKEN", "dummy-access-token");
+    vi.mocked(recordEvent)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    fetchMock
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    const event = {
+      type: "follow",
+      webhookEventId: "stored-event",
+      replyToken: "stored-event-reply",
+    };
+    expect(
+      (await POST(request(JSON.stringify({ events: [event] })))).status,
+    ).toBe(502);
+    expect(
+      (
+        await POST(
+          request(
+            JSON.stringify({
+              events: [{ ...event, deliveryContext: { isRedelivery: true } }],
+            }),
+          ),
+        )
+      ).status,
+    ).toBe(200);
+    expect(handleEvent).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
   it("accepts correctly signed events with original whitespace and Thai text", async () => {
     const body =
       '{ "events": [{"type":"message","message":{"text":"ข้าว 50"}}] }\n';

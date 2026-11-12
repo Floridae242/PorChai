@@ -1,4 +1,5 @@
 import { verifySignature } from "@/lib/line/signature";
+import { recordLineEvents } from "@/lib/line/record-events";
 import {
   buildOaReply,
   createOaReplySender,
@@ -38,6 +39,15 @@ export async function POST(request: Request) {
     !Array.isArray(payload.events)
   ) {
     return Response.json({ error: "Expected events array" }, { status: 400 });
+  }
+
+  try {
+    await recordLineEvents(payload.events);
+  } catch {
+    return Response.json(
+      { error: "LINE event storage is unavailable" },
+      { status: 503 },
+    );
   }
 
   let replies;

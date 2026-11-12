@@ -47,6 +47,12 @@ It must match Developing, not a Review/Published internal channel.
   redelivery schedule can also prevent recovery. There is no durable queue, event
   deduplication store or exactly-once delivery guarantee. Do not use this handler
   for financial writes; those need durable idempotency and ownership checks.
+- After integration with the Backend branch, a fully configured Supabase enables
+  its persistent webhook-event deduplication and user identity handling. Both DB
+  variables absent retain connectivity-only mode; partial configuration or event
+  storage failure returns 503. The persistent event marker only controls backend
+  handling, not OA reply retries. The backend's existing continue-on-handler-error
+  behavior remains, with a generic error log that excludes event/user data.
 - No rich menu is installed, no proactive push/service messages are sent, and
   there is no actual reminder scheduling, expense recording, OCR, AI, or coupon issuance.
 
