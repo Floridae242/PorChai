@@ -17,8 +17,10 @@ import { CONSENT_STORAGE_KEY } from "@/lib/client/consent-fallback";
 import {
   clearSetupDraft,
   loadSetupDraft,
-  previewSetupDraft,
+  percentOptionsOf,
   saveSetupDraft,
+  savingsSatangOf,
+  unpaidBillsTotal,
   type SetupDraft,
 } from "@/lib/client/setup-draft";
 import { CATEGORY_LABELS } from "@/lib/client/summary-helpers";
@@ -203,8 +205,6 @@ export function SettingsBillsView() {
   const router = useRouter();
   const toast = useToast();
   const [draft, setDraft] = useState<SetupDraft>(() => loadSetupDraft());
-  const preview = previewSetupDraft(draft);
-
   function handleSave() {
     saveSetupDraft(draft);
     toast.show("บันทึกบิลประจำแล้ว", { mascot: "budgetOk" });
@@ -217,7 +217,7 @@ export function SettingsBillsView() {
 
       <BillsCard
         bills={draft.bills}
-        unpaidBillsTotal={preview.unpaidBillsTotal}
+        unpaidBillsTotal={unpaidBillsTotal(draft)}
         onAdd={(b) =>
           setDraft((d) => ({
             ...d,
@@ -252,8 +252,6 @@ export function SettingsSavingsView() {
   const [draft, setDraft] = useState<SetupDraft>(() => loadSetupDraft());
   const [busy, setBusy] = useState(false);
 
-  const preview = previewSetupDraft(draft);
-
   async function handleSave() {
     setBusy(true);
     try {
@@ -275,8 +273,8 @@ export function SettingsSavingsView() {
       <SavingsPicker
         mode={draft.savingsMode}
         percent={draft.savingsPercent}
-        savingsSatang={preview.savingsSatang}
-        percentOptions={preview.percentOptions}
+        savingsSatang={savingsSatangOf(draft)}
+        percentOptions={percentOptionsOf(draft.balance)}
         onChangePercent={(pct) => setDraft((d) => ({ ...d, savingsMode: "percent", savingsPercent: pct }))}
         onChangeAmount={(satang) => setDraft((d) => ({ ...d, savingsMode: "amount", savingsAmount: satang }))}
         onClear={() => setDraft((d) => ({ ...d, savingsMode: "none", savingsAmount: 0 }))}

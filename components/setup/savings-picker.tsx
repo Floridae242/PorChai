@@ -4,15 +4,16 @@ import { useState } from "react";
 import { Chip } from "@/components/ui/chip";
 import { InputField } from "@/components/ui/input-field";
 import type { Satang } from "@/lib/calc/money";
+import { bahtErrorMessage } from "@/lib/format/baht-error";
 import { formatBaht, parseBahtInput } from "@/lib/format/money";
 
 export interface SavingsPickerProps {
-  mode: "percent" | "amount" | "none";
-  percent: number;
+  mode: "percent" | "amount" | "none" | null; // null = not chosen yet
+  percent: number | null;
   savingsSatang: Satang;
-  percentOptions: { p10: Satang; p20: Satang; p30: Satang };
+  percentOptions: { p10: Satang; p20: Satang; p30: Satang } | null; // null until the balance is known
   onChangePercent: (pct: number) => void;
-  onChangeAmount: (satang: Satang) => void;
+  onChangeAmount: (satang: Satang | null) => void;
   onClear: () => void;
 }
 
@@ -30,21 +31,23 @@ export function SavingsPicker({
   );
   const [customError, setCustomError] = useState<string | null>(null);
 
-  const presets: { pct: number; satang: Satang }[] = [
-    { pct: 10, satang: percentOptions.p10 },
-    { pct: 20, satang: percentOptions.p20 },
-    { pct: 30, satang: percentOptions.p30 },
+  const presets: { pct: number; satang: Satang | null }[] = [
+    { pct: 10, satang: percentOptions?.p10 ?? null },
+    { pct: 20, satang: percentOptions?.p20 ?? null },
+    { pct: 30, satang: percentOptions?.p30 ?? null },
   ];
 
   function handleCustomInput(val: string) {
     setCustomText(val);
     if (!val.trim()) {
       setCustomError(null);
+      onChangeAmount(null);
       return;
     }
     const parsed = parseBahtInput(val);
     if (!parsed.ok) {
-      setCustomError("ใส่เป็นตัวเลขมากกว่า 0");
+      setCustomError(bahtErrorMessage(parsed.reason));
+      onChangeAmount(null);
       return;
     }
     setCustomError(null);
@@ -68,13 +71,16 @@ export function SavingsPicker({
               onChangePercent(p.pct);
             }}
           >
-            {p.pct}% ({formatBaht(p.satang)} บาท)
+            {p.satang === null ? `${p.pct}%` : `${p.pct}% (${formatBaht(p.satang)} บาท)`}
           </Chip>
         ))}
         <Chip
           selected={mode === "amount"}
           onClick={() => {
-            onChangeAmount(savingsSatang > 0 ? savingsSatang : percentOptions.p10);
+            setCustomError(null);
+            // keep the text box in step with the amount being switched to (empty when nothing is set yet)
+            setCustomText(savingsSatang > 0 ? formatBaht(savingsSatang).replace(/,/g, "") : "");
+            onChangeAmount(savingsSatang > 0 ? savingsSatang : null);
           }}
         >
           กำหนดเอง
@@ -104,37 +110,44 @@ export function SavingsPicker({
 
       <div className="flex items-center justify-between border-t border-line pt-3 text-sm">
         <span className="text-secondary">ยอดออมรอบนี้</span>
-        <span className="font-semibold tabular-nums text-primary">{formatBaht(savingsSatang)} บาท</span>
+        <span className="font-semibold tabular-nums text-primary">
+          {mode === null ? "ยังไม่ได้เลือก" : `${formatBaht(savingsSatang)} บาท`}
+        </span>
       </div>
     </section>
   );
 }
 
 export interface BufferCardProps {
-  bufferSatang: Satang;
-  onChangeBuffer: (satang: Satang) => void;
+  bufferSatang: Satang | null; // null = not chosen yet
+  onChangeBuffer: (satang: Satang | null) => void;
 }
 
 const BUFFER_PRESETS: Satang[] = [0, 12000, 30000];
 
 export function BufferCard({ bufferSatang, onChangeBuffer }: BufferCardProps) {
-  const isPreset = BUFFER_PRESETS.includes(bufferSatang);
-  const [customOpen, setCustomOpen] = useState(!isPreset);
+  const [customOpen, setCustomOpen] = useState(bufferSatang !== null && !BUFFER_PRESETS.includes(bufferSatang));
   const [customText, setCustomText] = useState(() =>
-    bufferSatang > 0 ? formatBaht(bufferSatang).replace(/,/g, "") : "",
+    bufferSatang !== null && bufferSatang > 0 ? formatBaht(bufferSatang).replace(/,/g, "") : "",
   );
   const [error, setError] = useState<string | null>(null);
 
   function handleCustom(val: string) {
     setCustomText(val);
-    if (!val.trim() || val.trim() === "0") {
+    if (!val.trim()) {
+      setError(null);
+      onChangeBuffer(null);
+      return;
+    }
+    if (val.trim() === "0") {
       setError(null);
       onChangeBuffer(0);
       return;
     }
     const parsed = parseBahtInput(val);
     if (!parsed.ok) {
-      setError("ใส่เป็นตัวเลขมากกว่าหรือเท่ากับ 0");
+      setError(bahtErrorMessage(parsed.reason));
+      onChangeBuffer(null);
       return;
     }
     setError(null);
@@ -152,7 +165,7 @@ export function BufferCard({ bufferSatang, onChangeBuffer }: BufferCardProps) {
         {BUFFER_PRESETS.map((preset) => (
           <Chip
             key={preset}
-            selected={!customOpen && bufferSatang === preset}
+            selected={!customOpen && bufferSatang !== null && bufferSatang === preset}
             onClick={() => {
               setCustomOpen(false);
               setError(null);
@@ -166,7 +179,7 @@ export function BufferCard({ bufferSatang, onChangeBuffer }: BufferCardProps) {
           selected={customOpen}
           onClick={() => {
             setCustomOpen(true);
-            setCustomText(bufferSatang > 0 ? formatBaht(bufferSatang).replace(/,/g, "") : "");
+            setCustomText(bufferSatang !== null && bufferSatang > 0 ? formatBaht(bufferSatang).replace(/,/g, "") : "");
           }}
         >
           กำหนดเอง
@@ -187,7 +200,9 @@ export function BufferCard({ bufferSatang, onChangeBuffer }: BufferCardProps) {
 
       <div className="flex items-center justify-between border-t border-line pt-3 text-sm">
         <span className="text-secondary">เงินเผื่อรอบนี้</span>
-        <span className="font-semibold tabular-nums text-primary">{formatBaht(bufferSatang)} บาท</span>
+        <span className="font-semibold tabular-nums text-primary">
+          {bufferSatang === null ? "ยังไม่ได้เลือก" : `${formatBaht(bufferSatang)} บาท`}
+        </span>
       </div>
     </section>
   );
@@ -228,7 +243,8 @@ export function EssentialPicker({
     }
     const parsed = parseBahtInput(val);
     if (!parsed.ok) {
-      setError("ใส่เป็นตัวเลขมากกว่า 0");
+      setError(bahtErrorMessage(parsed.reason));
+      onChangeEssential(null);
       return;
     }
     setError(null);

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { Sheet } from "@/components/shell/sheet";
 import { Button } from "@/components/ui/button";
-import { loadSetupDraft, saveSetupDraft } from "@/lib/client/setup-draft";
 
 const STEPS = [
   { step: 1, label: "เงินเข้า" },
@@ -20,17 +19,16 @@ export interface SetupFrameProps {
   title: string;
   subtitle?: string;
   backHref: string;
-  currentPath: string;
+  currentPath?: string;
   children: ReactNode;
 }
 
-export function SetupFrame({ step, title, subtitle, backHref, currentPath, children }: SetupFrameProps) {
+export function SetupFrame({ step, title, subtitle, backHref, children }: SetupFrameProps) {
   const router = useRouter();
   const [exitOpen, setExitOpen] = useState(false);
 
   function confirmExit() {
-    const draft = loadSetupDraft();
-    saveSetupDraft({ ...draft, savedStep: currentPath });
+    // The draft is already saved each time a step moves on, so leaving keeps it (never cleared here).
     setExitOpen(false);
     router.push("/app/consent");
   }
@@ -79,7 +77,7 @@ export function SetupFrame({ step, title, subtitle, backHref, currentPath, child
       <Sheet open={exitOpen} onClose={() => setExitOpen(false)} title="ออกจากหน้าตั้งค่าก่อนไหม">
         <div className="flex flex-col gap-4">
           <p className="text-sm text-secondary">
-            ข้อมูลที่กรอกไว้จะถูกเก็บเป็นร่างในเครื่อง เมื่อกลับมาเปิดใหม่สามารถทำต่อจากขั้นนี้ได้ทันที
+            ข้อมูลของขั้นที่ผ่านมาแล้วจะเก็บเป็นร่างไว้ในเครื่องของคุณ ไม่ถูกลบ
           </p>
           <div className="flex flex-col gap-2">
             <Button variant="primary" block onClick={confirmExit}>

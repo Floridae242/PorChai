@@ -7,6 +7,7 @@ import { Chip } from "@/components/ui/chip";
 import { InputField } from "@/components/ui/input-field";
 import type { Satang } from "@/lib/calc/money";
 import type { BillStatus, DraftBill } from "@/lib/client/setup-draft";
+import { bahtErrorMessage } from "@/lib/format/baht-error";
 import { formatBaht, parseBahtInput } from "@/lib/format/money";
 
 const STATUS_LABELS: Record<BillStatus, { short: string; detail: string }> = {
@@ -30,13 +31,19 @@ export function BillsCard({ bills, unpaidBillsTotal, onAdd, onUpdate, onDelete }
   const [title, setTitle] = useState("");
   const [amountText, setAmountText] = useState("");
   const [status, setStatus] = useState<BillStatus>("unpaid");
-  const [error, setError] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [amountError, setAmountError] = useState<string | null>(null);
+
+  function clearErrors() {
+    setTitleError(null);
+    setAmountError(null);
+  }
 
   function openAdd() {
     setTitle("");
     setAmountText("");
     setStatus("unpaid");
-    setError(null);
+    clearErrors();
     setSheetMode({ kind: "add" });
   }
 
@@ -44,26 +51,21 @@ export function BillsCard({ bills, unpaidBillsTotal, onAdd, onUpdate, onDelete }
     setTitle(bill.title);
     setAmountText(formatBaht(bill.amount).replace(/,/g, ""));
     setStatus(bill.status);
-    setError(null);
+    clearErrors();
     setSheetMode({ kind: "edit", bill });
   }
 
   function closeSheet() {
     setSheetMode({ kind: "closed" });
-    setError(null);
+    clearErrors();
   }
 
   function handleSave() {
     const cleanTitle = title.trim();
-    if (!cleanTitle) {
-      setError("กรุณาใส่ชื่อบิล");
-      return;
-    }
     const parsed = parseBahtInput(amountText);
-    if (!parsed.ok) {
-      setError("ใส่เป็นตัวเลขมากกว่า 0");
-      return;
-    }
+    setTitleError(cleanTitle ? null : "กรุณาใส่ชื่อบิล");
+    setAmountError(parsed.ok ? null : bahtErrorMessage(parsed.reason));
+    if (!cleanTitle || !parsed.ok) return;
     if (sheetMode.kind === "add") {
       onAdd({ title: cleanTitle, amount: parsed.satang, status });
     } else if (sheetMode.kind === "edit") {
@@ -131,8 +133,12 @@ export function BillsCard({ bills, unpaidBillsTotal, onAdd, onUpdate, onDelete }
             label="ชื่อบิล"
             placeholder="เช่น ค่าหอ, ค่าน้ำ, ค่าเน็ต"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            state={error && !title.trim() ? "error" : title ? "filled" : "default"}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setTitleError(null);
+            }}
+            state={titleError ? "error" : title ? "filled" : "default"}
+            helper={titleError ?? undefined}
           />
           <InputField
             label="จำนวนเงิน (บาท)"
@@ -140,8 +146,8 @@ export function BillsCard({ bills, unpaidBillsTotal, onAdd, onUpdate, onDelete }
             placeholder="เช่น 400"
             value={amountText}
             onChange={(e) => setAmountText(e.target.value)}
-            state={error && title.trim() ? "error" : amountText ? "filled" : "default"}
-            helper={error ?? undefined}
+            state={amountError ? "error" : amountText ? "filled" : "default"}
+            helper={amountError ?? undefined}
           />
           <div className="flex flex-col gap-2">
             <span className="text-sm font-medium text-primary">สถานะบิล</span>

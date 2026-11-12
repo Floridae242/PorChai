@@ -7,103 +7,113 @@ import { Mascot } from "@/components/ui/mascot";
 import { CONSENT_VERSION } from "@/lib/client/consent-version";
 import { ApiError } from "@/lib/client/errors";
 import { useApi } from "@/lib/client/use-api";
+import { useSubmit } from "@/lib/client/use-submit";
 
-const CONSENT_DETAILS = [
+// Wording is copied from Figma A1 (DevLead/figma-spec/phase2-fixes.md Q2). The spec lists 4 lines under
+// "สิ่งที่เก็บ" (it says 5 exist; the fifth was not readable), so only those 4 are shown.
+const CONSENT_GROUPS = [
   {
-    title: "1. ข้อมูลรายรับรายจ่ายและแผนเงิน",
-    body: "เก็บยอดเงินที่มี วันเงินเข้า บิลประจำ เป้าออม เงินเผื่อ และรายการใช้จ่ายที่คุณบันทึก เพื่อคำนวณงบรายวันและวงเงินซื้อของ",
+    title: "สิ่งที่เก็บ",
+    items: [
+      "ยอดเงิน วันเงินเข้า และบิลที่คุณกรอก",
+      "รายการรายรับ/รายจ่ายที่คุณจด",
+      "รูปใบเสร็จ/สลิปที่คุณส่ง เพื่ออ่านยอดเป็นรายการร่าง",
+      "LINE ID เพื่อให้เปิดแผนของคุณได้",
+    ],
   },
   {
-    title: "2. รูปใบเสร็จและสลิป (OCR)",
-    body: "ใช้สกัดชื่อร้าน ยอดรวม และวันที่เพื่อสร้างรายการร่างให้คุณตรวจสอบและกดยืนยันก่อนบันทึกทุกครั้ง ไม่หักยอดอัตโนมัติ",
+    title: "ใช้ข้อมูลอย่างไร",
+    items: [
+      "AI ช่วยอ่านข้อความและอธิบายผล ตัวเลขคิดด้วยระบบ",
+      "ร้านค้าเห็นแค่ข้อมูลรวม ไม่เห็นชื่อหรือยอดเงินของคุณ",
+      "เตือนผ่าน LINE และสะสมแต้มรายวัน ปิดเตือนได้ในหน้าตั้งค่า",
+    ],
   },
   {
-    title: "3. การถาม AI ก่อนจ่าย",
-    body: "ใช้ AI ช่วยอ่านประโยคภาษาธรรมชาติและอธิบายทางเลือกเท่านั้น ส่วนตัวเลขเงินทุกตัวคำนวณด้วยโค้ดจากข้อมูลบัญชีของคุณคนเดียว",
-  },
-  {
-    title: "4. สิทธิพิเศษและข้อมูลสถิติร้านค้า",
-    body: "โปรโมชันในแอปแสดงป้าย 'ข้อเสนอจากผู้สนับสนุน' ชัดเจน ไม่ส่งโปรผ่านแชต และส่งรายงานให้ร้านค้าเป็นยอดรวมแบบไม่ระบุตัวตนเท่านั้น",
-  },
-  {
-    title: "5. การเตือนตามพฤติกรรมและแต้มรายวัน",
-    body: "ส่งข้อความเตือนรายการประจำหรือบิลเมื่อคุณเปิดใช้งาน และให้แต้มสะสมสูงสุด 1 แต้มต่อวันตามเวลาไทย คุณปิดเตือนหรือลบข้อมูลทั้งหมดได้ทุกเมื่อที่หน้าตั้งค่า",
+    title: "สิ่งที่ไม่ทำ",
+    items: [
+      "ไม่เชื่อมบัญชีธนาคาร · ส่งรูปใบเสร็จ/สลิปเฉพาะเมื่อคุณเลือกเอง",
+      "เครื่องมือวัดการใช้งาน (Clarity) ปิดบังข้อความที่คุณกรอก",
+    ],
   },
 ] as const;
+
+const FULL_POLICY_HEADINGS = ["ข้อมูลที่เก็บและเหตุผล", "ระยะเวลาเก็บข้อมูล", "วิธีขอลบข้อมูล", "ติดต่อทีมงาน"] as const;
 
 export function ConsentView() {
   const api = useApi();
   const router = useRouter();
-  const [expanded, setExpanded] = useState(false);
+  const { submit, busy } = useSubmit();
+  const [policyOpen, setPolicyOpen] = useState(false);
   const [ticked, setTicked] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function start() {
-    setBusy(true);
     setError(null);
-    try {
+    const result = await submit(CONSENT_VERSION, async () => {
       await api.acceptConsent(CONSENT_VERSION);
-      router.replace("/app/setup/income");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
-    } finally {
-      setBusy(false);
+      // Someone who already has a cycle (e.g. re-consenting after a version bump) goes back to the app.
+      // If me() fails we cannot tell, so fall through to setup.
+      try {
+        return (await api.me()).hasActiveCycle;
+      } catch {
+        return false;
+      }
+    });
+    if (result.ok) {
+      // busy stays true: the page is unmounting, so a second tap cannot slip in.
+      router.replace(result.value ? "/app" : "/app/setup/income");
+      return;
     }
+    if ("skipped" in result) return;
+    setError(result.error instanceof ApiError ? result.error.message : "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
   }
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-between gap-6 px-4 py-6 font-body">
       <div className="flex flex-col gap-5">
-        <div className="flex items-center">
-          <span className="font-display text-2xl text-primary">พอใช้</span>
-        </div>
+        <h1 className="font-display text-2xl text-primary">ก่อนเริ่มใช้</h1>
 
         <div className="flex flex-col items-center gap-3 pt-2 text-center">
           <Mascot pose="greeting" size={80} />
-          <h1 className="font-display text-3xl text-primary">ก่อนเริ่มใช้พอใช้</h1>
-          <p className="text-base text-secondary">
-            พอใช้เก็บข้อมูลรายรับรายจ่ายที่คุณบันทึกไว้เพื่อคำนวณเงินที่ใช้ได้ในแต่ละวัน และไม่นำไปให้ผู้อื่น
-          </p>
+          <p className="text-lg font-semibold text-primary">พอใช้เก็บข้อมูลเท่าที่จำเป็น</p>
+          <p className="text-base text-secondary">เพื่อคำนวณว่าเงินพอใช้ถึงวันเงินเข้าไหม</p>
         </div>
 
-        <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
-          <ul className="flex flex-col gap-2 text-sm text-primary">
-            <li className="flex items-start gap-2">
-              <span className="font-semibold text-status-ok" aria-hidden="true">
-                ✓
-              </span>
-              <span>คำนวณงบรายวันด้วยโค้ดที่ตรวจสอบได้ ไม่ใช้ AI คิดเลข</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-semibold text-status-ok" aria-hidden="true">
-                ✓
-              </span>
-              <span>ไม่เชื่อมบัญชีธนาคาร และไม่เปิดเผยข้อมูลรายบุคคลให้ร้านค้า</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-semibold text-status-ok" aria-hidden="true">
-                ✓
-              </span>
-              <span>แก้ไขเวลาเตือนหรือลบข้อมูลทั้งหมดได้ตลอดเวลาที่หน้าตั้งค่า</span>
-            </li>
-          </ul>
+        {CONSENT_GROUPS.map((group) => (
+          <section key={group.title} className="flex flex-col gap-2 rounded-md border border-line bg-card p-4">
+            <h2 className="text-base font-semibold text-primary">{group.title}</h2>
+            <ul className="flex flex-col gap-2 text-sm text-primary">
+              {group.items.map((item) => (
+                <li key={item} className="flex items-start gap-2">
+                  <span aria-hidden="true" className="text-secondary">
+                    •
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
 
+        <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
           <button
             type="button"
-            aria-expanded={expanded}
-            onClick={() => setExpanded((v) => !v)}
-            className="self-start text-sm font-semibold text-link underline underline-offset-4"
+            aria-expanded={policyOpen}
+            onClick={() => setPolicyOpen((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 text-left text-sm font-semibold text-link"
           >
-            {expanded ? "ซ่อนรายละเอียดการใช้ข้อมูล ▴" : "อ่านรายละเอียดการใช้ข้อมูล ▾"}
+            <span>อ่านนโยบายความเป็นส่วนตัวฉบับเต็ม</span>
+            <span aria-hidden="true">{policyOpen ? "▴" : "▾"}</span>
           </button>
 
-          {expanded ? (
+          {policyOpen ? (
             <div className="flex flex-col gap-3 border-t border-line pt-3 text-sm">
-              {CONSENT_DETAILS.map((item) => (
-                <div key={item.title} className="flex flex-col gap-0.5">
-                  <h2 className="font-semibold text-primary">{item.title}</h2>
-                  <p className="text-secondary">{item.body}</p>
+              <p className="text-secondary">ฉบับเต็มกำลังจัดทำ แสดงหัวข้อไว้ก่อน</p>
+              {FULL_POLICY_HEADINGS.map((heading) => (
+                <div key={heading} className="flex flex-col gap-0.5">
+                  <h3 className="font-semibold text-primary">{heading}</h3>
+                  <p className="text-secondary">(รอทีมยืนยันข้อความ)</p>
                 </div>
               ))}
             </div>
@@ -112,14 +122,14 @@ export function ConsentView() {
       </div>
 
       <div className="flex flex-col gap-4 pt-2">
-        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-line bg-card p-3.5 text-sm text-primary">
+        <label className="flex cursor-pointer items-center gap-3 rounded-md border border-line bg-card p-3.5 text-sm text-primary">
           <input
             type="checkbox"
             checked={ticked}
             onChange={(e) => setTicked(e.target.checked)}
-            className="mt-0.5 size-5 shrink-0 accent-[var(--green-700)]"
+            className="size-6 shrink-0 accent-[var(--green-700)]"
           />
-          <span>ยอมรับข้อตกลงการใช้ข้อมูลเพื่อเริ่มต้นใช้งานพอใช้</span>
+          <span>ฉันเข้าใจและยินยอม</span>
         </label>
 
         {error ? (
@@ -129,7 +139,7 @@ export function ConsentView() {
         ) : null}
 
         <Button variant="primary" block disabled={!ticked} busy={busy} onClick={start}>
-          เริ่มต้นใช้งาน
+          ยอมรับและเริ่ม
         </Button>
       </div>
     </main>
