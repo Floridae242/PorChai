@@ -9,7 +9,6 @@ import { Banner } from "@/components/ui/banner";
 import { Button, buttonClass } from "@/components/ui/button";
 import { InputField } from "@/components/ui/input-field";
 import { ListRow } from "@/components/ui/list-row";
-import { Mascot } from "@/components/ui/mascot";
 import { USER_CATEGORIES, type Plan, type Summary } from "@/lib/api-types";
 import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import { essentialsFromDaily } from "@/lib/client/essentials";
@@ -736,7 +735,6 @@ export function SettingsPrivacyView() {
 // H6. Nothing is cleared here until the server confirms the deletion.
 export function SettingsDeleteView() {
   const api = useApi();
-  const router = useRouter();
   const del = useSubmit<void>();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -747,7 +745,9 @@ export function SettingsDeleteView() {
       return;
     }
     clearAllLocalUserData();
-    router.replace("/app/consent"); // busy stays on: no second delete while navigating
+    // Hard navigation, not router: the in-memory consent flag must be dropped so Back cannot reach
+    // financial screens. busy stays on: no second delete while navigating.
+    window.location.replace("/app/consent");
   }
 
   const error = del.error ? errorText(del.error, "ลบข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง") : null;
@@ -757,10 +757,7 @@ export function SettingsDeleteView() {
       <AppHeader title="ลบข้อมูลของฉัน" back="/app/settings" tone="default" />
 
       <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-5">
-        <div className="flex items-center gap-3">
-          <Mascot pose="budgetTight" size={48} />
-          <h2 className="text-lg font-bold text-danger">ลบแล้วกู้คืนไม่ได้</h2>
-        </div>
+        <h2 className="text-lg font-bold text-danger">ลบแล้วกู้คืนไม่ได้</h2>
         <p className="text-sm text-secondary">
           จะลบยอดเงิน รอบเงิน บิล และรายการที่จดทั้งหมดของคุณ แล้วกลับไปเริ่มตั้งค่าใหม่ ถ้าอยากเก็บไว้ กดยกเลิก
         </p>

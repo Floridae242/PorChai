@@ -105,6 +105,13 @@ describe("new user starts empty (no fake defaults)", () => {
     expect(document.body.textContent).not.toMatch(/\d{3,}/);
   });
 
+  it("review (A4, numbers ok) has no mascot; shortfall/tight (A5) keep budgetTight 72", async () => {
+    saveSetupDraft(figmaDraft());
+    renderPage(SetupReviewPage);
+    await screen.findByText("บาท/วัน");
+    expect(document.querySelector("img")).toBeNull();
+  });
+
   it("review names only the missing parts", async () => {
     saveSetupDraft(figmaDraft({ balance: null, emergencyBuffer: null }));
     renderPage(SetupReviewPage);

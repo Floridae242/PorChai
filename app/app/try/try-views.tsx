@@ -759,7 +759,7 @@ export function TrySavedView() {
 
   return (
     <main className="flex flex-col items-center gap-5 py-8 text-center font-body">
-      <Mascot pose="saveCoins" size={80} />
+      <Mascot pose="budgetOk" size={72} />
 
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-3xl text-primary">บันทึกแล้ว</h1>

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/client/errors";
@@ -41,6 +41,7 @@ describe("ConsentPage (A1 / A1b / A1c)", () => {
     expect(screen.getByLabelText("ฉันเข้าใจและยินยอม")).toBeTruthy();
     expect(screen.getByRole("button", { name: START })).toBeTruthy();
     expect(document.body.textContent).not.toMatch(/DEMO/i);
+    expect(document.querySelector("img")?.getAttribute("width")).toBe("72"); // Figma A1 mascot 72
   });
 
   it("the full-policy row is collapsed, then expands (A1b) and collapses again", async () => {
@@ -145,9 +146,14 @@ describe("ConsentPage (A1 / A1b / A1c)", () => {
 
   it("does not redirect when the consent check fails", async () => {
     const api = createMockApi({ scenario: "fresh", consented: false });
-    vi.spyOn(api, "consent").mockRejectedValue(new Error("down"));
+    const check = vi.spyOn(api, "consent").mockRejectedValue(new Error("down"));
     renderConsent(api);
-    await new Promise((r) => setTimeout(r, 30));
+    await waitFor(() => expect(check).toHaveBeenCalled());
+    // Await the actual rejection (and the handler that follows), so "no redirect" cannot pass vacuously.
+    await check.mock.results[0].value.catch(() => undefined);
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(replace).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: START })).toBeTruthy();
   });

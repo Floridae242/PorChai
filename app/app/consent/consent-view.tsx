@@ -92,7 +92,7 @@ export function ConsentView() {
         <h1 className="font-display text-2xl text-primary">ก่อนเริ่มใช้</h1>
 
         <div className="flex flex-col items-center gap-3 pt-2 text-center">
-          <Mascot pose="greeting" size={80} />
+          <Mascot pose="greeting" size={72} />
           <p className="text-lg font-semibold text-primary">พอใช้เก็บข้อมูลเท่าที่จำเป็น</p>
           <p className="text-base text-secondary">เพื่อคำนวณว่าเงินพอใช้ถึงวันเงินเข้าไหม</p>
         </div>

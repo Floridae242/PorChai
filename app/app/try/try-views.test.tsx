@@ -449,6 +449,10 @@ describe("TrySavedView (C4)", () => {
     currentSearch = `plan=${plan.id}`;
     const { unmount } = renderWith(api, <TrySavedView />);
     expect(await screen.findByText(/รองเท้า/)).toBeTruthy();
+    // Figma C4: mascot งบโอเค (budgetOk) 72
+    const img = document.querySelector("img") as HTMLImageElement;
+    expect(img.getAttribute("src")).toBe("/mascot/budgetOk.png");
+    expect(img.getAttribute("width")).toBe("72");
     unmount();
 
     currentSearch = "plan=plan-999";

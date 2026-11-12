@@ -434,9 +434,12 @@ function ReviewForm({ draft }: { draft: SetupDraft }) {
 
   return frame(
     <>
-      <div className="flex flex-col items-center gap-2 pt-1 text-center">
-        <Mascot pose={isShortfall || isTight ? "budgetTight" : "budgetOk"} size={72} />
-      </div>
+      {/* Figma: A4 (ok) has no mascot; A5a/A5b (shortfall / tight) have budgetTight 72. */}
+      {isShortfall || isTight ? (
+        <div className="flex flex-col items-center gap-2 pt-1 text-center">
+          <Mascot pose="budgetTight" size={72} />
+        </div>
+      ) : null}
 
       {isShortfall ? (
         <Banner kind="error" text="เงินที่มียังไม่ครอบคลุมบิลก่อนวันเงินเข้า" />

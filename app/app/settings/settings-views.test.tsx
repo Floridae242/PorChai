@@ -165,6 +165,11 @@ describe("H5 privacy", () => {
 });
 
 describe("H6 delete everything", () => {
+  it("has no mascot (not in Figma H6)", () => {
+    renderWith(apiWith({}), <SettingsDeleteView />);
+    expect(document.querySelector("img")).toBeNull();
+  });
+
   function seedLocal() {
     window.localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify({ version: "v", acceptedAt: "x" }));
     window.localStorage.setItem(SETUP_DRAFT_KEY, "{}");
@@ -200,12 +205,20 @@ describe("H6 delete everything", () => {
   it("success -> calls once, clears local keys, redirects to consent", async () => {
     seedLocal();
     const deleteMyData = vi.fn(async () => {});
-    renderWith(apiWith({ deleteMyData }), <SettingsDeleteView />);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "ลบข้อมูลทั้งหมด" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.dblClick(within(dialog).getByRole("button", { name: "ยืนยันลบ" }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/consent"));
+    const locReplace = vi.fn();
+    const realLocation = window.location;
+    Object.defineProperty(window, "location", { configurable: true, value: { ...realLocation, replace: locReplace } });
+    try {
+      renderWith(apiWith({ deleteMyData }), <SettingsDeleteView />);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "ลบข้อมูลทั้งหมด" }));
+      const dialog = await screen.findByRole("dialog");
+      await user.dblClick(within(dialog).getByRole("button", { name: "ยืนยันลบ" }));
+      await waitFor(() => expect(locReplace).toHaveBeenCalledWith("/app/consent"));
+    } finally {
+      Object.defineProperty(window, "location", { configurable: true, value: realLocation });
+    }
+    expect(replace).not.toHaveBeenCalled(); // hard navigation, not router
     expect(deleteMyData).toHaveBeenCalledTimes(1);
     expect(window.localStorage.getItem(CONSENT_STORAGE_KEY)).toBeNull();
     expect(window.localStorage.getItem(SETUP_DRAFT_KEY)).toBeNull();

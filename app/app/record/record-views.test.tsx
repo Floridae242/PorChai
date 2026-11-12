@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
   useParams: () => currentParams,
 }));
 
-import { RecordEditView, RecordLinkView, RecordNewView } from "./record-views";
+import { RecordDoneView, RecordEditView, RecordLinkView, RecordNewView } from "./record-views";
 
 const mk = () => createMockApi({ scenario: "default", today: thaiDate(new Date()) });
 const AMOUNT = "จำนวนเงิน (บาท)";
@@ -225,6 +225,13 @@ describe("RecordNewView — tabs a11y", () => {
     const panel = screen.getByRole("tabpanel");
     for (const tab of screen.getAllByRole("tab")) expect(tab.getAttribute("aria-controls")).toBe(panel.id);
     expect(panel.getAttribute("aria-labelledby")).toBe("record-tab-expense");
+  });
+});
+
+describe("RecordDoneView (D3)", () => {
+  it("shows the budgetOk mascot at 72 (Figma D3/D3b)", () => {
+    renderWith(mk(), <RecordDoneView />);
+    expect(document.querySelector("img")?.getAttribute("width")).toBe("72");
   });
 });
 
