@@ -1,5 +1,6 @@
 import type { SimulateResponse } from "@/lib/api-types";
 import { requireUser } from "@/lib/auth";
+import { thaiDate } from "@/lib/calc/time";
 import { simulate } from "@/lib/db/simulate";
 import { errorResponse, readJson } from "@/lib/http";
 import { parseTrial } from "@/lib/validate";
@@ -8,7 +9,7 @@ import { parseTrial } from "@/lib/validate";
 export async function POST(request: Request): Promise<Response> {
   try {
     const { userId } = await requireUser(request);
-    const trial = parseTrial(await readJson(request));
+    const trial = parseTrial(await readJson(request), thaiDate(new Date()));
     return Response.json((await simulate(userId, trial)) satisfies SimulateResponse);
   } catch (err) {
     return errorResponse(err);

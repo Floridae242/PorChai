@@ -94,6 +94,8 @@ async function onPostback(userId: string, data: string): Promise<TextMessage | n
       postponePlanIds: [],
       essentials: null,
       emergencyBuffer: null,
+      payday: null,
+      balance: null,
     });
     return tryMessage(draft, r);
   }

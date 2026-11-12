@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db/client";
-import { currentAnchor, requireActiveCycle } from "@/lib/db/budget";
+import { currentAnchor, loadBudget, requireActiveCycle, requireBasis } from "@/lib/db/budget";
 import { HttpError } from "@/lib/http";
 import type { BalanceCheck } from "@/lib/validate";
 
@@ -7,6 +7,7 @@ import type { BalanceCheck } from "@/lib/validate";
 // the user never made appears in their history.
 export async function recordBalanceCheck(userId: string, check: BalanceCheck): Promise<void> {
   const cycle = await requireActiveCycle(userId);
+  if (check.basis) requireBasis(await loadBudget(userId), check.basis); // card 23
   if (check.asOf) {
     const anchor = await currentAnchor(cycle);
     if (check.asOf < anchor.asOf) {

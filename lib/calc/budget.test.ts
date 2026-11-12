@@ -366,6 +366,20 @@ describe("tryOut — card 14 (try before paying; nothing is saved)", () => {
     expect(r.after).toMatchObject({ dailyBudget: baht(130) });
   });
 
+  it("23: payday 2 days late — the 50 spare becomes 90 short (essentials 70 × 2 more days)", () => {
+    const after200Postponed = central({ reserved: baht(250) });
+    const r = tryOut(after200Postponed, { buy: 0, release: 0, payday: "2026-11-23" });
+    expect(r.before).toMatchObject({ spare: baht(50), daysLeft: 10 });
+    expect(r.after).toMatchObject({ spare: -baht(90), daysLeft: 12 });
+    expect(r).toMatchObject({ verdict: "essentials_short", overLimitBy: baht(90) });
+  });
+
+  it("23: a corrected balance counts only after, and never as income still to come", () => {
+    const r = tryOut(central({ reserved: 0 }), { buy: 0, release: 0, balance: baht(900) });
+    expect(r.before).toMatchObject({ dailyBudget: baht(100) });
+    expect(r.after).toMatchObject({ dailyBudget: baht(90) });
+  });
+
   it("does not change the input it was given", () => {
     const i = central();
     const copy = { ...i };

@@ -1,5 +1,6 @@
 import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
 import { savingsFromPercent, setAsideFits } from "@/lib/calc/inputs";
+import { thaiDate } from "@/lib/calc/time";
 import { HttpError } from "@/lib/http";
 
 // Input checks for the API. Each failure is a 422 with a Thai message naming the field.
@@ -16,6 +17,7 @@ export type EntryPatch = Partial<NewEntry>;
 export interface BalanceCheck {
   balance: number;
   asOf?: Date;
+  basis?: string; // card 23: refuse if the numbers changed since the screen showed them
 }
 
 export const invalid = (message: string) => new HttpError(422, "invalid_input", message);
@@ -77,6 +79,23 @@ function nonNegative(v: unknown, message: string): number {
   return v;
 }
 
+// Card 23: the fingerprint of the numbers a screen showed (summary.basis / simulate's basis).
+// Confirming with it is refused if anything changed since, so an old plan is recalculated first.
+function basis(v: unknown, required: boolean): string | null {
+  if (v === undefined || v === null) {
+    if (required) throw invalid("ต้องส่งรหัสผลคำนวณ (basis) ที่หน้าจอแสดงอยู่");
+    return null;
+  }
+  if (typeof v !== "string" || v.length === 0 || v.length > 64) throw invalid("รหัสผลคำนวณ (basis) ไม่ถูกต้อง");
+  return v;
+}
+
+function futurePayday(v: unknown, today: string): string {
+  const payday = isoDate(v);
+  if (payday <= today) throw invalid("วันเงินเข้าต้องเป็นวันหลังวันนี้");
+  return payday;
+}
+
 export function parseNewEntry(body: unknown, today: string): NewEntry {
   const b = asObject(body);
   return {
@@ -100,9 +119,11 @@ export function parseEntryPatch(body: unknown, today: string): EntryPatch {
 
 export function parseBalanceCheck(body: unknown, now: Date): BalanceCheck {
   const b = asObject(body);
-  const balance = nonNegative(b.balance, "ยอดเงินต้องเป็นจำนวนสตางค์ ไม่ติดลบ");
-  if (b.asOf === undefined) return { balance };
-  return { balance, asOf: pastTime(b.asOf, now) };
+  const check: BalanceCheck = { balance: nonNegative(b.balance, "ยอดเงินต้องเป็นจำนวนสตางค์ ไม่ติดลบ") };
+  if (b.asOf !== undefined) check.asOf = pastTime(b.asOf, now);
+  const seen = basis(b.basis, false);
+  if (seen) check.basis = seen;
+  return check;
 }
 
 const INCOME_SOURCES = ["family", "side_job", "other"] as const;
@@ -152,8 +173,7 @@ export function parseNewCycle(body: unknown, today: string, now: Date): NewCycle
   if (!INCOME_FREQUENCIES.includes(b.incomeFrequency as NewCycle["incomeFrequency"])) {
     throw invalid("ความถี่เงินเข้าต้องเป็น รายสัปดาห์ รายเดือน หรือไม่แน่นอน");
   }
-  const payday = isoDate(b.payday);
-  if (payday <= today) throw invalid("วันเงินเข้าต้องเป็นวันหลังวันนี้");
+  const payday = futurePayday(b.payday, today);
   const balance = nonNegative(b.balance, "ยอดเงินต้องเป็นจำนวนสตางค์ ไม่ติดลบ");
 
   if (b.savingsPercent !== undefined && b.savingsAmount !== undefined) {
@@ -221,6 +241,7 @@ export interface PlanRequest {
   dueOn: string | null;
   category: UserCategory | null; // purchases only; null = 'other' when paid
   status: "reserved" | "postponed";
+  basis: string | null; // card 23: optional, refuse if the numbers changed since the try
 }
 
 const PLAN_KINDS = ["purchase", "bill"] as const;
@@ -243,6 +264,7 @@ export function parseNewPlan(body: unknown): PlanRequest {
     dueOn: b.dueOn === undefined || b.dueOn === null ? null : isoDate(b.dueOn),
     category: hasCategory ? category(b.category) : null,
     status: status as PlanRequest["status"],
+    basis: basis(b.basis, false),
   };
 }
 
@@ -274,19 +296,20 @@ export interface Trial {
   postponePlanIds: string[];
   essentials: Essentials | null; // answered for this try only (null = use the cycle's)
   emergencyBuffer: number | null; // card 19: try a new buffer (null = keep the cycle's)
+  payday: string | null; // card 23: try payday moving (money coming late)
+  balance: number | null; // card 23: try a corrected balance
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function parseTrial(body: unknown): Trial {
+export function parseTrial(body: unknown, today = thaiDate(new Date())): Trial {
   const b = asObject(body);
   const ids = b.postponePlanIds === undefined ? [] : b.postponePlanIds;
   if (!Array.isArray(ids)) throw invalid("แผนที่จะลองเลื่อนต้องเป็นรายการ");
   if (ids.length > MAX_ITEMS) throw invalid(`แผนที่จะลองเลื่อนใส่ได้ไม่เกิน ${MAX_ITEMS} รายการ`);
   if (!ids.every((id) => typeof id === "string" && UUID.test(id))) throw invalid("รหัสแผนที่จะลองเลื่อนไม่ถูกต้อง");
-  if (b.amount === undefined && ids.length === 0 && b.emergencyBuffer === undefined) {
-    throw invalid("ใส่ราคาของที่จะลอง แผนที่จะลองเลื่อน หรือเงินเผื่อที่จะลอง");
-  }
+  const nothing = [b.amount, b.emergencyBuffer, b.payday, b.balance].every((v) => v === undefined);
+  if (nothing && ids.length === 0) throw invalid("ใส่ราคาของที่จะลอง หรือสิ่งที่จะลองเปลี่ยน");
   return {
     amount: b.amount === undefined ? 0 : amount(b.amount),
     dueOn: b.dueOn === undefined || b.dueOn === null ? null : isoDate(b.dueOn),
@@ -296,7 +319,20 @@ export function parseTrial(body: unknown): Trial {
       b.emergencyBuffer === undefined || b.emergencyBuffer === null
         ? null
         : nonNegative(b.emergencyBuffer, "เงินเผื่อต้องเป็นจำนวนสตางค์ ไม่ติดลบ"),
+    payday: b.payday === undefined || b.payday === null ? null : futurePayday(b.payday, today),
+    balance: b.balance === undefined || b.balance === null ? null : nonNegative(b.balance, "ยอดเงินต้องเป็นจำนวนสตางค์ ไม่ติดลบ"),
   };
+}
+
+// PUT /api/cycle/payday — card 23: money coming late (or early). Needs the basis the screen showed.
+export interface PaydayChange {
+  payday: string;
+  basis: string;
+}
+
+export function parsePaydayChange(body: unknown, today: string): PaydayChange {
+  const b = asObject(body);
+  return { payday: futurePayday(b.payday, today), basis: basis(b.basis, true)! };
 }
 
 // PUT /api/cycle/buffer — card 19. `previous` is the buffer the summary screen showed,

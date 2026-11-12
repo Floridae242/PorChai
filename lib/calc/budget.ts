@@ -79,11 +79,19 @@ export interface TrialResult {
   overLimitBy: Satang | null; // how far past the purchase limit (W14 "เกินวงเงิน"); null if short or asking
 }
 
-// Try buying `buy` (held this cycle), postponing held plans worth `release` and/or a new emergency
-// buffer (card 19), without saving anything. Only `after` sees the change.
+// Try buying `buy` (held this cycle), postponing held plans worth `release`, a new emergency buffer
+// (card 19), a later payday or a corrected balance (card 23), without saving anything.
+// Only `after` sees the change.
 export function tryOut(
   input: BudgetInput,
-  change: { buy: Satang; release: Satang; emergencyBuffer?: Satang },
+  change: {
+    buy: Satang;
+    release: Satang;
+    emergencyBuffer?: Satang;
+    payday?: string;
+    balance?: Satang;
+    reserved?: Satang; // held plans re-counted for a moved payday (default: input.reserved)
+  },
 ): TrialResult {
   const needs: Missing[] = [];
   if (input.essentialPerDay === null) needs.push("essentials");
@@ -93,8 +101,10 @@ export function tryOut(
   const before = computeBudget(input);
   const after = computeBudget({
     ...input,
-    reserved: input.reserved + change.buy - change.release,
+    reserved: (change.reserved ?? input.reserved) + change.buy - change.release,
     emergencyBuffer: change.emergencyBuffer ?? input.emergencyBuffer,
+    payday: change.payday ?? input.payday, // card 23: more days to cover with the same money
+    balance: change.balance ?? input.balance,
   });
   if (after.kind !== "ok") return { verdict: "shortfall", needs, before, after, overLimitBy: null };
   // Both are known here: essentials were checked above

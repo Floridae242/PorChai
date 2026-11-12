@@ -28,6 +28,7 @@ export interface Summary {
   reserved: number; // unpaid bills + plans due by payday
   essentialPerDay: number | null; // null = not set yet: ask before showing spare / purchase limit
   budget: BudgetResult;
+  basis: string; // fingerprint of these numbers: send it back when confirming (card 23)
 }
 
 // POST /api/cycle — W4–W9 setup (see docs/frontend-api.md 3.1)
@@ -60,6 +61,7 @@ export type EditEntryRequest = Partial<NewEntryRequest>;
 export interface BalanceCheckRequest {
   balance: number;
   asOf?: string; // ISO time; default now
+  basis?: string; // card 23: the try's basis; numbers changed since → 409 stale
 }
 
 // A bill or something to buy. reserved = held back (W15 "เก็บไว้ในแผน") · postponed = next cycle
@@ -87,6 +89,7 @@ export interface NewPlanRequest {
   category?: UserCategory; // purchases only
   dueOn?: string | null;
   status?: "reserved" | "postponed"; // default reserved
+  basis?: string; // card 23: the try's basis; numbers changed since → 409 stale
 }
 
 // POST /api/plans/:id/pay — body optional
@@ -119,9 +122,12 @@ export interface SimulateRequest {
   postponePlanIds?: string[]; // held plans to try postponing (card 14 / 15 / 23)
   essentials?: { food: number; transport: number }; // just answered, for this try only
   emergencyBuffer?: number; // card 19: try a new buffer (summary screen before confirming)
+  payday?: string; // card 23: money coming late (or early) — after today
+  balance?: number; // card 23: a corrected balance (ปรับยอด) before confirming it
 }
 
 export interface SimulateResponse {
+  basis: string; // fingerprint of the stored numbers this try started from: send it with the confirm
   verdict: TrialVerdict; // ok · essentials_short (W14) · shortfall · ask
   needs: Missing[]; // ask these first: "essentials" (W7) · "payday" (has the money come?)
   before: BudgetResult | null; // null while asking
@@ -149,4 +155,10 @@ export interface EssentialsRequest {
 export interface BufferRequest {
   amount: number; // the new buffer, not how much to take off (a double tap sets it once)
   previous: number; // summary.emergencyBuffer as shown; changed meanwhile → 409 stale
+}
+
+// PUT /api/cycle/payday — card 23: money coming late (or early)
+export interface PaydayRequest {
+  payday: string; // after today
+  basis: string; // from POST /api/simulate { payday } (or summary): numbers changed since → 409 stale
 }
