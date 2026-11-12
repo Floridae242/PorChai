@@ -119,6 +119,8 @@ export function RecordNewView() {
         <button
           type="button"
           role="tab"
+          id="record-tab-expense"
+          aria-controls="record-tabpanel"
           aria-selected={type === "expense"}
           onClick={() => {
             setType("expense");
@@ -133,6 +135,8 @@ export function RecordNewView() {
         <button
           type="button"
           role="tab"
+          id="record-tab-income"
+          aria-controls="record-tabpanel"
           aria-selected={type === "income"}
           onClick={() => {
             setType("income");
@@ -146,7 +150,12 @@ export function RecordNewView() {
         </button>
       </div>
 
-      <section className="flex flex-col gap-4 rounded-md border border-line bg-card p-4">
+      <section
+        role="tabpanel"
+        id="record-tabpanel"
+        aria-labelledby={`record-tab-${type}`}
+        className="flex flex-col gap-4 rounded-md border border-line bg-card p-4"
+      >
         <InputField
           label="จำนวนเงิน (บาท)"
           inputMode="decimal"
@@ -238,9 +247,8 @@ export function RecordLinkView() {
     api
       .plans()
       .then(({ plans: list }) => {
-        const reserved = list.filter((p) => p.kind === "purchase" && p.status === "reserved");
-        setPlans(reserved);
-        if (reserved.length > 0) setSelectedPlanId(reserved[0].id);
+        // Default stays "none": the typed expense is recorded as its own entry unless the user picks a plan.
+        setPlans(list.filter((p) => p.kind === "purchase" && p.status === "reserved"));
       })
       .catch((err: unknown) => setError(errorText(err, "โหลดรายการในแผนไม่สำเร็จ")));
   }, [api]);
@@ -268,6 +276,8 @@ export function RecordLinkView() {
     if ("skipped" in result) return;
     setError(errorText(result.error, "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง"));
   }
+
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? null;
 
   if (!draft) {
     return (
@@ -340,6 +350,13 @@ export function RecordLinkView() {
         </div>
       </section>
 
+      {selectedPlan && selectedPlan.amount !== draft.amount ? (
+        <Banner
+          kind="warn"
+          text={`ยอดที่คุณจด ${formatBaht(draft.amount)} บาท ไม่ตรงกับรายการในแผน ${formatBaht(selectedPlan.amount)} บาท · ถ้ายืนยัน จะบันทึกจ่ายตามรายการในแผน ${formatBaht(selectedPlan.amount)} บาท`}
+        />
+      ) : null}
+
       {error ? <Banner kind="error" text={error} /> : null}
 
       <Button variant="primary" block busy={busy} onClick={handleConfirm}>
@@ -364,7 +381,7 @@ export function RecordDoneView() {
 
   return (
     <main className="flex flex-col items-center gap-5 py-8 text-center font-body">
-      <Mascot pose="budgetOk" size={80} />
+      <Mascot pose="budgetOk" size={72} />
 
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-3xl text-primary">บันทึกรายการแล้ว ✓</h1>

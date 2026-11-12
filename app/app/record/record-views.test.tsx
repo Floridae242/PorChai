@@ -188,6 +188,46 @@ describe("RecordLinkView (D2)", () => {
   });
 });
 
+describe("RecordLinkView (D2) — typed amount differs from the reserved plan", () => {
+  const draft = { type: "expense" as const, amount: 4000, note: "กาแฟ", category: "food" as const, spentOn: thaiDate(new Date()) };
+
+  it("defaults to recording the typed 40 as its own entry, not paying the 480 plan", async () => {
+    const api = mk();
+    await api.addPlan({ title: "รองเท้า", amount: 48000, kind: "purchase", status: "reserved" }, "k1");
+    savePendingRecord(draft);
+    const add = vi.spyOn(api, "addEntry");
+    const action = vi.spyOn(api, "planAction");
+    renderWith(api, <RecordLinkView />);
+    expect(await screen.findByRole("radio", { name: /ผูกกับ/ })).toBeTruthy();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "บันทึกเป็นรายจ่ายใหม่" }));
+    await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
+    expect(add.mock.calls[0][0]).toMatchObject({ amount: 4000 });
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it("choosing the plan shows both amounts before confirming", async () => {
+    const api = mk();
+    await api.addPlan({ title: "รองเท้า", amount: 48000, kind: "purchase", status: "reserved" }, "k1");
+    savePendingRecord(draft);
+    renderWith(api, <RecordLinkView />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("radio", { name: /ผูกกับ/ }));
+    const note = await screen.findByText(/ยอดที่คุณจด 40 บาท ไม่ตรงกับรายการในแผน 480 บาท/);
+    expect(note.textContent).toContain("จะบันทึกจ่ายตามรายการในแผน 480 บาท");
+    expect(screen.getByRole("button", { name: "ยืนยันจ่ายจริงและผูกกับแผน" })).toBeTruthy();
+  });
+});
+
+describe("RecordNewView — tabs a11y", () => {
+  it("each tab controls the tabpanel, which is labelled by the active tab", () => {
+    renderWith(mk(), <RecordNewView />);
+    const panel = screen.getByRole("tabpanel");
+    for (const tab of screen.getAllByRole("tab")) expect(tab.getAttribute("aria-controls")).toBe(panel.id);
+    expect(panel.getAttribute("aria-labelledby")).toBe("record-tab-expense");
+  });
+});
+
 describe("RecordEditView (D4 / D5)", () => {
   async function seededEntryId(api: PorchaiApi) {
     const res = await api.addEntry(
