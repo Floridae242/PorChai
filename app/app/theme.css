@@ -1,0 +1,88 @@
+/* PorChai theme tokens (green-yellow, 12 Nov). Imported from app/globals.css right after
+   the tailwindcss import; this file must not import tailwindcss itself. */
+
+:root {
+  /* primitive */
+  --green-900: #12301B; --green-800: #1F4D2B; --green-700: #3B7A2E;
+  --green-600: #6AAE3E; --green-500: #7EC151;
+  --lime-300: #B2D959;  --lime-100: #E8F3CF;  --lime-50: #F4F8E8;
+  --yellow-400: #FED24F; --yellow-50: #FFF6D6; --lemon-300: #FFF449;
+  --canvas-50: #F7F9F1; --white: #FFFFFF;
+  --sage-500: #4A5A48;  --sage-400: #6F7D6B;
+  --line-200: #E1E8D3;  --line-400: #B5C2A4;
+  --amber-600: #B5650A; --amber-50: #FCEFD9;
+  --red-600: #C0362C;   --red-50: #FBE7E6;
+
+  /* semantic: code should use this set */
+  --bg-app: var(--canvas-50);
+  --bg-card: var(--white);
+  --bg-subtle: var(--lime-50);
+  --bg-selected: var(--lime-100);
+  --text-primary: var(--green-900);
+  --text-secondary: var(--sage-500);
+  --text-muted: var(--sage-400);
+  --text-on-action: var(--green-900);    /* text on green buttons: never white */
+  --text-on-hero: var(--white);          /* on Hero / dark green / amber-red icons */
+  --text-link: var(--green-700);
+  --action-primary: var(--green-500);
+  --action-primary-pressed: var(--green-600);
+  --action-strong: var(--green-900);
+  --border-default: var(--line-200);
+  --border-strong: var(--line-400);
+  --chart-past: var(--lime-300);
+  --status-ok: var(--green-700);   --status-ok-bg: var(--lime-100);
+  --status-warn: var(--amber-600); --status-warn-bg: var(--amber-50);
+  --status-danger: var(--red-600); --status-danger-bg: var(--red-50);
+  --accent-reward: var(--yellow-400); --accent-reward-bg: var(--yellow-50);
+  --accent-highlight: var(--lemon-300);
+
+  --hero-gradient: linear-gradient(180deg, #0E2A17 0%, #1F4D2B 35%, #2F6B3A 75%, #3F7F35 100%);
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
+}
+
+/* --font-plex-thai / --font-sanamdeklen are set by next/font on the /app layout wrapper;
+   the mapping below adds the fallback stacks. */
+@theme inline {
+  --color-app: var(--bg-app);
+  --color-card: var(--bg-card);
+  --color-subtle: var(--bg-subtle);
+  --color-selected: var(--bg-selected);
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-on-action: var(--text-on-action);
+  --color-on-hero: var(--text-on-hero);
+  --color-link: var(--text-link);
+  --color-action-primary: var(--action-primary);
+  --color-action-pressed: var(--action-primary-pressed);
+  --color-action-strong: var(--action-strong);
+  --color-line: var(--border-default);
+  --color-line-strong: var(--border-strong);
+  --color-chart-past: var(--chart-past);
+  --color-ok: var(--status-ok);
+  --color-ok-bg: var(--status-ok-bg);
+  --color-warn: var(--status-warn);
+  --color-warn-bg: var(--status-warn-bg);
+  --color-danger: var(--status-danger);
+  --color-danger-bg: var(--status-danger-bg);
+  --color-reward: var(--accent-reward);
+  --color-reward-bg: var(--accent-reward-bg);
+  --color-highlight: var(--accent-highlight);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-sheet: 20px;
+  --radius-pill: 999px;
+
+  --font-body: var(--font-plex-thai), "IBM Plex Sans Thai", sans-serif;
+  --font-display: var(--font-sanamdeklen), var(--font-plex-thai), sans-serif;
+
+  --background-image-hero: var(--hero-gradient);
+}
+
+/* /app is always light: the root globals follow the OS dark scheme. */
+html:has([data-app-root]) {
+  color-scheme: light;
+  background: var(--bg-app);
+}
