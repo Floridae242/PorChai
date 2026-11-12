@@ -41,7 +41,7 @@
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
 }
 
-/* --font-body / --font-display are set by next/font on the /app layout wrapper;
+/* --font-plex-thai / --font-sanamdeklen are set by next/font on the /app layout wrapper;
    the mapping below adds the fallback stacks. */
 @theme inline {
   --color-app: var(--bg-app);
@@ -75,8 +75,8 @@
   --radius-sheet: 20px;
   --radius-pill: 999px;
 
-  --font-body: var(--font-body), "IBM Plex Sans Thai", sans-serif;
-  --font-display: var(--font-display), "IBM Plex Sans Thai", sans-serif;
+  --font-body: var(--font-plex-thai), "IBM Plex Sans Thai", sans-serif;
+  --font-display: var(--font-sanamdeklen), var(--font-plex-thai), sans-serif;
 
   --background-image-hero: var(--hero-gradient);
 }

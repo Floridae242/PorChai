@@ -23,7 +23,7 @@ const names = [
 
 describe("app theme tokens", () => {
   it.each(names)("declares %s", (name) => {
-    expect(css).toMatch(new RegExp(`${name}\s*:`));
+    expect(css).toMatch(new RegExp(`(?<![\\w-])${name}\\s*:`));
   });
 
   it("pins key values", () => {
