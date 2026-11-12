@@ -1,5 +1,5 @@
 import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
-import { savingsFromPercent } from "@/lib/calc/inputs";
+import { savingsFromPercent, setAsideFits } from "@/lib/calc/inputs";
 import { HttpError } from "@/lib/http";
 
 // Input checks for the API. Each failure is a 422 with a Thai message naming the field.
@@ -18,7 +18,8 @@ export interface BalanceCheck {
   asOf?: Date;
 }
 
-const invalid = (message: string) => new HttpError(422, "invalid_input", message);
+export const invalid = (message: string) => new HttpError(422, "invalid_input", message);
+export const SET_ASIDE_OVER = "เงินออมรวมเงินเผื่อเกินเงินที่มี";
 
 function asObject(body: unknown): Record<string, unknown> {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
@@ -173,7 +174,7 @@ export function parseNewCycle(body: unknown, today: string, now: Date): NewCycle
 
   const emergencyBuffer =
     b.emergencyBuffer === undefined ? 0 : nonNegative(b.emergencyBuffer, "เงินเผื่อต้องเป็นจำนวนสตางค์ ไม่ติดลบ");
-  if (savingsAmount + emergencyBuffer > balance) throw invalid("เงินออมรวมเงินเผื่อเกินเงินที่มี");
+  if (!setAsideFits(balance, savingsAmount, emergencyBuffer)) throw invalid(SET_ASIDE_OVER);
 
   const essentials = b.essentials === undefined || b.essentials === null ? null : parseEssentials(b.essentials);
 
@@ -272,6 +273,7 @@ export interface Trial {
   dueOn: string | null;
   postponePlanIds: string[];
   essentials: Essentials | null; // answered for this try only (null = use the cycle's)
+  emergencyBuffer: number | null; // card 19: try a new buffer (null = keep the cycle's)
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -282,11 +284,32 @@ export function parseTrial(body: unknown): Trial {
   if (!Array.isArray(ids)) throw invalid("แผนที่จะลองเลื่อนต้องเป็นรายการ");
   if (ids.length > MAX_ITEMS) throw invalid(`แผนที่จะลองเลื่อนใส่ได้ไม่เกิน ${MAX_ITEMS} รายการ`);
   if (!ids.every((id) => typeof id === "string" && UUID.test(id))) throw invalid("รหัสแผนที่จะลองเลื่อนไม่ถูกต้อง");
-  if (b.amount === undefined && ids.length === 0) throw invalid("ใส่ราคาของที่จะลอง หรือแผนที่จะลองเลื่อน");
+  if (b.amount === undefined && ids.length === 0 && b.emergencyBuffer === undefined) {
+    throw invalid("ใส่ราคาของที่จะลอง แผนที่จะลองเลื่อน หรือเงินเผื่อที่จะลอง");
+  }
   return {
     amount: b.amount === undefined ? 0 : amount(b.amount),
     dueOn: b.dueOn === undefined || b.dueOn === null ? null : isoDate(b.dueOn),
     postponePlanIds: [...new Set(ids as string[])],
     essentials: b.essentials === undefined || b.essentials === null ? null : parseEssentials(b.essentials),
+    emergencyBuffer:
+      b.emergencyBuffer === undefined || b.emergencyBuffer === null
+        ? null
+        : nonNegative(b.emergencyBuffer, "เงินเผื่อต้องเป็นจำนวนสตางค์ ไม่ติดลบ"),
+  };
+}
+
+// PUT /api/cycle/buffer — card 19. `previous` is the buffer the summary screen showed,
+// so a change made meanwhile on another screen is never silently overwritten.
+export interface BufferChange {
+  amount: number;
+  previous: number;
+}
+
+export function parseBufferChange(body: unknown): BufferChange {
+  const b = asObject(body);
+  return {
+    amount: nonNegative(b.amount, "เงินเผื่อต้องเป็นจำนวนสตางค์ ไม่ติดลบ"),
+    previous: nonNegative(b.previous, "ต้องส่งค่าเดิมของเงินเผื่อที่เห็นบนหน้าจอ"),
   };
 }

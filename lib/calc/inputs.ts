@@ -53,3 +53,8 @@ export function reservedTotal(plans: PlanLike[], payday: string): Satang {
 export function savingsFromPercent(startBalance: Satang, percent: number): Satang {
   return floorToBaht((startBalance * percent) / 100);
 }
+
+// Savings and buffer are set aside from the money on hand, so together they can never exceed it (card 19)
+export function setAsideFits(balance: Satang, savings: Satang, buffer: Satang): boolean {
+  return savings + buffer <= balance;
+}
