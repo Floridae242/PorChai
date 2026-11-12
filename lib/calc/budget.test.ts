@@ -153,11 +153,12 @@ describe("simulatePurchase — Figma demo numbers", () => {
     expect(simulatePurchase(figma(), baht(250))).toMatchObject({ kind: "ok", dailyBudget: baht(99) });
   });
 
-  it("W14: headphones 700 → 61 a day, 9 short of the 70 essentials", () => {
+  it("W14: headphones 700 → 61.50 a day, 8.50 short of the 70 essentials", () => {
+    // (1,440 − 700) ÷ 12 = 61.666… → 61.50 (25-satang step); 70 − 61.50 = 8.50 short
     expect(simulatePurchase(figma(), baht(700))).toMatchObject({
       kind: "ok",
-      dailyBudget: baht(61),
-      essentialShortPerDay: baht(9),
+      dailyBudget: 6150,
+      essentialShortPerDay: 850,
       maxPurchase: 0,
     });
   });
@@ -264,14 +265,16 @@ describe("computeBudget", () => {
     expect(r).toMatchObject({ kind: "shortfall", shortfall: baht(100) });
   });
 
-  it("floors to whole baht: 1,000 over 3 days is 333", () => {
+  it("floors to 25 satang: 1,000 over 3 days is 333.25", () => {
+    // 1,000 ÷ 3 = 333.333… → 333.25
     const r = computeBudget(input({ balance: baht(1000), days: 3 }));
-    expect(r).toMatchObject({ kind: "ok", dailyBudget: baht(333) });
+    expect(r).toMatchObject({ kind: "ok", dailyBudget: 33325 });
   });
 
-  it("floors, never rounds up: 2,000 over 3 days is 666 (not 667)", () => {
+  it("floors, never rounds up: 2,000 over 3 days is 666.50 (not 666.75)", () => {
+    // 2,000 ÷ 3 = 666.666… → 666.50 (666.75 would promise money that is not there)
     const r = computeBudget(input({ balance: baht(2000), days: 3 }));
-    expect(r).toMatchObject({ kind: "ok", dailyBudget: baht(666) });
+    expect(r).toMatchObject({ kind: "ok", dailyBudget: 66650 });
   });
 
   it("overspending today gives a negative todayRemaining", () => {
@@ -320,10 +323,11 @@ describe("tryOut — card 14 (try before paying; nothing is saved)", () => {
     expect(r.after).toMatchObject({ dailyBudget: baht(80), essentialShortPerDay: 0 });
   });
 
-  it("W14: headphones 700 → over the limit by 100, 61 a day, essentials short 9 a day", () => {
+  it("W14: headphones 700 → over the limit by 100, 61.50 a day, essentials short 8.50 a day", () => {
+    // (1,440 − 700) ÷ 12 = 61.666… → 61.50; 70 − 61.50 = 8.50
     const r = tryOut(figma(), { buy: baht(700), release: 0 });
     expect(r).toMatchObject({ verdict: "essentials_short", overLimitBy: baht(100) });
-    expect(r.after).toMatchObject({ dailyBudget: baht(61), essentialShortPerDay: baht(9) });
+    expect(r.after).toMatchObject({ dailyBudget: 6150, essentialShortPerDay: 850 });
   });
 
   it("14: doing every plan leaves the central example 150 short", () => {

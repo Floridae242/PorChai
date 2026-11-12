@@ -86,7 +86,7 @@ describe("card 19: PUT /api/cycle/buffer", () => {
     expect(without.verdict).toBe("essentials_short");
     const withBuffer = await tryIt({ amount: 70000, emergencyBuffer: 0 });
     expect(withBuffer.verdict).toBe("ok");
-    expect(withBuffer.after).toMatchObject({ dailyBudget: 7100 }); // (1,440 + 120 − 700) ÷ 12
+    expect(withBuffer.after).toMatchObject({ dailyBudget: 7150 }); // (1,440 + 120 − 700) ÷ 12 = 71.666… → 71.50
   });
 
   it("19: confirming twice (double tap) sets it once — nothing taken twice", async () => {
