@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+import { ShopVerifyView } from "./shop-verify-view";
 
-export default function StandaloneShopVerifyRedirect() {
-  redirect("/app/shop/verify");
+export const instant = false;
+
+export default function ShopVerifyPage() {
+  return <ShopVerifyView />;
 }

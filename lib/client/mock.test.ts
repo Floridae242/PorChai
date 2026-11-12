@@ -240,6 +240,13 @@ describe("mock promos", () => {
   });
 });
 
+describe("mock shopRedeem needs no student consent", () => {
+  it("answers invalid instead of throwing no_consent for a shop owner", async () => {
+    const api = createMockApi({ scenario: "fresh" });
+    expect(await api.shopRedeem("PC-ZZZZ")).toEqual({ status: "invalid" });
+  });
+});
+
 describe("mock T1b surface (income, aggregates, quota, reminders, delete)", () => {
   it("addIncome raises balance once per key; rejects 0, negative and future dates", async () => {
     const api = createMockApi();

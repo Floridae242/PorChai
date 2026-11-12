@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
 import { useToast } from "@/components/shell/toast";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonClass } from "@/components/ui/button";
-import { InputField } from "@/components/ui/input-field";
 import { Mascot } from "@/components/ui/mascot";
 import { ApiError } from "@/lib/client/errors";
 import { PROMO_FIXTURES } from "@/lib/client/mock-fixtures";
@@ -295,14 +294,6 @@ export function PerkCodeView() {
                 ? `ใช้สิทธิ์แล้ว · จดรายจ่าย ${formatBaht(promo.price)} บาท`
                 : "ใช้สิทธิ์แล้ว · จดรายจ่าย"}
             </Button>
-            {claim ? (
-              <Link
-                href={`/app/shop/verify?code=${encodeURIComponent(claim.code)}`}
-                className={buttonClass("secondary", true)}
-              >
-                เปิดหน้ายืนยันรหัสฝั่งร้านค้า (M1)
-              </Link>
-            ) : null}
           </div>
         </>
       )}
@@ -407,80 +398,6 @@ export function PointsView() {
           );
         })}
       </section>
-    </main>
-  );
-}
-
-export function ShopVerifyView() {
-  const api = useApi();
-  const searchParams = useSearchParams();
-  const [code, setCode] = useState(() => searchParams?.get("code") ?? "PC-");
-  const [result, setResult] = useState<{
-    status: "redeemed" | "already_redeemed" | "invalid" | "expired";
-    promoTitle?: string;
-  } | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function handleVerify() {
-    const clean = code.trim().toUpperCase();
-    if (!clean) return;
-    setBusy(true);
-    try {
-      // Ensure the default promo code is registered in mock if testing M1 directly
-      await api.claimPromo(PROMO_FIXTURES[0].id).catch(() => {});
-      const res = await api.shopRedeem(clean);
-      setResult(res);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-5 px-4 py-6 font-body">
-      <div className="flex items-center justify-between border-b border-line pb-3">
-        <div>
-          <span className="text-xs font-semibold text-link">สำหรับร้านค้าพาร์ทเนอร์</span>
-          <h1 className="text-xl font-bold text-primary">ยืนยันรหัสสิทธิพิเศษพอใช้</h1>
-        </div>
-        <Link href="/app/perks" className="text-xs font-semibold text-link underline">
-          กลับหน้าแอป
-        </Link>
-      </div>
-
-      <section className="flex flex-col gap-4 rounded-md border border-line bg-card p-4">
-        <InputField
-          label="รหัสส่วนลดจากลูกค้า"
-          placeholder="เช่น PC-7K3Q"
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          state={code ? "filled" : "default"}
-          helper="ระบบบันทึกการใช้สิทธิ์ครั้งเดียว หากกดซ้ำจะไม่นับสิทธิ์ซ้ำ"
-        />
-
-        <Button variant="primary" block busy={busy} disabled={!code.trim()} onClick={handleVerify}>
-          ยืนยันรหัส
-        </Button>
-      </section>
-
-      {result ? (
-        <section className="flex flex-col gap-2 rounded-md border border-line bg-card p-4">
-          {result.status === "redeemed" ? (
-            <Banner
-              kind="info"
-              text={`ยืนยันรหัสสำเร็จ ✓ ${result.promoTitle ? `(${result.promoTitle})` : ""} · นับสิทธิ์ 1 ครั้ง`}
-            />
-          ) : result.status === "already_redeemed" ? (
-            <Banner
-              kind="warn"
-              text="รหัสนี้ถูกยืนยันใช้สิทธิ์ไปแล้ว ระบบไม่นับสิทธิ์ซ้ำ"
-            />
-          ) : result.status === "expired" ? (
-            <Banner kind="error" text="รหัสนี้หมดอายุแล้ว" />
-          ) : (
-            <Banner kind="error" text="ไม่พบรหัสนี้ในระบบ กรุณาตรวจสอบตัวอักษรอีกครั้ง" />
-          )}
-        </section>
-      ) : null}
     </main>
   );
 }

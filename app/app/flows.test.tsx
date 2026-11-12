@@ -17,7 +17,8 @@ vi.mock("next/navigation", () => ({
   useParams: () => currentParams,
 }));
 
-import { PerksListView, PointsView, ShopVerifyView } from "./perks/perks-views";
+import { PerksListView, PointsView } from "./perks/perks-views";
+import { ShopVerifyView } from "../shop/verify/shop-verify-view";
 import { PlanMainView } from "./plan/plan-views";
 import { RecordNewView } from "./record/record-views";
 import { SettingsNotificationsView } from "./settings/settings-views";
@@ -116,11 +117,14 @@ describe("Phase 2 Core Flows (G05–G12)", () => {
       </ApiContext.Provider>,
     );
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "ยืนยันรหัส" }));
-    expect(await screen.findByText(/ยืนยันรหัสสำเร็จ ✓/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "ตรวจรหัส" }));
+    expect(await screen.findByText(/ใช้ได้ ✓/)).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "ยืนยันรหัส" }));
-    expect(await screen.findByText(/รหัสนี้ถูกยืนยันใช้สิทธิ์ไปแล้ว ระบบไม่นับสิทธิ์ซ้ำ/)).toBeTruthy();
+    // Re-entering the same code is a new action (the guard resets when the input changes).
+    await user.clear(screen.getByLabelText("รหัสจากลูกค้า"));
+    await user.type(screen.getByLabelText("รหัสจากลูกค้า"), claimed.code);
+    await user.click(screen.getByRole("button", { name: "ตรวจรหัส" }));
+    expect(await screen.findByText(/รหัสนี้ใช้ไปแล้ว ระบบไม่นับซ้ำ/)).toBeTruthy();
     unmountShop();
 
     render(

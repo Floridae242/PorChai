@@ -22,14 +22,13 @@ export function tabForPath(pathname: string): TabKey | null {
   return null;
 }
 
-/** Pages rendered without tab bar / sidebar: consent, first-time setup, dev UI gallery, app-open loading, merchant verify. */
+/** Pages rendered without tab bar / sidebar: consent, first-time setup, dev UI gallery, app-open loading. */
 export function hideNav(pathname: string): boolean {
   const p = normalise(pathname);
   return (
     under(p, "/app/consent") ||
     under(p, "/app/setup") ||
     under(p, "/app/demo") ||
-    under(p, "/app/loading") ||
-    under(p, "/app/shop")
+    under(p, "/app/loading")
   );
 }
