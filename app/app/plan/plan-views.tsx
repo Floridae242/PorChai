@@ -15,7 +15,7 @@ import { Mascot } from "@/components/ui/mascot";
 import type { Entry, Plan, Summary } from "@/lib/api-types";
 import { ApiError } from "@/lib/client/errors";
 import { CATEGORY_LABELS } from "@/lib/client/category-labels";
-import type { PlanActionName, PlanQuota } from "@/lib/client/types";
+import type { PlanActionName } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
 import { formatThaiDate } from "@/lib/format/date";
@@ -160,7 +160,6 @@ export function PlanMainView() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [quota, setQuota] = useState<PlanQuota | null>(null); // null = unknown: show nothing about it
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -196,14 +195,6 @@ export function PlanMainView() {
         setLoadError(errorText(err, "โหลดข้อมูลแผนเงินไม่สำเร็จ ลองใหม่อีกครั้ง"));
         setLoadState("error");
       });
-    api
-      .planQuota()
-      .then((q) => {
-        if (!cancelled) setQuota(q);
-      })
-      .catch(() => {
-        // not implemented / failed: no quota banner, no counter
-      });
     return () => {
       cancelled = true;
     };
@@ -230,10 +221,6 @@ export function PlanMainView() {
           .then((e) => setEntries(e.entries))
           .catch(() => {});
       }
-      api
-        .planQuota()
-        .then(setQuota)
-        .catch(() => {});
     } catch (err) {
       setActionError(errorText(err, "ดำเนินการไม่สำเร็จ ลองใหม่อีกครั้ง"));
     } finally {
@@ -344,24 +331,11 @@ export function PlanMainView() {
           </div>
         ) : tab === "pending" ? (
           <div className="flex flex-col gap-4">
-            {quota && quota.used >= quota.limit ? (
-              <Banner
-                kind="info"
-                text={`ใช้สิทธิ์แผนฟรีแล้ว ${quota.used}/${quota.limit} ในรอบนี้`}
-                action={{ label: "ดู Plus ›", href: "/app/plus" }}
-              />
-            ) : null}
-
             {actionError ? <Banner kind="error" text={actionError} /> : null}
 
             <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold text-primary">รายการที่เก็บไว้ในแผน</h2>
-                {quota ? (
-                  <span className="text-xs text-secondary">
-                    {quota.used}/{quota.limit} รายการฟรี
-                  </span>
-                ) : null}
               </div>
 
               {purchasePlans.length === 0 ? (
@@ -671,52 +645,6 @@ export function NewCycleConfirmView() {
           </Link>
         </div>
       </section>
-    </main>
-  );
-}
-
-// ---------------------------------------------------------------- C5
-
-// Only wording that exists in Figma C5: the quota line and the two buttons "ซื้อ Plus 29 บาท" / "ไว้ก่อน".
-// There is no purchase API, so buying says ยังไม่พร้อมใช้งาน. C6/C7 were not read from Figma.
-export function PlusView() {
-  const api = useApi();
-  const [quota, setQuota] = useState<PlanQuota | null>(null);
-  const [notReady, setNotReady] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .planQuota()
-      .then((q) => {
-        if (!cancelled) setQuota(q);
-      })
-      .catch(() => {
-        // not implemented / failed: no quota line
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
-
-  return (
-    <main className="flex flex-col gap-4 py-2 font-body">
-      <AppHeader title="พอใช้ Plus" back="/app" tone="default" />
-
-      {quota && quota.used >= quota.limit ? (
-        <Banner kind="info" text={`รอบนี้ใช้สิทธิ์แผนฟรีครบแล้ว (${quota.used}/${quota.limit})`} />
-      ) : null}
-
-      {notReady ? <Banner kind="info" text={`${MSG_NOT_READY} — ตอนนี้ยังซื้อ Plus ไม่ได้`} /> : null}
-
-      <div className="flex flex-col gap-4">
-        <Button variant="primary" block onClick={() => setNotReady(true)}>
-          ซื้อ Plus 29 บาท
-        </Button>
-        <Link href="/app" className={buttonClass("secondary", true)}>
-          ไว้ก่อน
-        </Link>
-      </div>
     </main>
   );
 }

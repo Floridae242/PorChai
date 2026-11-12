@@ -46,7 +46,6 @@ interface StoredEntry extends Entry {
 type StoredPlan = Omit<Plan, "heldThisCycle">;
 
 const MSG_NO_CONSENT = "ต้องยินยอมก่อนใช้งาน";
-const PLAN_QUOTA_LIMIT = 3; // TODO(team): real server limit undecided (3 vs 5); the mock follows 3
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MSG_NO_CYCLE = "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าก่อนเริ่มใช้";
 
@@ -243,8 +242,6 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
     if (!f) throw new ApiError(404, "not_found", "ไม่พบโปรนี้");
     return f;
   }
-  const quotaUsed = () =>
-    plans.filter((p) => p.kind === "purchase" && (p.status === "reserved" || p.status === "paid")).length;
   const rewardOf = (r: (typeof REWARD_FIXTURES)[number]): Reward => ({ ...r, stock: stock.get(r.id) ?? 0 });
 
   return {
@@ -395,9 +392,6 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       if (known) return planOut(c, findPlan(known));
       const kind = req.kind ?? "purchase";
       const status = req.status ?? "reserved";
-      if (kind === "purchase" && status === "reserved" && quotaUsed() >= PLAN_QUOTA_LIMIT) {
-        throw new ApiError(409, "quota_full", "ใช้สิทธิ์เก็บไว้ในแผนครบ 3 รายการแล้ว");
-      }
       const p = pushPlan({
         kind,
         title: req.title,
@@ -535,11 +529,6 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
         by.set(e.category, t);
       }
       return { items: [...by.values()].sort((a, b) => b.amount - a.amount) };
-    },
-
-    async planQuota() {
-      if (!consented) throw new ApiError(403, "no_consent", MSG_NO_CONSENT);
-      return { used: quotaUsed(), limit: PLAN_QUOTA_LIMIT };
     },
 
     async reminderSettings() {

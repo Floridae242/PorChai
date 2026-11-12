@@ -14,7 +14,7 @@ import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import { essentialsFromDaily } from "@/lib/client/essentials";
 import { ApiError } from "@/lib/client/errors";
 import { clearAllLocalUserData } from "@/lib/client/local-data";
-import type { PlanQuota, ReminderSettings } from "@/lib/client/types";
+import type { ReminderSettings } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
 import { bahtErrorMessage } from "@/lib/format/baht-error";
@@ -50,39 +50,9 @@ function LoadFailed({ onRetry }: { onRetry: () => void }) {
 
 // H3. Only what exists: no name, avatar, point total or plan status is invented.
 export function SettingsMainView() {
-  const api = useApi();
-  const [quota, setQuota] = useState<PlanQuota | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    api.planQuota().then(
-      (q) => {
-        if (!cancelled) setQuota(q);
-      },
-      () => {
-        // not implemented / failed: the quota number is simply not shown
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
-
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="ตั้งค่า" tone="default" />
-
-      <section className="flex items-center justify-between gap-3 rounded-md border border-line-strong bg-reward-bg p-4">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-bold text-primary">แพ็กเกจของคุณ</span>
-          <p className="text-sm text-secondary">
-            {quota ? `ฟรี · เก็บไว้ในแผนได้ ${quota.limit} รายการต่อรอบ` : "ฟรี"}
-          </p>
-        </div>
-        <Link href="/app/plus" className="text-sm font-semibold text-link underline underline-offset-4">
-          ดู Plus
-        </Link>
-      </section>
 
       <section className="divide-y divide-line rounded-md border border-line bg-card px-4">
         <ListRow title="รอบเงินและวันเงินเข้า" href="/app/plan/edit" badge={<Chevron />} />

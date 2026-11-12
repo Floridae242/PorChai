@@ -108,7 +108,6 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     addIncome: notImplemented,
     dailySpend: notImplemented,
     categoryTotals: notImplemented,
-    planQuota: notImplemented,
     reminderSettings: notImplemented,
     saveReminderSettings: notImplemented,
     deleteMyData: notImplemented,
