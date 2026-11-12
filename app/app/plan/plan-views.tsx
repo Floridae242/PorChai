@@ -19,6 +19,7 @@ import type { PlanActionName, PlanQuota } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
 import { formatThaiDate } from "@/lib/format/date";
+import { bahtErrorMessage } from "@/lib/format/baht-error";
 import { formatBaht, parseBahtInput, satangToInputString } from "@/lib/format/money";
 
 const MSG_NOT_READY = "ยังไม่พร้อมใช้งาน";
@@ -549,8 +550,8 @@ export function BalanceAdjustView() {
       .then((s) => {
         if (cancelled) return;
         setSummary(s);
-        // The input takes a positive amount: a balance that is zero or below is not put in it.
-        if (s.balance > 0) setBalanceText(satangToInputString(s.balance));
+        // A zero balance is a real answer and is prefilled; a negative one is not put in the input.
+        if (s.balance >= 0) setBalanceText(satangToInputString(s.balance));
       })
       .catch((err) => {
         if (cancelled) return;
@@ -567,9 +568,9 @@ export function BalanceAdjustView() {
   }, [api, attempt]);
 
   async function handleSave() {
-    const parsed = parseBahtInput(balanceText);
+    const parsed = parseBahtInput(balanceText, { allowZero: true });
     if (!parsed.ok) {
-      setError("ใส่เป็นตัวเลขมากกว่า 0");
+      setError(bahtErrorMessage(parsed.reason, { allowZero: true }));
       return;
     }
     setError(null);

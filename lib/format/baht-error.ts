@@ -11,6 +11,8 @@ const MESSAGES: Record<Reason, string> = {
 };
 
 // Thai message for each parseBahtInput failure reason (shown under the field).
-export function bahtErrorMessage(reason: Reason): string {
+// With allowZero (balance fields) the not_positive reason means "negative".
+export function bahtErrorMessage(reason: Reason, opts?: { allowZero?: boolean }): string {
+  if (reason === "not_positive" && opts?.allowZero) return "ใส่จำนวนเงินตั้งแต่ 0 ขึ้นไป";
   return MESSAGES[reason];
 }

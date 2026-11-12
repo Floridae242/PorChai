@@ -174,14 +174,14 @@ function BalanceForm({ initial }: { initial: SetupDraft }) {
   function handleBalanceChange(val: string) {
     setBalanceText(val);
     setError(null);
-    const parsed = parseBahtInput(val);
+    const parsed = parseBahtInput(val, { allowZero: true });
     setDraft((d) => ({ ...d, balance: parsed.ok ? parsed.satang : null }));
   }
 
   function handleNext() {
-    const parsed = parseBahtInput(balanceText);
+    const parsed = parseBahtInput(balanceText, { allowZero: true });
     if (!parsed.ok) {
-      setError(bahtErrorMessage(parsed.reason));
+      setError(bahtErrorMessage(parsed.reason, { allowZero: true }));
       return;
     }
     saveSetupDraft({ ...draft, balance: parsed.satang });

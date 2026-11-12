@@ -228,6 +228,15 @@ describe("setup flow with the Figma numbers entered through the UI", () => {
 });
 
 describe("validation messages", () => {
+  it("balance of 0 is accepted and goes on to the next step", async () => {
+    const user = userEvent.setup();
+    renderPage(SetupBalancePage);
+    const field = await screen.findByLabelText("เงินที่มีตอนนี้ (บาท)");
+    await user.type(field, "0");
+    await user.click(screen.getByRole("button", { name: "ถัดไป" }));
+    expect(push).toHaveBeenCalledWith("/app/setup/savings");
+  });
+
   it("balance field uses the parse reason codes in Thai", async () => {
     const user = userEvent.setup();
     renderPage(SetupBalancePage);
@@ -239,9 +248,10 @@ describe("validation messages", () => {
     await user.click(next);
     expect(screen.getByText("ใส่เป็นตัวเลขเท่านั้น เช่น 400 หรือ 1,250.50")).toBeTruthy();
     await user.clear(field);
-    await user.type(field, "0");
+    await user.type(field, "-1");
     await user.click(next);
-    expect(screen.getByText("ใส่จำนวนเงินมากกว่า 0")).toBeTruthy();
+    expect(screen.getByText("ใส่จำนวนเงินตั้งแต่ 0 ขึ้นไป")).toBeTruthy();
+    expect(screen.queryByText(/มากกว่า 0/)).toBeNull();
     await user.clear(field);
     await user.type(field, "1.234");
     await user.click(next);

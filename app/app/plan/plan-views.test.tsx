@@ -281,6 +281,18 @@ describe("BalanceAdjustView (E4)", () => {
     expect(await screen.findByText(/ยอดเงินจริงปัจจุบันคือ 2,300\.50 บาท/)).toBeTruthy();
   });
 
+  it("a balance of exactly 0 is accepted and sent as satang 0", async () => {
+    const api = mk();
+    const adjust = vi.spyOn(api, "adjustBalance");
+    renderWith(api, <BalanceAdjustView />);
+    const user = userEvent.setup();
+    const field = (await screen.findByLabelText("เงินที่มีอยู่จริงตอนนี้ (บาท)")) as HTMLInputElement;
+    await user.clear(field);
+    await user.type(field, "0");
+    await user.click(screen.getByRole("button", { name: "ยืนยันปรับยอด" }));
+    await waitFor(() => expect(adjust).toHaveBeenCalledWith({ balance: 0 }));
+  });
+
   it("invalid amount: message, no call; server failure: alert, data kept, can retry", async () => {
     const api = mk();
     const adjust = vi.spyOn(api, "adjustBalance").mockRejectedValue(new ApiError(500, "internal", "ระบบผิดพลาด"));
@@ -289,8 +301,14 @@ describe("BalanceAdjustView (E4)", () => {
     const field = (await screen.findByLabelText("เงินที่มีอยู่จริงตอนนี้ (บาท)")) as HTMLInputElement;
     await user.clear(field);
     await user.click(screen.getByRole("button", { name: "ยืนยันปรับยอด" }));
-    expect(screen.getByText("ใส่เป็นตัวเลขมากกว่า 0")).toBeTruthy();
+    expect(screen.getByText("กรุณากรอกจำนวนเงิน")).toBeTruthy();
+    expect(screen.queryByText(/มากกว่า 0/)).toBeNull();
     expect(adjust).not.toHaveBeenCalled();
+    await user.type(field, "-5");
+    await user.click(screen.getByRole("button", { name: "ยืนยันปรับยอด" }));
+    expect(screen.getByText("ใส่จำนวนเงินตั้งแต่ 0 ขึ้นไป")).toBeTruthy();
+    expect(adjust).not.toHaveBeenCalled();
+    await user.clear(field);
 
     await user.type(field, "500");
     await user.click(screen.getByRole("button", { name: "ยืนยันปรับยอด" }));

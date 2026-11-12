@@ -43,6 +43,17 @@ describe("formatBahtOrUnknown", () => {
   });
 });
 
+describe("parseBahtInput allowZero", () => {
+  it("default rejects zero; allowZero accepts 0 and 0.00 but still rejects negatives", () => {
+    expect(parseBahtInput("0")).toEqual({ ok: false, reason: "not_positive" });
+    expect(parseBahtInput("0", { allowZero: true })).toEqual({ ok: true, satang: 0 });
+    expect(parseBahtInput("0.00", { allowZero: true })).toEqual({ ok: true, satang: 0 });
+    expect(parseBahtInput("-5", { allowZero: true })).toEqual({ ok: false, reason: "not_positive" });
+    expect(parseBahtInput("-0", { allowZero: true })).toEqual({ ok: false, reason: "not_positive" });
+    expect(parseBahtInput("12.5", { allowZero: true })).toEqual({ ok: true, satang: 1250 });
+  });
+});
+
 describe("parseBahtInput", () => {
   it('parses "1,200.50" as 120050', () => {
     expect(parseBahtInput("1,200.50")).toEqual({ ok: true, satang: 120050 });
