@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import {
   buildDemoScenarios,
@@ -76,7 +77,8 @@ function FlexNodeRenderer({
     const img = node as FlexImage;
     const sizePx = img.size === "xxs" ? 40 : img.size === "xs" ? 56 : 72;
     return (
-      <img
+      <Image
+        unoptimized
         src={toLocalImageSrc(img.url)}
         alt=""
         width={sizePx}
@@ -359,7 +361,8 @@ export function FlexPreviewClient() {
                 )}
 
                 <div className="flex items-start gap-2">
-                  <img
+                  <Image
+                    unoptimized
                     src="/mascot/greeting.png"
                     alt=""
                     width={32}
