@@ -162,3 +162,6 @@ export interface PaydayRequest {
   payday: string; // after today
   basis: string; // from POST /api/simulate { payday } (or summary): numbers changed since → 409 stale
 }
+
+// POST /api/advice — card 15
+export type { Advice, AdviceNeed, AdviceOption, AdviceVerdict } from "@/lib/advice/advise";

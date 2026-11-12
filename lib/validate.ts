@@ -349,3 +349,10 @@ export function parseBufferChange(body: unknown): BufferChange {
     previous: nonNegative(b.previous, "ต้องส่งค่าเดิมของเงินเผื่อที่เห็นบนหน้าจอ"),
   };
 }
+
+// POST /api/advice — card 15: the question as the user typed it
+export function parseQuestion(body: unknown): string {
+  const q = asObject(body).question;
+  if (typeof q !== "string" || !q.trim() || q.trim().length > 300) throw invalid("คำถามต้องมี 1–300 ตัวอักษร");
+  return q.trim();
+}

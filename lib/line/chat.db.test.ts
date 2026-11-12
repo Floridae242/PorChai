@@ -18,6 +18,7 @@ vi.mock("@/lib/line/reply", async (orig) => ({
     replies.push({ token, messages });
   }),
 }));
+vi.mock("@/lib/ai/gemini", () => ({ generate: vi.fn(async () => null) })); // AI off: rules + template
 vi.mock("@/lib/line/id-token", () => ({
   verifyIdToken: vi.fn(async (token: string): Promise<VerifyResult> => ({ ok: true, lineUserId: token })),
 }));
@@ -216,5 +217,71 @@ describe("card 09: expenses from the chat", () => {
     expect((await chat("ข้าว 45")).status).toBe(200);
     expect(await screenEntries()).toHaveLength(1);
     vi.mocked(console.error).mockRestore();
+  });
+});
+
+describe("card 15: questions in the chat", () => {
+  beforeEach(() => {
+    replies.length = 0;
+    vi.stubEnv("LINE_CHANNEL_SECRET", secret);
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-channel");
+  });
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    await db.from("users").delete().eq("line_user_id", lineA);
+  });
+
+  async function plans() {
+    const { data: u } = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const { data } = await db.from("plans").select("title, amount, status, due_on").eq("user_id", u!.id).eq("kind", "purchase");
+    return data!;
+  }
+  const button = (label: string) => lastButtons().find((b) => b.label === label) as { data: string };
+
+  it("«พรุ่งนี้กินชาบู 300 ไหวไหม» is answered, not recorded; for tomorrow only เก็บไว้ในแผน is offered", async () => {
+    await figma();
+    await chat("พรุ่งนี้กินชาบู 300 ไหวไหม");
+    expect(lastText()).toContain("ไหว ✓ ชาบู 300 บาท (พรุ่งนี้)");
+    expect(lastButtons().map((b) => b.label)).toEqual(["เก็บไว้ในแผน", "เปิดแอป"]);
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("เก็บไว้ในแผน holds it for tomorrow once; a second tap holds nothing more", async () => {
+    await figma();
+    await chat("พรุ่งนี้กินชาบู 300 ไหวไหม");
+    const keep = button("เก็บไว้ในแผน").data;
+    await tap(keep);
+    expect(lastText()).toContain("เก็บไว้ในแผนแล้ว ✓ ชาบู 300 บาท");
+    await tap(keep);
+    expect(await plans()).toEqual([{ title: "ชาบู", amount: 30000, status: "reserved", due_on: addDays(today(), 1) }]);
+  });
+
+  it("kept, then paid from the same answer → the plan is paid; money is taken once", async () => {
+    await figma();
+    await chat("ซื้อหูฟัง 500 ได้ไหม");
+    expect(lastButtons().map((b) => b.label)).toEqual(["ยืนยันจ่ายจริง", "เก็บไว้ในแผน", "เปิดแอป"]);
+    const pay = button("ยืนยันจ่ายจริง").data;
+    await tap(button("เก็บไว้ในแผน").data);
+    await tap(pay);
+    expect(await plans()).toEqual([expect.objectContaining({ status: "paid" })]);
+    expect(await screenEntries()).toEqual([expect.objectContaining({ amount: 50000, source: "plan" })]);
+  });
+
+  it("paid, then kept from the same answer → nothing is held on top", async () => {
+    await figma();
+    await chat("ซื้อหูฟัง 500 ได้ไหม");
+    const keep = button("เก็บไว้ในแผน").data;
+    await tap(button("ยืนยันจ่ายจริง").data);
+    await tap(keep);
+    expect(lastText()).toContain("จดไว้แล้ว");
+    expect(await plans()).toEqual([]);
+    expect(await screenEntries()).toHaveLength(1);
+  });
+
+  it("a question with no price asks for it", async () => {
+    await figma();
+    await chat("ชาบูไหวไหม");
+    expect(lastText()).toContain("ราคาเท่าไร");
   });
 });

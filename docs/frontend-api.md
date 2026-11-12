@@ -52,6 +52,7 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 | `PUT /api/cycle/essentials` | ตั้ง/แก้ค่ากิน + ค่ารถต่อวัน (W7) | `{ food, transport }` | `{ summary }` |
 | `PUT /api/cycle/buffer` | ยืนยันเงินเผื่อใหม่ (ใช้บางส่วน / กันเพิ่ม) | `{ amount, previous }` (ข้อ 3.4) | `{ summary }` |
 | `PUT /api/cycle/payday` | ยืนยันวันเงินเข้าใหม่ (เงินเข้าช้า/เร็ว) | `{ payday, basis }` (ข้อ 3.5) | `{ summary }` |
+| `POST /api/advice` | หน้าคำแนะนำ (การ์ด 15) «พรุ่งนี้กินชาบู 300 ไหวไหม» ไม่บันทึกอะไร | `{ question }` | `Advice` (ข้อ 3.6) |
 | `GET /api/plans` | แผนของรอบนี้ทุกสถานะ เก่าก่อน (W16) | – | `{ plans: Plan[] }` |
 | `POST /api/plans` | เก็บไว้ในแผน / เลื่อนไปรอบหน้า (W15, L8) | body `NewPlanRequest` + header `Idempotency-Key` | `201 { plan, summary }` |
 | `POST /api/plans/:id/pay` | จ่ายแล้ว | body ไม่ต้องส่ง หรือ `{ category }` | `{ plan, summary }` |
@@ -213,6 +214,28 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 4. เงินออม + เงินเผื่อ ต้องไม่เกินเงินที่มีตอนนี้ → 422 "เงินออมรวมเงินเผื่อเกินเงินที่มี"
 
 ⚠ ข้อความใต้การ์ด W10 "ถ้าใช้เงินเผื่อไปแล้ว กด ปรับยอด" — ถ้าผู้ใช้ปรับยอดอย่างเดียว เงินเผื่อยังถูกกัน 120 อยู่ เงินที่หายไปจะไปลดงบใช้จ่ายแทน (เหมือนไม่ได้ใช้เงินเผื่อ) แนะนำเปลี่ยนเป็น "ถ้าใช้เงินเผื่อไปแล้ว: ลดเงินเผื่อ (ปรับ ›) แล้วจดรายจ่าย"
+
+### 3.6 AI แนะนำก่อนจ่าย (`POST /api/advice`) — หน้าคำแนะนำ (การ์ด 15)
+
+```json
+{ "question": "พรุ่งนี้กินชาบู 300 บาทไหวไหม" }
+```
+
+ได้ `Advice` (ชนิดอยู่ใน `lib/api-types.ts`):
+
+| ช่อง | ใช้ทำอะไร |
+|---|---|
+| `verdict` | `enough` เงินพอ · `tight` เงินตึง (จ่ายได้ แต่งบต่อวันต่ำกว่าค่ากินค่ารถ) · `short` เงินไม่พอ · `ask` ข้อมูลไม่ครบ |
+| `needs` | ตอน `ask`: `amount` (ไม่มีราคา) · `essentials` (ยังไม่ตั้งค่ากินค่ารถ → `PUT /api/cycle/essentials`) · `payday` |
+| `item`, `amount`, `dueOn`, `category` | สิ่งที่อ่านได้จากคำถาม (`dueOn` null = วันนี้) |
+| `before` / `after` | ผลคำนวณก่อน/หลัง แบบเดียวกับลองก่อนจ่าย |
+| `options` | ทางเลือก: `spend_less { maxAmount }` ลดงบ · `postpone { plans, after }` เลื่อนแผน · `use_buffer { buffer, after }` ใช้เงินเผื่อ (ต้องให้ผู้ใช้อนุญาต → `PUT /api/cycle/buffer`) |
+| `explanation` | ข้อความพร้อมแสดง (ภาษาไทย) |
+| `byAI` | `true` = AI เขียน (ผ่านการตรวจตัวเลขแล้ว) · `false` = ข้อความแม่แบบ |
+| `basis` | ส่งต่อตอนยืนยัน (ข้อ 3.5) |
+
+ยืนยันหลังดูผล: จ่ายเลย → `POST /api/entries` · เก็บไว้ในแผน → `POST /api/plans { title: item, amount, dueOn, category, basis }` · ไม่ทำอะไร = ยกเลิก
+ในแชต พิมพ์คำถามแบบเดียวกัน (มี ไหวไหม / พอไหม / ได้ไหม / ?) บอทตอบพร้อมปุ่ม ยืนยันจ่ายจริง / เก็บไว้ในแผน
 
 ### รายจ่ายที่มาจากการจ่ายแผน (`source: "plan"`)
 

@@ -1,9 +1,13 @@
 import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
 import { tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
+import { advise } from "@/lib/advice/advise";
+import { isQuestion } from "@/lib/advice/question";
 import {
+  adviceMessage,
   alreadyMessage,
   askMessage,
+  keptMessage,
   holdMessage,
   noCycleMessage,
   recordedMessage,
@@ -12,7 +16,8 @@ import {
 } from "@/lib/chat/messages";
 import { parseExpense } from "@/lib/chat/parse";
 import { loadBudget, loadSummary, summaryOf } from "@/lib/db/budget";
-import { addEntry } from "@/lib/db/entries";
+import { addEntry, entryExists } from "@/lib/db/entries";
+import { actOnPlan, addPlan, planIdByKey } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
 import { userIdForLine } from "@/lib/db/users";
 import { HttpError } from "@/lib/http";
@@ -65,6 +70,8 @@ function record(userId: string, d: Draft) {
 
 // Card 09 / Figma L2 + L6
 async function onText(userId: string, body: string, eventId: string): Promise<TextMessage> {
+  // Card 15: «พรุ่งนี้กินชาบู 300 ไหวไหม» is a question, not a spend — answer it, save nothing
+  if (isQuestion(body)) return adviceMessage(await advise(userId, body), eventId);
   const parsed = parseExpense(body);
   if (parsed.kind === "ask") return askMessage(parsed.reason);
   const draft: Draft = { title: parsed.title, amount: parsed.amount, category: parsed.category, key: eventId };
@@ -99,20 +106,39 @@ async function onPostback(userId: string, data: string): Promise<TextMessage | n
     });
     return tryMessage(draft, r);
   }
+  const key = `line:${draft.key}`;
+  if (draft.action === "keep") {
+    // Already paid from the same question: keeping it too would hold the money twice
+    if (await entryExists(userId, key)) return alreadyMessage(draft);
+    const { created } = await addPlan(
+      userId,
+      { kind: "purchase", title: draft.title, amount: draft.amount, dueOn: draft.dueOn ?? null, category: draft.category as UserCategory, status: "reserved", basis: null },
+      key,
+    );
+    return created ? keptMessage(draft, await loadSummary(userId)) : alreadyMessage(draft);
+  }
+  // Kept first, paid now: pay that plan (card 57), so the money is not taken as a plan and a spend
+  const planId = await planIdByKey(userId, key);
+  if (planId) {
+    const plan = await actOnPlan(userId, planId, "pay", draft.category as UserCategory, thaiDate(new Date()));
+    if (plan.status !== "paid") return alreadyMessage(draft);
+    return recorded(userId, draft);
+  }
   const { created } = await record(userId, draft);
   if (!created) return alreadyMessage(draft);
   return recorded(userId, draft);
 }
 
-function readDraft(data: string): (Draft & { action: "pay" | "try" }) | null {
-  let d: { a?: unknown; t?: unknown; m?: unknown; c?: unknown; k?: unknown };
+function readDraft(data: string): (Draft & { action: "pay" | "try" | "keep" }) | null {
+  let d: { a?: unknown; t?: unknown; m?: unknown; c?: unknown; k?: unknown; d?: unknown };
   try {
     d = JSON.parse(data);
   } catch {
     return null;
   }
   const ok =
-    (d.a === "pay" || d.a === "try") &&
+    (d.a === "pay" || d.a === "try" || d.a === "keep") &&
+    (d.d === undefined || (typeof d.d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.d))) &&
     typeof d.t === "string" &&
     d.t.length > 0 &&
     d.t.length <= 40 &&
@@ -125,5 +151,12 @@ function readDraft(data: string): (Draft & { action: "pay" | "try" }) | null {
     d.k.length > 0 &&
     d.k.length <= 64;
   if (!ok) return null;
-  return { action: d.a as "pay" | "try", title: d.t as string, amount: d.m as number, category: d.c as UserCategory, key: d.k as string };
+  return {
+    action: d.a as "pay" | "try" | "keep",
+    title: d.t as string,
+    amount: d.m as number,
+    category: d.c as UserCategory,
+    key: d.k as string,
+    dueOn: (d.d as string | undefined) ?? null,
+  };
 }

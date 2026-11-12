@@ -59,6 +59,7 @@ supabase stop
 2. ใส่ env ใน Vercel (Project Settings > Environment Variables) ห้ามใส่ในไฟล์ใน repo ชื่อตัวแปรตาม `.env.example`:
    `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `NEXT_PUBLIC_LIFF_ID`, `LINE_LOGIN_CHANNEL_ID`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
    (`SUPABASE_ANON_KEY` ใช้เฉพาะเทสต์ ไม่ต้องใส่)
+   AI (การ์ด 15): `GEMINI_API_KEY` (คีย์จาก Google AI Studio แผนฟรี พอถือ) · `GEMINI_MODEL` ไม่ใส่ก็ได้ (ค่าเริ่มต้น `gemini-3.5-flash-lite`) · ไม่มีคีย์ = ระบบตอบด้วยข้อความแม่แบบ ไม่พัง
 3. สร้างตารางบนโปรเจกต์จริง: `supabase link --project-ref <ref>` แล้ว `supabase db push`
 4. deploy preview บน Vercel (push branch) แล้วจดโดเมน
    คำเตือน: preview ของ Vercel เปิด Vercel Authentication ไว้เป็นค่าเริ่มต้น ทำให้ LINE กด Verify webhook แล้วได้ 401 ต้องปิด Deployment Protection ของ preview นั้น หรือใช้โดเมน production แทน

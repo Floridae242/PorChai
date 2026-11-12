@@ -137,3 +137,13 @@ export async function cancelEntry(userId: string, id: string): Promise<Entry> {
   if (error && error.code !== "23514") throw error;
   return toEntry(row);
 }
+
+export async function entryExists(userId: string, idempotencyKey: string): Promise<boolean> {
+  const { count, error } = await getDb()
+    .from("entries")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("idempotency_key", idempotencyKey);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}

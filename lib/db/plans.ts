@@ -136,3 +136,15 @@ async function ownPlan(cycle: ActiveCycle, id: string): Promise<Plan> {
   if (error) throw error;
   return toPlan(data as Row, cycle.payday);
 }
+
+// A plan kept from the chat, found by the key of the message it came from
+export async function planIdByKey(userId: string, idempotencyKey: string): Promise<string | null> {
+  const { data, error } = await getDb()
+    .from("plans")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.id as string | undefined) ?? null;
+}

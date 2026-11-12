@@ -1,4 +1,5 @@
 import type { Summary, SimulateResponse } from "@/lib/api-types";
+import type { Advice } from "@/lib/advice/advise";
 import type { AskReason } from "@/lib/chat/parse";
 import type { BudgetResult } from "@/lib/calc/budget";
 import { LIFF_ID } from "@/lib/liff/config";
@@ -19,11 +20,12 @@ export interface Draft {
   amount: number;
   category: keyof typeof CATEGORY;
   key: string; // the first message's webhookEventId: the spend is saved once under it
+  dueOn?: string | null; // card 15: a question about tomorrow keeps a plan due then
 }
 
 // Postback data the confirm / try buttons carry back (LINE allows 300 characters)
-export const draftData = (action: "pay" | "try", d: Draft) =>
-  JSON.stringify({ a: action, t: d.title, m: d.amount, c: d.category, k: d.key });
+export const draftData = (action: "pay" | "try" | "keep", d: Draft) =>
+  JSON.stringify({ a: action, t: d.title, m: d.amount, c: d.category, k: d.key, ...(d.dueOn && { d: d.dueOn }) });
 
 const payButton = (d: Draft): QuickReplyAction => ({
   type: "postback",
@@ -89,4 +91,24 @@ export function tryMessage(d: Draft, r: SimulateResponse): TextMessage {
   if (r.verdict === "shortfall" && r.after?.kind === "shortfall") lines.push(`เงินไม่พอ ขาด ${baht(r.after.shortfall)} บาท`);
   lines.push("ออมและเงินเผื่อไม่ถูกแตะ");
   return text(lines.join("\n"), [payButton(d), APP]);
+}
+
+const keepButton = (d: Draft): QuickReplyAction => ({
+  type: "postback",
+  label: "เก็บไว้ในแผน",
+  data: draftData("keep", d),
+  displayText: "เก็บไว้ในแผน",
+});
+
+// Card 15: the answer first, confirming is a button (today: pay or keep; another day: keep)
+export function adviceMessage(a: Advice, key: string): TextMessage {
+  if (a.verdict === "ask" || a.amount === null) return text(a.explanation, [APP]);
+  const d: Draft = { title: a.item ?? "รายการ", amount: a.amount, category: a.category, key, dueOn: a.dueOn };
+  return text(a.explanation, a.dueOn === null ? [payButton(d), keepButton(d), APP] : [keepButton(d), APP]);
+}
+
+// L8: kept in the plan — held back, not spent
+export function keptMessage(d: Draft, s: Summary): TextMessage {
+  const daily = s.budget.kind === "ok" ? `\nตอนนี้ใช้ได้วันละ ${baht(s.budget.dailyBudget)} บาท` : "";
+  return text(`เก็บไว้ในแผนแล้ว ✓ ${line(d)}\nยังไม่หักเงินจริง กดจ่ายแล้วในแอปเมื่อจ่ายจริง${daily}`, [APP]);
 }
