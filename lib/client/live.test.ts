@@ -102,7 +102,6 @@ describe("createLiveApi", () => {
       () => api.addIncome({ amount: 100 }, "k"),
       () => api.dailySpend(),
       () => api.categoryTotals(),
-      () => api.planQuota(),
       () => api.reminderSettings(),
       () => api.saveReminderSettings({ enabled: true, time: "12:30", pausedUntil: null }),
       () => api.deleteMyData(),

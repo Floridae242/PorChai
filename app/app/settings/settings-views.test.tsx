@@ -61,8 +61,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("H3 main", () => {
-  it("shows only the Figma rows and nothing invented", async () => {
-    renderWith(apiWith({ planQuota: notImpl }), <SettingsMainView />);
+  it("shows only the Figma rows and no Plus or package card", async () => {
+    renderWith(apiWith({}), <SettingsMainView />);
     for (const t of [
       "รอบเงินและวันเงินเข้า",
       "การเตือน",
@@ -74,15 +74,9 @@ describe("H3 main", () => {
     ]) {
       expect(screen.getByRole("link", { name: new RegExp(t) })).toBeTruthy();
     }
-    expect(screen.getByText("แพ็กเกจของคุณ")).toBeTruthy();
+    expect(screen.queryByText("แพ็กเกจของคุณ")).toBeNull();
     expect(screen.queryByText(/แต้ม/)).toBeNull();
-    expect(screen.queryByText(/ไม่จำกัด/)).toBeNull();
-    expect(screen.getByRole("link", { name: "ดู Plus" })).toBeTruthy();
-  });
-
-  it("quota text comes from the server", async () => {
-    renderWith(apiWith({ planQuota: async () => ({ used: 1, limit: 4 }) }), <SettingsMainView />);
-    expect(await screen.findByText("ฟรี · เก็บไว้ในแผนได้ 4 รายการต่อรอบ")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Plus/ })).toBeNull();
   });
 });
 

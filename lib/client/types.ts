@@ -64,11 +64,6 @@ export interface CategoryTotals {
   items: CategoryTotal[]; // sorted by amount desc
 }
 
-export interface PlanQuota {
-  used: number;
-  limit: number;
-}
-
 export interface ReminderHabit {
   id: string;
   label: string;
@@ -116,7 +111,6 @@ export interface PorchaiApi {
   addIncome(req: NewIncomeRequest, idempotencyKey: string): Promise<{ summary: Summary }>;
   dailySpend(): Promise<DailySpend>;
   categoryTotals(): Promise<CategoryTotals>;
-  planQuota(): Promise<PlanQuota>;
   reminderSettings(): Promise<ReminderSettings>;
   saveReminderSettings(req: SaveReminderSettings): Promise<ReminderSettings>;
   deleteMyData(): Promise<void>;
