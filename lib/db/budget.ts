@@ -103,7 +103,10 @@ export async function loadBudget(userId: string, now = new Date()): Promise<Load
 }
 
 export async function loadSummary(userId: string, now = new Date()): Promise<Summary> {
-  const { anchor, input } = await loadBudget(userId, now);
+  return summaryOf(await loadBudget(userId, now));
+}
+
+export function summaryOf({ anchor, input }: LoadedBudget): Summary {
   return {
     today: input.today,
     payday: input.payday,

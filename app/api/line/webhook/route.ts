@@ -1,4 +1,4 @@
-import { recordEvent } from "@/lib/db/line-events";
+import { forgetEvent, recordEvent } from "@/lib/db/line-events";
 import { errorResponse, HttpError } from "@/lib/http";
 import { handleEvent } from "@/lib/line/handle-event";
 import { verifySignature } from "@/lib/line/signature";
@@ -24,6 +24,7 @@ export async function POST(request: Request): Promise<Response> {
       throw new HttpError(400, "bad_request", "คำขอไม่ถูกต้อง");
     }
 
+    let failed = false;
     for (const event of events) {
       const id = (event as { webhookEventId?: unknown } | null)?.webhookEventId;
       if (typeof id !== "string") continue;
@@ -32,11 +33,15 @@ export async function POST(request: Request): Promise<Response> {
       try {
         await handleEvent(event);
       } catch (err) {
-        // LINE wants a fast 200; keep going with the next event
+        // Not handled: forget it so a redelivery is handled, keep going with the next event,
+        // and answer non-2xx so LINE redelivers (needs "Webhook redelivery" on in the console).
+        // Saving is idempotent per event, so a redelivery never saves twice.
         console.error(err);
+        await forgetEvent(id);
+        failed = true;
       }
     }
-    return Response.json({});
+    return failed ? Response.json({ error: { code: "internal", message: "retry" } }, { status: 500 }) : Response.json({});
   } catch (err) {
     return errorResponse(err);
   }
