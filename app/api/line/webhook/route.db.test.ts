@@ -90,11 +90,11 @@ describe("POST /api/line/webhook", () => {
     vi.mocked(console.error).mockRestore();
   });
 
-  it("500 when LINE_CHANNEL_SECRET is missing", async () => {
+  it("503 when LINE_CHANNEL_SECRET is missing", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubEnv("LINE_CHANNEL_SECRET", "");
     const res = await post(events(ev(id("E1"))));
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
     vi.mocked(console.error).mockRestore();
   });
 });
