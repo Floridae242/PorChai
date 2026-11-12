@@ -81,12 +81,18 @@ describe("POST /api/line/webhook", () => {
     expect(handleEvent).toHaveBeenCalledTimes(1);
   });
 
-  it("still returns 200 and continues when handleEvent throws", async () => {
+  it("when handleEvent throws: keeps going, answers 500, and forgets that event so LINE's redelivery is handled", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(handleEvent).mockRejectedValueOnce(new Error("boom"));
-    const res = await post(events(ev(id("E5")), ev(id("R1"))));
-    expect(res.status).toBe(200);
+    const body = events(ev(id("E5")), ev(id("R1")));
+    const res = await post(body);
+    expect(res.status).toBe(500);
     expect(handleEvent).toHaveBeenCalledTimes(2);
+
+    // LINE redelivers the same body: only the failed event is handled again, not the one that worked
+    expect((await post(body)).status).toBe(200);
+    expect(handleEvent).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(handleEvent).mock.calls[2][0]).toMatchObject({ webhookEventId: id("E5") });
     vi.mocked(console.error).mockRestore();
   });
 

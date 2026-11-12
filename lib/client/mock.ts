@@ -18,6 +18,9 @@ import {
 } from "./mock-fixtures";
 import type { CategoryTotal, PlanActionName, PorchaiApi, Promo, ReminderSettings, Reward } from "./types";
 
+// Card 23: the server sends a fingerprint of the numbers; the mock only needs it to change when they do
+const mockBasis = (input: object) => JSON.stringify(input);
+
 export type MockScenario = "fresh" | "default" | "midCycle" | "shortfall" | "tight" | "paydayPassed";
 
 export interface MockOptions {
@@ -178,6 +181,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       emergencyBuffer: input.emergencyBuffer,
       reserved: input.reserved,
       essentialPerDay: input.essentialPerDay,
+      basis: mockBasis(input), // card 23: the real server sends a hash of the inputs
       budget: computeBudget(input),
     };
   }
@@ -356,6 +360,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       const sum = (kind: "bill" | "purchase") => kept.filter((p) => p.kind === kind).reduce((s, p) => s + p.amount, 0);
       const after = result.after;
       return {
+        basis: mockBasis(input),
         ...result,
         countsThisCycle,
         checks:

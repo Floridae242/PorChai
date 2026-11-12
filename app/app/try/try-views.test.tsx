@@ -134,6 +134,7 @@ describe("TryResultView (C2) — every verdict", () => {
   it("ok: after and before daily budgets, toggle cards use aria-pressed", async () => {
     const api = mk();
     vi.spyOn(api, "simulate").mockResolvedValue({
+      basis: "b",
       verdict: "ok",
       needs: [],
       before: okBudget(12000),
@@ -158,6 +159,7 @@ describe("TryResultView (C2) — every verdict", () => {
   it("essentials_short: shows the server's overLimitBy and essentialShortPerDay, computes nothing", async () => {
     const api = mk();
     vi.spyOn(api, "simulate").mockResolvedValue({
+      basis: "b",
       verdict: "essentials_short",
       needs: [],
       before: okBudget(12000),
@@ -175,6 +177,7 @@ describe("TryResultView (C2) — every verdict", () => {
   it("shortfall: shows after.shortfall and no daily budget for 'after'", async () => {
     const api = mk();
     vi.spyOn(api, "simulate").mockResolvedValue({
+      basis: "b",
       verdict: "shortfall",
       needs: [],
       before: okBudget(12000),
@@ -195,6 +198,7 @@ describe("TryResultView (C2) — every verdict", () => {
     const simulate = vi
       .spyOn(api, "simulate")
       .mockResolvedValueOnce({
+        basis: "b",
         verdict: "ask",
         needs: ["essentials"],
         before: null,
@@ -204,6 +208,7 @@ describe("TryResultView (C2) — every verdict", () => {
         checks: null,
       })
       .mockResolvedValueOnce({
+        basis: "b",
         verdict: "ok",
         needs: [],
         before: okBudget(12000),
@@ -235,6 +240,7 @@ describe("TryResultView (C2) — every verdict", () => {
   it("ask / essentials: 'จำไว้' calls setEssentials once (double tap) with the same total", async () => {
     const api = mk();
     vi.spyOn(api, "simulate").mockResolvedValue({
+      basis: "b",
       verdict: "ask",
       needs: ["essentials"],
       before: null,
@@ -258,6 +264,7 @@ describe("TryResultView (C2) — every verdict", () => {
   it("ask / payday: says payday passed and links to /app/cycle/new", async () => {
     const api = mk();
     vi.spyOn(api, "simulate").mockResolvedValue({
+      basis: "b",
       verdict: "ask",
       needs: ["payday"],
       before: null,
@@ -282,6 +289,7 @@ describe("TryResultView (C2) — every verdict", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("ระบบผิดพลาด");
     simulate.mockResolvedValue({
+      basis: "b",
       verdict: "ok",
       needs: [],
       before: okBudget(12000),
