@@ -14,7 +14,7 @@ import { ListRow } from "@/components/ui/list-row";
 import { Mascot } from "@/components/ui/mascot";
 import type { Entry, Plan, Summary } from "@/lib/api-types";
 import { ApiError } from "@/lib/client/errors";
-import { CATEGORY_LABELS, summarizeCategories } from "@/lib/client/summary-helpers";
+import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import { useApi } from "@/lib/client/use-api";
 import { formatThaiDate } from "@/lib/format/date";
 import { formatBaht, parseBahtInput } from "@/lib/format/money";
@@ -470,45 +470,6 @@ export function BalanceAdjustView() {
             ยืนยันปรับยอด
           </Button>
         </>
-      )}
-    </main>
-  );
-}
-
-export function CategoriesSummaryView() {
-  const api = useApi();
-  const [entries, setEntries] = useState<Entry[]>([]);
-
-  useEffect(() => {
-    api
-      .entries()
-      .then((res) => setEntries(res.entries))
-      .catch(() => {});
-  }, [api]);
-
-  const cats = summarizeCategories(entries);
-
-  return (
-    <main className="flex flex-col gap-4 py-2 font-body">
-      <AppHeader title="สรุปหมวดหมู่" back="/app" tone="default" />
-
-      {cats.length === 0 ? (
-        <EmptyState
-          title="ยังไม่มีข้อมูลใช้จ่ายแยกตามหมวด"
-          body="เมื่อคุณจดรายการใช้จ่าย ระบบจะสรุปยอดแต่ละหมวดหมู่ให้ที่นี่"
-          mascotPose="greeting"
-        />
-      ) : (
-        <section className="divide-y divide-line rounded-md border border-line bg-card px-4">
-          {cats.map((c) => (
-            <ListRow
-              key={c.category}
-              title={c.label}
-              subtitle={`${c.count} รายการในรอบนี้`}
-              amount={`${formatBaht(c.amount)} บาท`}
-            />
-          ))}
-        </section>
       )}
     </main>
   );

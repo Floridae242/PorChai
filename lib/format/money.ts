@@ -18,6 +18,18 @@ export function formatBaht(satang: Satang): string {
     : `${sign}${wholeText}.${String(frac).padStart(2, "0")}`;
 }
 
+// Satang -> text for an <input> (what parseBahtInput accepts back): no thousands separators, no
+// trailing zeros (4550 -> "45.5", 4500 -> "45"). Inputs are never negative.
+export function satangToInputString(satang: Satang): string {
+  if (!Number.isSafeInteger(satang) || satang < 0) {
+    throw new RangeError(`satang must be a non-negative safe integer, got ${satang}`);
+  }
+  const whole = Math.floor(satang / 100);
+  const frac = satang % 100;
+  if (frac === 0) return String(whole);
+  return `${whole}.${String(frac).padStart(2, "0").replace(/0$/, "")}`;
+}
+
 export function formatBahtOrUnknown(
   satang: Satang | null,
   unknownLabel: string,

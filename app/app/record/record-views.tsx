@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
 import { Sheet } from "@/components/shell/sheet";
 import { useToast } from "@/components/shell/toast";
@@ -12,37 +12,23 @@ import { Chip } from "@/components/ui/chip";
 import { InputField } from "@/components/ui/input-field";
 import { Mascot } from "@/components/ui/mascot";
 import { USER_CATEGORIES, type Entry, type Plan, type Summary, type UserCategory } from "@/lib/api-types";
+import { thaiDate } from "@/lib/calc/time";
+import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import { ApiError } from "@/lib/client/errors";
-import { DEFAULT_TODAY } from "@/lib/client/mock-fixtures";
-import { CATEGORY_LABELS } from "@/lib/client/summary-helpers";
+import {
+  clearPendingRecord,
+  loadPendingRecord,
+  savePendingRecord,
+  type PendingRecordDraft,
+} from "@/lib/client/pending-record";
 import { useApi } from "@/lib/client/use-api";
-import { formatBaht, parseBahtInput } from "@/lib/format/money";
+import { useSubmit } from "@/lib/client/use-submit";
+import { formatBaht, parseBahtInput, satangToInputString } from "@/lib/format/money";
 
-const PENDING_RECORD_KEY = "porchai.pending_record.v1";
+const MSG_INCOME_NOT_READY = "ยังไม่พร้อมใช้งาน — ตอนนี้จดได้เฉพาะรายจ่าย";
 
-interface PendingRecordDraft {
-  type: "expense" | "income";
-  amount: number;
-  note: string;
-  category: UserCategory;
-  spentOn: string;
-}
-
-function savePendingRecord(draft: PendingRecordDraft) {
-  try {
-    window.sessionStorage.setItem(PENDING_RECORD_KEY, JSON.stringify(draft));
-  } catch {
-    // ignore
-  }
-}
-
-function loadPendingRecord(): PendingRecordDraft | null {
-  try {
-    const raw = window.sessionStorage.getItem(PENDING_RECORD_KEY);
-    return raw ? (JSON.parse(raw) as PendingRecordDraft) : null;
-  } catch {
-    return null;
-  }
+function errorText(err: unknown, fallback: string): string {
+  return err instanceof ApiError ? err.message : fallback;
 }
 
 export function RecordNewView() {
@@ -50,20 +36,27 @@ export function RecordNewView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialType = searchParams?.get("type") === "income" ? "income" : "expense";
+  const { submit, busy } = useSubmit<"linked" | "saved">();
 
   const [type, setType] = useState<"expense" | "income">(initialType);
   const [amountText, setAmountText] = useState(() => searchParams?.get("amount") ?? "");
   const [note, setNote] = useState(() => searchParams?.get("note") ?? "");
   const [category, setCategory] = useState<UserCategory>("food");
-  const [spentOn, setSpentOn] = useState(DEFAULT_TODAY);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [spentOn, setSpentOn] = useState(() => thaiDate(new Date()));
+  const dateTouched = useRef(false);
+  const [error, setError] = useState<string | null>(null); // amount field
+  const [formError, setFormError] = useState<string | null>(null); // server / not-ready banner
 
+  // The server's "today" is authoritative; it equals thaiDate(new Date()) except on a mock clock.
   useEffect(() => {
     api
       .summary()
-      .then((s) => setSpentOn(s.today))
-      .catch(() => {});
+      .then((s) => {
+        if (!dateTouched.current) setSpentOn(s.today);
+      })
+      .catch(() => {
+        // keep the local Thai date
+      });
   }, [api]);
 
   async function handleSave() {
@@ -73,43 +66,49 @@ export function RecordNewView() {
       return;
     }
     setError(null);
-    setBusy(true);
-    try {
-      const draft: PendingRecordDraft = {
-        type,
-        amount: parsed.satang,
-        note: note.trim() || (type === "income" ? "รายรับเพิ่ม" : CATEGORY_LABELS[category]),
-        category,
-        spentOn,
-      };
-      savePendingRecord(draft);
+    setFormError(null);
+    const trimmed = note.trim();
+    const draft: PendingRecordDraft = {
+      type,
+      amount: parsed.satang,
+      note: trimmed || (type === "income" ? "" : CATEGORY_LABELS[category]),
+      category,
+      spentOn,
+    };
+    // One key per payload: a retry of the same data reuses it, an edited amount/note/date gets a new one.
+    const payload = { ...draft, category: type === "expense" ? category : null };
 
-      if (type === "expense") {
-        const { plans } = await api.plans().catch(() => ({ plans: [] as Plan[] }));
-        const reservedPurchases = plans.filter((p) => p.kind === "purchase" && p.status === "reserved");
-        if (reservedPurchases.length > 0) {
-          router.push("/app/record/link");
-          return;
-        }
-        await api.addEntry(
-          {
-            amount: draft.amount,
-            category: draft.category,
-            note: draft.note,
-            spentOn: draft.spentOn,
-          },
-          `entry-${Date.now()}`,
-        );
-      } else {
-        const current = await api.summary();
-        await api.adjustBalance({ balance: current.balance + draft.amount });
+    const result = await submit(payload, async (key) => {
+      if (type === "income") {
+        await api.addIncome({ amount: draft.amount, note: trimmed || null, receivedOn: spentOn }, key);
+        return "saved" as const;
       }
-      router.replace("/app/record/done?mode=normal");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
-    } finally {
-      setBusy(false);
+      const { plans } = await api.plans().catch(() => ({ plans: [] as Plan[] }));
+      if (plans.some((p) => p.kind === "purchase" && p.status === "reserved")) return "linked" as const;
+      await api.addEntry(
+        { amount: draft.amount, category: draft.category, note: draft.note, spentOn: draft.spentOn },
+        key,
+      );
+      return "saved" as const;
+    });
+
+    if (result.ok) {
+      // busy stays true: the page is unmounting, so a second tap cannot slip in.
+      if (result.value === "linked") {
+        savePendingRecord(draft);
+        router.push("/app/record/link");
+      } else {
+        clearPendingRecord();
+        router.replace("/app/record/done?mode=normal");
+      }
+      return;
     }
+    if ("skipped" in result) return;
+    if (type === "income" && result.error instanceof ApiError && result.error.code === "not_implemented") {
+      setFormError(MSG_INCOME_NOT_READY); // typed data stays in the form
+      return;
+    }
+    setFormError(errorText(result.error, "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง"));
   }
 
   return (
@@ -121,7 +120,10 @@ export function RecordNewView() {
           type="button"
           role="tab"
           aria-selected={type === "expense"}
-          onClick={() => setType("expense")}
+          onClick={() => {
+            setType("expense");
+            setFormError(null);
+          }}
           className={`rounded-pill py-2 text-sm font-semibold ${
             type === "expense" ? "bg-action-primary text-on-action" : "text-secondary"
           }`}
@@ -132,7 +134,10 @@ export function RecordNewView() {
           type="button"
           role="tab"
           aria-selected={type === "income"}
-          onClick={() => setType("income")}
+          onClick={() => {
+            setType("income");
+            setFormError(null);
+          }}
           className={`rounded-pill py-2 text-sm font-semibold ${
             type === "income" ? "bg-action-primary text-on-action" : "text-secondary"
           }`}
@@ -180,11 +185,16 @@ export function RecordNewView() {
           label="วันที่"
           type="date"
           value={spentOn}
-          onChange={(e) => setSpentOn(e.target.value)}
+          onChange={(e) => {
+            dateTouched.current = true;
+            setSpentOn(e.target.value);
+          }}
           state="filled"
           helper="จดย้อนหลังในรอบปัจจุบันได้ ระบบจะคำนวณงบวันนี้ใหม่ตามจริง"
         />
       </section>
+
+      {formError ? <Banner kind={formError === MSG_INCOME_NOT_READY ? "info" : "error"} text={formError} /> : null}
 
       <div className="flex flex-col gap-2">
         <Button variant="primary" block busy={busy} onClick={handleSave}>
@@ -201,11 +211,28 @@ export function RecordNewView() {
 export function RecordLinkView() {
   const api = useApi();
   const router = useRouter();
-  const [draft] = useState<PendingRecordDraft | null>(() => loadPendingRecord());
+  const { submit, busy } = useSubmit<"linked" | "unlinked">();
+  // undefined = not read yet (sessionStorage is only read after mount); null = there is no draft.
+  const [draft, setDraft] = useState<PendingRecordDraft | null | undefined>(undefined);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | "none">("none");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Read after mount (never during render) so server and client markup match.
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      const loaded = loadPendingRecord();
+      setDraft(loaded);
+      // Nothing to link (opened directly, reloaded after saving): back to the form, no made-up item.
+      if (!loaded) router.replace("/app/record/new");
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     api
@@ -215,38 +242,39 @@ export function RecordLinkView() {
         setPlans(reserved);
         if (reserved.length > 0) setSelectedPlanId(reserved[0].id);
       })
-      .catch(() => {});
+      .catch((err: unknown) => setError(errorText(err, "โหลดรายการในแผนไม่สำเร็จ")));
   }, [api]);
 
-  const effectiveAmount = draft?.amount ?? 48000;
-  const effectiveNote = draft?.note ?? "รองเท้า";
-  const effectiveCategory = draft?.category ?? "supplies";
-  const effectiveSpentOn = draft?.spentOn ?? DEFAULT_TODAY;
-
   async function handleConfirm() {
-    setBusy(true);
+    if (!draft) return;
     setError(null);
-    try {
+    const result = await submit({ selectedPlanId, draft }, async (key) => {
       if (selectedPlanId !== "none") {
-        await api.planAction(selectedPlanId, "pay", { category: effectiveCategory });
-        router.replace("/app/record/done?mode=linked");
-      } else {
-        await api.addEntry(
-          {
-            amount: effectiveAmount,
-            category: effectiveCategory,
-            note: effectiveNote,
-            spentOn: effectiveSpentOn,
-          },
-          `entry-unlinked-${Date.now()}`,
-        );
-        router.replace("/app/record/done?mode=unlinked");
+        await api.planAction(selectedPlanId, "pay", { category: draft.category });
+        return "linked" as const;
       }
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
-    } finally {
-      setBusy(false);
+      await api.addEntry(
+        { amount: draft.amount, category: draft.category, note: draft.note, spentOn: draft.spentOn },
+        key,
+      );
+      return "unlinked" as const;
+    });
+    if (result.ok) {
+      // busy stays true: the page is unmounting.
+      clearPendingRecord();
+      router.replace(`/app/record/done?mode=${result.value}`);
+      return;
     }
+    if ("skipped" in result) return;
+    setError(errorText(result.error, "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง"));
+  }
+
+  if (!draft) {
+    return (
+      <main className="py-8 font-body text-sm text-secondary" aria-busy="true">
+        กำลังโหลด…
+      </main>
+    );
   }
 
   return (
@@ -256,8 +284,8 @@ export function RecordLinkView() {
       <section className="flex flex-col gap-2 rounded-md border border-line bg-card p-4 text-sm">
         <span className="text-xs text-secondary">รายการที่กำลังจด</span>
         <div className="flex items-center justify-between">
-          <span className="font-semibold text-primary">{effectiveNote}</span>
-          <span className="font-bold tabular-nums text-primary">{formatBaht(effectiveAmount)} บาท</span>
+          <span className="font-semibold text-primary">{draft.note}</span>
+          <span className="font-bold tabular-nums text-primary">{formatBaht(draft.amount)} บาท</span>
         </div>
       </section>
 
@@ -382,79 +410,127 @@ export function RecordEditView() {
   const params = useParams<{ id: string }>();
   const toast = useToast();
   const entryId = params?.id ?? "";
+  const save = useSubmit();
+  const del = useSubmit();
 
   const [entry, setEntry] = useState<Entry | null>(null);
   const [amountText, setAmountText] = useState("");
   const [note, setNote] = useState("");
   const [category, setCategory] = useState<UserCategory>("food");
-  const [spentOn, setSpentOn] = useState(DEFAULT_TODAY);
+  const [spentOn, setSpentOn] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [amountError, setAmountError] = useState<string | null>(null);
+  const busy = save.busy || del.busy;
 
   useEffect(() => {
+    let cancelled = false;
     api
       .entries()
       .then(({ entries }) => {
-        const found = entries.find((e) => e.id === entryId) ?? entries[0] ?? null;
+        if (cancelled) return;
+        // Only the exact id: an unknown or stale id is "not found", never some other entry.
+        const found = entries.find((e) => e.id === entryId) ?? null;
         if (found) {
           setEntry(found);
-          setAmountText(formatBaht(found.amount).replace(/,/g, ""));
+          setAmountText(satangToInputString(found.amount));
           setNote(found.note ?? "");
           setCategory(found.category === "bills" ? "other" : found.category);
           setSpentOn(found.spentOn);
         }
+        setLoading(false);
       })
-      .finally(() => setLoading(false));
-  }, [api, entryId]);
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.code === "no_cycle") {
+          router.replace("/app/setup/income"); // neutral loading state stays while redirecting
+          return;
+        }
+        if (err instanceof ApiError && err.code === "no_consent") {
+          router.replace("/app/consent");
+          return;
+        }
+        setLoadFailed(true);
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, entryId, attempt]);
+
+  // Entries created by paying a plan: the server only lets the category change (and not on bills).
+  const fromPlan = entry?.source === "plan";
+  const isBill = entry?.category === "bills";
 
   async function handleSave() {
     if (!entry) return;
     const parsed = parseBahtInput(amountText);
-    if (!parsed.ok) {
-      setError("ใส่เป็นตัวเลขมากกว่า 0");
+    if (!fromPlan && !parsed.ok) {
+      setAmountError("ใส่เป็นตัวเลขมากกว่า 0");
       return;
     }
-    setBusy(true);
+    setAmountError(null);
     setError(null);
-    try {
-      await api.editEntry(entry.id, {
-        amount: parsed.satang,
-        note: note.trim() || null,
-        category,
-        spentOn,
-      });
+    const body = fromPlan
+      ? { category }
+      : {
+          amount: parsed.ok ? parsed.satang : undefined,
+          note: note.trim() || null,
+          category,
+          spentOn,
+        };
+    const result = await save.submit({ id: entry.id, ...body }, () => api.editEntry(entry.id, body));
+    if (result.ok) {
       toast.show("บันทึกการแก้ไขแล้ว", { mascot: "budgetOk" });
       router.replace("/app/plan?tab=list");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "แก้ไขไม่สำเร็จ ลองใหม่อีกครั้ง");
-    } finally {
-      setBusy(false);
+      return;
     }
+    if ("skipped" in result) return;
+    setError(errorText(result.error, "แก้ไขไม่สำเร็จ ลองใหม่อีกครั้ง"));
   }
 
   async function handleDelete() {
     if (!entry) return;
-    setBusy(true);
     setError(null);
-    try {
-      await api.cancelEntry(entry.id);
+    const result = await del.submit(entry.id, () => api.cancelEntry(entry.id));
+    if (result.ok) {
       setDeleteOpen(false);
       toast.show("ลบรายการแล้ว");
       router.replace("/app/plan?tab=list");
-    } catch (err) {
-      setDeleteOpen(false);
-      setError(err instanceof ApiError ? err.message : "ลบรายการไม่สำเร็จ");
-    } finally {
-      setBusy(false);
+      return;
     }
+    if ("skipped" in result) return;
+    setDeleteOpen(false);
+    setError(errorText(result.error, "ลบรายการไม่สำเร็จ"));
   }
 
   if (loading) {
     return (
       <main className="py-8 font-body text-sm text-secondary" aria-busy="true">
         กำลังโหลดรายการ…
+      </main>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <main className="flex flex-col gap-4 py-4 font-body">
+        <AppHeader title="แก้ไขรายการ" back="/app/plan?tab=list" tone="default" />
+        <Banner kind="error" text="โหลดรายการไม่สำเร็จ ลองใหม่อีกครั้ง" />
+        <Button
+          variant="primary"
+          onClick={() => {
+            setLoading(true);
+            setLoadFailed(false);
+            setAttempt((n) => n + 1);
+          }}
+        >
+          ลองใหม่
+        </Button>
       </main>
     );
   }
@@ -472,19 +548,35 @@ export function RecordEditView() {
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="แก้ไขรายการ" back="/app/plan?tab=list" tone="default" />
 
+      {fromPlan ? (
+        <Banner
+          kind="info"
+          text={
+            isBill
+              ? "รายการนี้มาจากการจ่ายบิลในแผน แก้ที่นี่ไม่ได้ ให้ยกเลิกการจ่ายที่แผนแทน"
+              : "รายการนี้มาจากการจ่ายแผน แก้ยอดและวันที่ไม่ได้ เปลี่ยนได้แค่หมวด"
+          }
+        />
+      ) : null}
+
       <section className="flex flex-col gap-4 rounded-md border border-line bg-card p-4">
         <InputField
           label="จำนวนเงิน (บาท)"
           inputMode="decimal"
           value={amountText}
-          onChange={(e) => setAmountText(e.target.value)}
-          state={error ? "error" : "filled"}
-          helper={error ?? undefined}
+          disabled={fromPlan}
+          onChange={(e) => {
+            setAmountText(e.target.value);
+            if (amountError) setAmountError(null);
+          }}
+          state={amountError ? "error" : "filled"}
+          helper={amountError ?? undefined}
         />
 
         <InputField
           label="ชื่อรายการ"
           value={note}
+          disabled={fromPlan}
           onChange={(e) => setNote(e.target.value)}
           state={note ? "filled" : "default"}
         />
@@ -493,7 +585,7 @@ export function RecordEditView() {
           <span className="text-sm font-medium text-primary">หมวดหมู่</span>
           <div className="flex flex-wrap gap-2">
             {USER_CATEGORIES.map((cat) => (
-              <Chip key={cat} selected={category === cat} onClick={() => setCategory(cat)}>
+              <Chip key={cat} selected={category === cat} disabled={isBill} onClick={() => setCategory(cat)}>
                 {CATEGORY_LABELS[cat]}
               </Chip>
             ))}
@@ -504,13 +596,16 @@ export function RecordEditView() {
           label="วันที่"
           type="date"
           value={spentOn}
+          disabled={fromPlan}
           onChange={(e) => setSpentOn(e.target.value)}
           state="filled"
         />
       </section>
 
+      {error ? <Banner kind="error" text={error} /> : null}
+
       <div className="flex flex-col gap-2">
-        <Button variant="primary" block busy={busy} onClick={handleSave}>
+        <Button variant="primary" block busy={save.busy} disabled={busy || isBill} onClick={handleSave}>
           บันทึกการแก้ไข
         </Button>
         <Button variant="secondary" block disabled={busy} onClick={() => setDeleteOpen(true)}>
@@ -525,10 +620,10 @@ export function RecordEditView() {
             ระบบจะคำนวณงบรายวันและยอดเหลือใช้วันนี้ใหม่ทันที
           </p>
           <div className="flex flex-col gap-2">
-            <Button variant="primary" block busy={busy} onClick={handleDelete}>
+            <Button variant="primary" block busy={del.busy} onClick={handleDelete}>
               ยืนยันลบรายการ
             </Button>
-            <Button variant="ghost" block onClick={() => setDeleteOpen(false)}>
+            <Button variant="ghost" block disabled={del.busy} onClick={() => setDeleteOpen(false)}>
               ยกเลิก
             </Button>
           </div>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { Sheet } from "@/components/shell/sheet";
 import { Button } from "@/components/ui/button";
+import { getLiff } from "@/lib/liff/client";
 
 const STEPS = [
   { step: 1, label: "เงินเข้า" },
@@ -27,10 +28,19 @@ export function SetupFrame({ step, title, subtitle, backHref, children }: SetupF
   const router = useRouter();
   const [exitOpen, setExitOpen] = useState(false);
 
-  function confirmExit() {
+  async function confirmExit() {
     // The draft is already saved each time a step moves on, so leaving keeps it (never cleared here).
     setExitOpen(false);
-    router.push("/app/consent");
+    try {
+      const liff = await getLiff();
+      if (liff.isInClient()) {
+        liff.closeWindow();
+        return;
+      }
+    } catch {
+      // LIFF unavailable (plain browser): fall through to the app home
+    }
+    router.replace("/app");
   }
 
   return (

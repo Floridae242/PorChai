@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBaht, formatBahtOrUnknown, parseBahtInput } from "./money";
+import { formatBaht, formatBahtOrUnknown, parseBahtInput, satangToInputString } from "./money";
 
 describe("formatBaht", () => {
   it("formats 240000 satang as 2,400", () => {
@@ -133,5 +133,28 @@ describe("parseBahtInput", () => {
       ok: false,
       reason: "too_many_decimals",
     });
+  });
+});
+
+describe("satangToInputString", () => {
+  it("drops zero satang and trailing zeros", () => {
+    expect(satangToInputString(4550)).toBe("45.5");
+    expect(satangToInputString(4500)).toBe("45");
+    expect(satangToInputString(0)).toBe("0");
+  });
+  it("pads small satang and has no thousands separators", () => {
+    expect(satangToInputString(5)).toBe("0.05");
+    expect(satangToInputString(120050)).toBe("1200.5");
+    expect(satangToInputString(240000)).toBe("2400");
+  });
+  it("round-trips through parseBahtInput", () => {
+    for (const v of [5, 4550, 4500, 120050, 99999]) {
+      expect(parseBahtInput(satangToInputString(v))).toEqual({ ok: true, satang: v });
+    }
+  });
+  it("throws RangeError on negative or non-integer", () => {
+    expect(() => satangToInputString(-1)).toThrow(RangeError);
+    expect(() => satangToInputString(45.5)).toThrow(RangeError);
+    expect(() => satangToInputString(Number.NaN)).toThrow(RangeError);
   });
 });

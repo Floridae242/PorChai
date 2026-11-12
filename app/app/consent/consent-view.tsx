@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Mascot } from "@/components/ui/mascot";
 import { CONSENT_VERSION } from "@/lib/client/consent-version";
@@ -47,6 +47,23 @@ export function ConsentView() {
   const [policyOpen, setPolicyOpen] = useState(false);
   const [ticked, setTicked] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Someone who already consented must never be stranded here (e.g. "ออกก่อน" from setup).
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .consent()
+      .then((c) => {
+        if (!cancelled && c.accepted) router.replace("/app");
+      })
+      .catch(() => {
+        // cannot tell: show the consent form
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api]);
 
   async function start() {
     setError(null);

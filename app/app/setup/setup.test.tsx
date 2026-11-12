@@ -21,6 +21,8 @@ const replace = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace }),
 }));
+const liff = vi.hoisted(() => ({ getLiff: vi.fn() }));
+vi.mock("@/lib/liff/client", () => ({ getLiff: liff.getLiff }));
 
 import SetupBalancePage from "./balance/page";
 import SetupEssentialsPage from "./essentials/page";
@@ -336,5 +338,39 @@ describe("createCycle (A4 submit)", () => {
     expect(within(dialog).queryByText(/ทำต่อจากขั้นนี้/)).toBeNull();
     await user.click(within(dialog).getByRole("button", { name: "เก็บร่างแล้วออก" }));
     expect(window.localStorage.getItem(SETUP_DRAFT_KEY)).not.toBeNull();
+  });
+
+  it("ออกก่อน inside LINE closes the window and keeps the draft", async () => {
+    const closeWindow = vi.fn();
+    liff.getLiff.mockResolvedValue({ isInClient: () => true, closeWindow });
+    saveSetupDraft(figmaDraft());
+    const user = userEvent.setup();
+    renderPage(SetupReviewPage);
+    await user.click(await screen.findByRole("button", { name: "ออกก่อน" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "เก็บร่างแล้วออก" }));
+    await waitFor(() => expect(closeWindow).toHaveBeenCalledTimes(1));
+    expect(replace).not.toHaveBeenCalledWith("/app/consent");
+    expect(window.localStorage.getItem(SETUP_DRAFT_KEY)).not.toBeNull();
+  });
+
+  it("ออกก่อน outside LINE goes to /app, never to /app/consent", async () => {
+    liff.getLiff.mockResolvedValue({ isInClient: () => false, closeWindow: vi.fn() });
+    saveSetupDraft(figmaDraft());
+    const user = userEvent.setup();
+    renderPage(SetupReviewPage);
+    await user.click(await screen.findByRole("button", { name: "ออกก่อน" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "เก็บร่างแล้วออก" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app"));
+    expect(push).not.toHaveBeenCalledWith("/app/consent");
+    expect(window.localStorage.getItem(SETUP_DRAFT_KEY)).not.toBeNull();
+  });
+
+  it("ออกก่อน falls back to /app when LIFF cannot start", async () => {
+    liff.getLiff.mockRejectedValue(new Error("no liff"));
+    const user = userEvent.setup();
+    renderPage(SetupReviewPage);
+    await user.click(await screen.findByRole("button", { name: "ออกก่อน" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "เก็บร่างแล้วออก" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app"));
   });
 });

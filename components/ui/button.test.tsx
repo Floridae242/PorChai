@@ -31,6 +31,10 @@ describe("Button", () => {
 });
 
 describe("Button extras", () => {
+  it("is 52px tall (Figma)", () => {
+    render(<Button>x</Button>);
+    expect(screen.getByRole("button").className).toContain("h-[52px]");
+  });
   it("defaults to type=button", () => {
     render(<Button>x</Button>);
     expect(screen.getByRole("button").getAttribute("type")).toBe("button");

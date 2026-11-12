@@ -1,4 +1,4 @@
-import { CategoriesSummaryView } from "../../plan/plan-views";
+import { CategoriesSummaryView } from "./categories-view";
 
 export const instant = false;
 

@@ -2,23 +2,26 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { Entry, Summary } from "@/lib/api-types";
-import { buildCycleDailyBars } from "@/lib/client/summary-helpers";
+import type { Summary } from "@/lib/api-types";
+import { buildDailyBars } from "@/lib/client/summary-helpers";
+import type { DailySpend } from "@/lib/client/types";
 import { formatThaiDate } from "@/lib/format/date";
 import { formatBaht } from "@/lib/format/money";
 
 export interface TodayHeroProps {
   summary: Summary;
-  entries: Entry[];
+  /** Per-day spend from the server. null = not available: only the "today" view is shown. */
+  daily: DailySpend | null;
   initialView?: "today" | "cycle";
 }
 
-export function TodayHero({ summary, entries, initialView = "today" }: TodayHeroProps) {
+export function TodayHero({ summary, daily, initialView = "today" }: TodayHeroProps) {
   const [view, setView] = useState<"today" | "cycle">(initialView);
   const [showMath, setShowMath] = useState(false);
 
   const { budget } = summary;
-  const bars = buildCycleDailyBars(summary, entries);
+  const bars = daily ? buildDailyBars(daily.days, summary.today, budget.kind === "ok" ? budget.dailyBudget : null) : [];
+  const activeView = daily ? view : "today";
 
   let paydayShort = summary.payday;
   try {
@@ -36,32 +39,34 @@ export function TodayHero({ summary, entries, initialView = "today" }: TodayHero
         <span className="font-display text-2xl text-on-hero">พอใช้</span>
       </div>
 
-      <div role="tablist" aria-label="มุมมองงบ" className="grid grid-cols-2 gap-1 rounded-pill bg-white/15 p-1">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "today"}
-          onClick={() => setView("today")}
-          className={`rounded-pill py-1.5 text-xs font-semibold transition-colors ${
-            view === "today" ? "bg-action-primary text-on-action" : "text-on-hero"
-          }`}
-        >
-          เหลือใช้วันนี้
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "cycle"}
-          onClick={() => setView("cycle")}
-          className={`rounded-pill py-1.5 text-xs font-semibold transition-colors ${
-            view === "cycle" ? "bg-action-primary text-on-action" : "text-on-hero"
-          }`}
-        >
-          ใช้ไปแต่ละวัน
-        </button>
-      </div>
+      {daily ? (
+        <div role="tablist" aria-label="มุมมองงบ" className="grid grid-cols-2 gap-1 rounded-pill bg-white/15 p-1">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeView === "today"}
+            onClick={() => setView("today")}
+            className={`rounded-pill py-1.5 text-xs font-semibold transition-colors ${
+              activeView === "today" ? "bg-action-primary text-on-action" : "text-on-hero"
+            }`}
+          >
+            เหลือใช้วันนี้
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeView === "cycle"}
+            onClick={() => setView("cycle")}
+            className={`rounded-pill py-1.5 text-xs font-semibold transition-colors ${
+              activeView === "cycle" ? "bg-action-primary text-on-action" : "text-on-hero"
+            }`}
+          >
+            ใช้ไปแต่ละวัน
+          </button>
+        </div>
+      ) : null}
 
-      {view === "today" ? (
+      {activeView === "today" ? (
         <div className="flex flex-col gap-3">
           {budget.kind === "ok" ? (
             <>
@@ -134,13 +139,13 @@ export function TodayHero({ summary, entries, initialView = "today" }: TodayHero
       ) : (
         <div className="flex flex-col gap-3 pt-1">
           <div className="flex items-center justify-between text-xs text-white/85">
-            <span>กราฟรายวันในรอบนี้ (12 วัน)</span>
+            <span>กราฟรายวันในรอบนี้ ({bars.length} วัน)</span>
             {budget.kind === "ok" ? (
               <span className="tabular-nums">เส้นประ = งบ {formatBaht(budget.dailyBudget)} บาท/วัน</span>
             ) : null}
           </div>
 
-          <div className="relative grid h-36 grid-cols-12 items-end gap-1 border-b border-white/25 pt-6 pb-1">
+          <div style={{ gridTemplateColumns: `repeat(${Math.max(bars.length, 1)}, minmax(0, 1fr))` }} className="relative grid h-36 items-end gap-1 border-b border-white/25 pt-6 pb-1">
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-white/50"

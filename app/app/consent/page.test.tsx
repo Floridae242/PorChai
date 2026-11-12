@@ -134,4 +134,21 @@ describe("ConsentPage (A1 / A1b / A1c)", () => {
     await user.click(screen.getByRole("button", { name: START }));
     expect((await screen.findByRole("alert")).textContent).toBe("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
   });
+
+  it("someone who already consented is sent straight to /app and cannot re-accept", async () => {
+    const api = createMockApi({ scenario: "default", consented: true });
+    const spy = vi.spyOn(api, "acceptConsent");
+    renderConsent(api);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app"));
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("does not redirect when the consent check fails", async () => {
+    const api = createMockApi({ scenario: "fresh", consented: false });
+    vi.spyOn(api, "consent").mockRejectedValue(new Error("down"));
+    renderConsent(api);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: START })).toBeTruthy();
+  });
 });

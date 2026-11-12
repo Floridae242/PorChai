@@ -23,7 +23,7 @@ import {
   unpaidBillsTotal,
   type SetupDraft,
 } from "@/lib/client/setup-draft";
-import { CATEGORY_LABELS } from "@/lib/client/summary-helpers";
+import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import { useApi } from "@/lib/client/use-api";
 
 export function SettingsMainView() {
