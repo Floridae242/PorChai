@@ -762,9 +762,9 @@ export function TrySavedView() {
       <Mascot pose="saveCoins" size={80} />
 
       <div className="flex flex-col gap-1">
-        <h1 className="font-display text-3xl text-primary">เก็บไว้ในแผนแล้ว ✓</h1>
+        <h1 className="font-display text-3xl text-primary">บันทึกแล้ว</h1>
         <p className="text-sm text-secondary">
-          กันเงินสำหรับ &quot;{plan.title}&quot; ({formatBaht(plan.amount)} บาท) ไว้ในแผนรอบนี้เรียบร้อยแล้ว
+          กัน{plan.title}ไว้ในแผนแล้ว · {formatBaht(plan.amount)} บาท
         </p>
       </div>
 

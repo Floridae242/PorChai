@@ -253,7 +253,7 @@ describe("PlanEditView (E1)", () => {
     expect(push).toHaveBeenCalledWith("/app/balance/adjust");
   });
 
-  it("E1b off-cycle income opens the income form, which reports ยังไม่พร้อมใช้งาน when addIncome is not_implemented", async () => {
+  it("E1b off-cycle income routes to the income form (its not_implemented message is covered in record-views.test.tsx)", async () => {
     renderWith(mk(), <PlanEditView />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("radio", { name: /เพิ่มรายรับนอกรอบ/ }));
