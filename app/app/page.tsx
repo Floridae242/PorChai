@@ -1,3 +1,5 @@
+export const instant = false;
+
 export default function AppHome() {
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4 p-6">

@@ -40,18 +40,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      {toast ? (
-        <div className="pointer-events-none fixed inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-[60] flex justify-center px-4">
+      <div
+        role="status"
+        aria-live="polite"
+        className="pointer-events-none fixed inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-[60] flex justify-center px-4"
+      >
+        {toast ? (
           <div
             key={toast.id}
-            role="status"
             className="flex max-w-md items-center gap-3 rounded-md border border-line bg-card px-4 py-3 font-body text-sm text-primary"
           >
             {toast.mascot ? <Mascot pose={toast.mascot} size={32} /> : null}
             <span>{toast.text}</span>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </ToastContext.Provider>
   );
 }

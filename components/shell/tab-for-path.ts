@@ -5,9 +5,13 @@ function under(pathname: string, base: string): boolean {
   return pathname === base || pathname.startsWith(`${base}/`);
 }
 
+function normalise(pathname: string): string {
+  return pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+}
+
 /** Which tab a route belongs to, or null when nothing should be highlighted. */
 export function tabForPath(pathname: string): TabKey | null {
-  const p = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const p = normalise(pathname);
   if (p === "/app") return "summary";
   if (under(p, "/app/summary") || under(p, "/app/cycle")) return "summary";
   // TODO(open-question): confirm against Figma 1280 sidebar
@@ -20,10 +24,11 @@ export function tabForPath(pathname: string): TabKey | null {
 
 /** Pages rendered without tab bar / sidebar: consent, first-time setup, demo menu, app-open loading. */
 export function hideNav(pathname: string): boolean {
+  const p = normalise(pathname);
   return (
-    under(pathname, "/app/consent") ||
-    under(pathname, "/app/setup") ||
-    under(pathname, "/app/demo") ||
-    under(pathname, "/app/loading")
+    under(p, "/app/consent") ||
+    under(p, "/app/setup") ||
+    under(p, "/app/demo") ||
+    under(p, "/app/loading")
   );
 }

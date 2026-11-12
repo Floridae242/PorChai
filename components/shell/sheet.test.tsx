@@ -54,6 +54,16 @@ describe("Sheet", () => {
     expect(document.body.style.overflow).not.toBe("hidden");
   });
 
+  it("Tab pulled to the opener (focus outside) re-enters the panel", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const opener = screen.getByRole("button", { name: "เปิด" });
+    await user.click(opener);
+    opener.focus();
+    await user.tab();
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
+  });
+
   it("backdrop click closes, inside click does not", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

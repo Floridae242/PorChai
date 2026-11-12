@@ -42,7 +42,7 @@ describe("tabForPath", () => {
 });
 
 describe("hideNav", () => {
-  it.each(["/app/consent", "/app/setup", "/app/setup/income", "/app/setup/review", "/app/demo", "/app/demo/ui", "/app/loading"])(
+  it.each(["/app/consent", "/app/setup", "/app/setup/income", "/app/setup/review", "/app/demo", "/app/demo/ui", "/app/loading", "/app/consent/", "/app/demo/ui/"])(
     "hides on %s",
     (p) => expect(hideNav(p)).toBe(true),
   );

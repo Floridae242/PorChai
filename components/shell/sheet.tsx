@@ -31,6 +31,13 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         return;
       }
       if (e.key !== "Tab" || !panel) return;
+      if (!panel.contains(document.activeElement)) {
+        e.preventDefault();
+        const all = panel.querySelectorAll<HTMLElement>(FOCUSABLE);
+        const target = e.shiftKey ? all[all.length - 1] : all[0];
+        (target ?? panel).focus();
+        return;
+      }
       const items = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
       if (items.length === 0) {
         e.preventDefault();

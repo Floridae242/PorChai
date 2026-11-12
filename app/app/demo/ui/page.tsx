@@ -18,6 +18,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+export const instant = false;
+
 export default function UiDemoPage() {
   return (
     <main className="mx-auto flex max-w-md flex-col gap-8 p-6">

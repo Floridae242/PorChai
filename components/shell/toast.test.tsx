@@ -25,12 +25,16 @@ describe("Toast", () => {
         <Trigger />
       </ToastProvider>,
     );
+    // live region is mounted up front so assistive tech announces the inserted text
+    const region = screen.getByRole("status");
+    expect(region.getAttribute("aria-live")).toBe("polite");
+    expect(region.textContent).toBe("");
     act(() => screen.getByRole("button", { name: "go" }).click());
-    expect(screen.getByRole("status").textContent).toContain("บันทึกแล้ว");
+    expect(region.textContent).toContain("บันทึกแล้ว");
     act(() => vi.advanceTimersByTime(2999));
-    expect(screen.queryByRole("status")).not.toBeNull();
+    expect(region.textContent).toContain("บันทึกแล้ว");
     act(() => vi.advanceTimersByTime(2));
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(region.textContent).toBe("");
   });
 
   it("renders a 32px mascot when given", () => {
