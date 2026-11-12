@@ -1,14 +1,19 @@
-import { USER_CATEGORIES, type Summary, type UserCategory } from "@/lib/api-types";
+import { USER_CATEGORIES, type SimulateResponse, type Summary, type UserCategory } from "@/lib/api-types";
 import type { BudgetResult } from "@/lib/calc/budget";
-import { baht, budgetLine, cheer, recordedMessage } from "@/lib/chat/messages";
-import type { OcrDraft } from "@/lib/db/chat-memory";
+import { adviceMessage, baht, budgetLine, cheer, recordedMessage, tryMessage } from "@/lib/chat/messages";
+import type { Advice } from "@/lib/advice/advise";
+import { addDays } from "@/lib/calc/time";
+import type { OcrDraft, TryDraft } from "@/lib/db/chat-memory";
 import type { Entry } from "@/lib/api-types";
 import type { ReminderLog } from "@/lib/db/reminders";
 import {
   buildHabitEditAskMessage,
   buildHabitReminderCard,
   buildHabitSkippedMessage,
+  buildAiCompareCard,
   buildOcrDraftCard,
+  buildTryBeforeBuyCard,
+  buildWelcomeCard,
   buildRecordedCard,
   buildTodayBudgetCard,
   categoryLabel,
@@ -165,5 +170,61 @@ export const ocrTransferMessage = (): TextMessage =>
   text("โอนระหว่างบัญชีตัวเอง ไม่นับเป็นรายจ่ายหรือรายรับครับ ไม่ได้จดอะไร");
 
 export const ocrAlreadyMessage = (d: OcrDraft): TextMessage => text(`สลิปนี้บันทึกไปแล้วครับ ✓ ${d.merchant} ${baht(d.amount)} บาท`);
+
+// Someone adds the OA as a friend: โฟรวิว's welcome card (set up in the app first)
+export const welcomeCard = (): ReplyMessage => buildWelcomeCard();
+
+const dueLabel = (dueOn: string | null, today: string) =>
+  dueOn === null || dueOn === today ? "วันนี้" : dueOn === addDays(today, 1) ? "พรุ่งนี้" : dayLabel(dueOn, today);
+
+// Card 15 «ชาบู 300 ไหวไหม»: โฟรวิว's AI compare card, the AI's (or the template's) words inside.
+// Asking back (no price, essentials unknown) or no normal budget stays the text answer.
+export function adviceCard(a: Advice, d: TryDraft, today: string): ReplyMessage {
+  const before = a.before;
+  if (a.verdict === "ask" || before?.kind !== "ok") return adviceMessage(a, d.key);
+  const max = before.maxPurchase;
+  return buildAiCompareCard({
+    draftId: d.id,
+    itemTitle: d.title,
+    amount: d.amount,
+    dueLabel: dueLabel(d.dueOn, today),
+    maxSpendable: max,
+    overBy: max === null ? 0 : Math.max(0, d.amount - max),
+    beforeDaily: before.dailyBudget,
+    afterDaily: a.after?.kind === "ok" ? a.after.dailyBudget : 0,
+    explanation: a.explanation,
+  });
+}
+
+// L6 [ลองก่อนซื้อ] and [ลองยอดอื่น]: โฟรวิว's try-before-buy card. A meal today offers pay / another price /
+// not buying; anything else keep / pay / postpone. Asking back or no normal budget stays text.
+export function tryCard(d: TryDraft, r: SimulateResponse): ReplyMessage {
+  if (r.verdict === "ask" || r.before?.kind !== "ok" || r.after?.kind !== "ok") return tryMessage({ ...d }, r);
+  return buildTryBeforeBuyCard({
+    draftId: d.id,
+    itemTitle: d.title,
+    amount: d.amount,
+    isMealToday: d.category === "food" && d.dueOn === null,
+    beforeDaily: r.before.dailyBudget,
+    afterDaily: r.after.dailyBudget,
+    maxSpendable: r.before.maxPurchase,
+    overBy: r.overLimitBy ?? 0,
+    essentialsPerDay: r.checks?.essentialPerDay ?? null,
+    billsTotal: r.checks?.bills,
+  });
+}
+
+export const tryAskAmountMessage = (d: TryDraft): TextMessage =>
+  text(`พิมพ์ราคาใหม่ของ ${d.title} ได้เลยครับ (ตอนนี้ ${baht(d.amount)} บาท) เช่น «250»`);
+
+export const notBuyingMessage = (d: TryDraft): TextMessage => text(`โอเคครับ ไม่ซื้อ ${d.title} ไม่ได้จดอะไร`);
+
+export const postponedMessage = (d: TryDraft): TextMessage =>
+  text(`เลื่อนไปรอบหน้าแล้ว ✓ ${d.title} ${baht(d.amount)} บาท ไม่หักเงินรอบนี้ ดูได้ในแผน`, [
+    { type: "uri", label: "เปิดแผน", uri: miniAppUrl("/app/plan") },
+  ]);
+
+export const notYetMessage = (d: TryDraft): TextMessage =>
+  text(`ยังไม่ถึงวันครับ ${d.title} เป็นของวันอื่น กด «เก็บไว้ในแผน» ไว้ก่อน แล้วจ่ายจริงเมื่อถึงวัน`);
 
 export const isUserCategory = (c: string | undefined): c is UserCategory => USER_CATEGORIES.includes(c as UserCategory);

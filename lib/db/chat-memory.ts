@@ -22,7 +22,18 @@ export type Pending =
   | { kind: "edit"; entryId: string; title: string } // card [แก้] → «50»
   | { kind: "reminder"; reminderId: string } // card 58 [แก้ยอด] → «60»
   // a slip's draft card; awaiting = after [แก้ยอด]; closed = cancelled / own transfer (its buttons do nothing)
-  | { kind: "ocr"; draft: OcrDraft; awaiting?: "amount"; closed?: true };
+  | { kind: "ocr"; draft: OcrDraft; awaiting?: "amount"; closed?: true }
+  // โฟรวิว's try / AI compare card: the item tried, until paid, kept, postponed or not bought
+  | { kind: "try"; draft: TryDraft; awaiting?: "amount"; closed?: true };
+
+export interface TryDraft {
+  id: string;
+  title: string;
+  amount: number; // satang
+  category: UserCategory;
+  key: string; // the first message's webhookEventId: paying or keeping it happens once under this key
+  dueOn: string | null; // a question about another day
+}
 
 // OCR (layer 4): what the AI read from a slip, until the user saves or cancels it. The photo is not kept.
 export interface OcrDraft {
@@ -61,22 +72,28 @@ export async function remember(userId: string, lines: { role: ChatLine["role"]; 
   if (error) throw error;
 }
 
-// The latest version of a slip's draft (each change is a new bot line), while still remembered
-export async function ocrDraftFor(userId: string, id: string): Promise<{ draft: OcrDraft; closed: boolean } | null> {
+// The latest version of a card's draft (each change is a new bot line), while still remembered.
+// Only the user's own lines: someone else's id finds nothing.
+async function draftFor(userId: string, kind: "ocr" | "try", id: string): Promise<{ draft: unknown; closed: boolean } | null> {
   const { data, error } = await getDb()
     .from("chat_messages")
-    .select("pending, body")
+    .select("pending")
     .eq("user_id", userId)
     .eq("role", "bot")
-    .eq("pending->>kind", "ocr")
+    .eq("pending->>kind", kind)
     .eq("pending->draft->>id", id)
     .gte("created_at", since())
     .order("id", { ascending: false })
     .limit(1);
   if (error) throw error;
-  const p = data[0]?.pending as Extract<Pending, { kind: "ocr" }> | undefined;
+  const p = data[0]?.pending as { draft: unknown; closed?: true } | undefined;
   return p ? { draft: p.draft, closed: p.closed === true } : null;
 }
+
+export const ocrDraftFor = async (userId: string, id: string) =>
+  (await draftFor(userId, "ocr", id)) as { draft: OcrDraft; closed: boolean } | null;
+export const tryDraftFor = async (userId: string, id: string) =>
+  (await draftFor(userId, "try", id)) as { draft: TryDraft; closed: boolean } | null;
 
 // The items a [จดทั้งหมด] button points at, while the proposal is still remembered
 export async function proposalFor(userId: string, key: string): Promise<ProposedItem[] | null> {

@@ -5,6 +5,7 @@ import { advise } from "@/lib/advice/advise";
 import { isQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
+  adviceCard,
   askCategoryMessage,
   askDeleteMessage,
   askNewAmountMessage,
@@ -22,7 +23,13 @@ import {
   isUserCategory,
   howToRecordMessage,
   howToTryMessage,
+  notBuyingMessage,
   notWiredMessage,
+  notYetMessage,
+  postponedMessage,
+  tryAskAmountMessage,
+  tryCard,
+  welcomeCard,
   ocrAlreadyMessage,
   ocrAskAmountMessage,
   ocrCancelledMessage,
@@ -46,7 +53,6 @@ import {
   chatMessage,
   declinedMessage,
   expiredMessage,
-  welcomeMessage,
   keptMessage,
   holdMessage,
   incomeMessage,
@@ -55,12 +61,11 @@ import {
   proposalMessage,
   recordedManyMessage,
   recordedMessage,
-  tryMessage,
   type Draft,
 } from "@/lib/chat/messages";
 import { amountOnly, categoryOf, MAX_TITLE, parseExpense } from "@/lib/chat/parse";
 import { loadBudget, loadSummary, requireActiveCycle, summaryOf } from "@/lib/db/budget";
-import { ocrDraftFor, proposalFor, recentChat, remember, type ChatLine, type OcrDraft, type Pending } from "@/lib/db/chat-memory";
+import { ocrDraftFor, proposalFor, recentChat, remember, tryDraftFor, type ChatLine, type OcrDraft, type Pending, type TryDraft } from "@/lib/db/chat-memory";
 import { DEMO_HABIT, demoReminder, markReminder, reminderById, seedDemoHabit, type ReminderLog } from "@/lib/db/reminders";
 import { addEntry, cancelEntry, editEntry, entryExists, entryForChat, sameAmountOn } from "@/lib/db/entries";
 import { messageImage } from "@/lib/line/content";
@@ -111,7 +116,7 @@ export async function handleEvent(event: unknown): Promise<void> {
       const tapped = await onPostback(userId, e.postback.data);
       if (tapped) [said, answer] = [`(กด ${tapped.label})`, tapped.answer];
     } else if (e.type === "follow") {
-      answer = say(welcomeMessage());
+      answer = say(welcomeCard());
     }
   } catch (err) {
     if (!(err instanceof HttpError && err.code === "no_cycle")) throw err;
@@ -158,6 +163,10 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     return say(demo ? reminderCard(demo.log, demo.time) : demoNoHabitMessage());
   }
   const amount = amountOnly(body);
+  // Try card [ลองยอดอื่น] → «250»: try the new price (a new draft: paying it is a new spend)
+  if (pending?.kind === "try" && pending.awaiting === "amount" && amount !== null) {
+    return tryAnswer(userId, { ...pending.draft, id: crypto.randomUUID(), amount, key: eventId });
+  }
   // OCR [แก้ยอด] → «120»: the draft again with the new amount, still to confirm
   if (pending?.kind === "ocr" && pending.awaiting === "amount" && amount !== null) {
     return ocrDraftAnswer(userId, { ...pending.draft, amount });
@@ -183,7 +192,7 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // Without one clear price («เหลือกี่บาท?», «ชาบู 150 หรือ 200 ดี») it is chat. A question never
   // reaches a path that records (bug 13 Nov: a what-if was saved as a spend).
   if (isQuestion(body)) {
-    if (readQuestion(body).amount !== null) return say(adviceMessage(await advise(userId, body), eventId));
+    if (readQuestion(body).amount !== null) return adviceAnswer(userId, body, eventId);
     return converse(userId, body, history, { approximate: false, question: true });
   }
   // «รับ 500»: income, saved once under this message (a redelivery adds nothing)
@@ -256,6 +265,11 @@ async function onPostback(userId: string, data: string): Promise<{ label: string
   if (choice) return { label: LABEL[choice.action], answer: say(await onChoice(userId, choice.action, choice.key)) };
   const draft = readDraft(data);
   if (!draft) return null;
+  if (draft.action === "try") {
+    const { title, amount, category, key, dueOn } = draft;
+    const d = { id: crypto.randomUUID(), title, amount, category: category as UserCategory, key, dueOn: dueOn ?? null };
+    return { label: LABEL.try, answer: await tryAnswer(userId, d) };
+  }
   return { label: LABEL[draft.action], answer: say(await onDraft(userId, draft)) };
 }
 
@@ -276,29 +290,26 @@ async function onChoice(userId: string, action: "all" | "no", key: string): Prom
 }
 
 async function onDraft(userId: string, draft: Draft & { action: "pay" | "try" | "keep" }): Promise<ReplyMessage> {
-  if (draft.action === "try") {
-    const r = await simulate(userId, {
-      amount: draft.amount,
-      dueOn: null,
-      postponePlanIds: [],
-      essentials: null,
-      emergencyBuffer: null,
-      payday: null,
-      balance: null,
-    });
-    return tryMessage(draft, r);
-  }
+  if (draft.action === "keep") return keepDraft(userId, draft);
+  if (draft.action === "pay") return payDraft(userId, draft);
+  return notWiredMessage(); // "try" is answered with a card before this; never pay or keep by default
+}
+
+// เก็บไว้ในแผน: held back, not spent (card 57). Already paid from the same question → nothing held on top.
+async function keepDraft(userId: string, draft: Draft, status: "reserved" | "postponed" = "reserved"): Promise<ReplyMessage> {
   const key = `line:${draft.key}`;
-  if (draft.action === "keep") {
-    // Already paid from the same question: keeping it too would hold the money twice
-    if (await entryExists(userId, key)) return alreadyMessage(draft);
-    const { created } = await addPlan(
-      userId,
-      { kind: "purchase", title: draft.title, amount: draft.amount, dueOn: draft.dueOn ?? null, category: draft.category as UserCategory, status: "reserved", basis: null },
-      key,
-    );
-    return created ? keptMessage(draft, await loadSummary(userId)) : alreadyMessage(draft);
-  }
+  if (await entryExists(userId, key)) return alreadyMessage(draft);
+  const { created } = await addPlan(
+    userId,
+    { kind: "purchase", title: draft.title, amount: draft.amount, dueOn: draft.dueOn ?? null, category: draft.category as UserCategory, status, basis: null },
+    key,
+  );
+  return created ? keptMessage(draft, await loadSummary(userId)) : alreadyMessage(draft);
+}
+
+// ยืนยันจ่ายจริง: recorded once under the first message's key
+async function payDraft(userId: string, draft: Draft): Promise<ReplyMessage> {
+  const key = `line:${draft.key}`;
   // Kept first, paid now: pay that plan (card 57), so the money is not taken as a plan and a spend
   const planId = await planIdByKey(userId, key);
   if (planId) {
@@ -310,6 +321,47 @@ async function onDraft(userId: string, draft: Draft & { action: "pay" | "try" | 
   const { entry, created } = await record(userId, draft);
   if (!created) return alreadyMessage(draft);
   return recorded(userId, { ...draft, category: draft.category as UserCategory, id: entry.id });
+}
+
+// Card 15 «ชาบู 300 ไหวไหม»: the answer as โฟรวิว's AI compare card, its buttons pointing at this draft
+async function adviceAnswer(userId: string, body: string, eventId: string): Promise<Answer> {
+  const a = await advise(userId, body);
+  if (a.verdict === "ask" || a.amount === null) return say(adviceMessage(a, eventId));
+  const draft: TryDraft = { id: crypto.randomUUID(), title: a.item ?? "รายการ", amount: a.amount, category: a.category, key: eventId, dueOn: a.dueOn };
+  return say(adviceCard(a, draft, thaiDate(new Date())), { kind: "try", draft });
+}
+
+// L6 [ลองก่อนซื้อ] / [ลองยอดอื่น]: card 14's try as โฟรวิว's card. Nothing is saved.
+async function tryAnswer(userId: string, d: TryDraft): Promise<Answer> {
+  const r = await simulate(userId, {
+    amount: d.amount,
+    dueOn: d.dueOn,
+    postponePlanIds: [],
+    essentials: null,
+    emergencyBuffer: null,
+    payday: null,
+    balance: null,
+  });
+  return say(tryCard(d, r), { kind: "try", draft: d });
+}
+
+// The try / AI compare cards' buttons. The draft is the latest version in the chat memory (owner only);
+// ไม่ซื้อ closes it. Paying or keeping happens once under the draft's key, like the text buttons.
+async function onTryButton(userId: string, p: DecodedPostback): Promise<Answer> {
+  const found = await tryDraftFor(userId, p.id);
+  if (!found || found.closed) return say(expiredMessage());
+  const d = found.draft;
+  const draft: Draft = { title: d.title, amount: d.amount, category: d.category, key: d.key, dueOn: d.dueOn };
+  if (p.action === "try_cancel") return say(notBuyingMessage(d), { kind: "try", draft: d, closed: true });
+  if (p.action === "try_other") return say(tryAskAmountMessage(d), { kind: "try", draft: d, awaiting: "amount" });
+  if (p.action === "keep_plan") return say(await keepDraft(userId, draft));
+  if (p.action === "postpone_next") {
+    const answer = await keepDraft(userId, { ...draft, dueOn: null }, "postponed");
+    return say(answer.type === "text" && answer.text.startsWith("เก็บไว้ในแผนแล้ว") ? postponedMessage(d) : answer);
+  }
+  // pay_real: another day's item is kept, not paid, until that day
+  if (d.dueOn && d.dueOn > thaiDate(new Date())) return say(notYetMessage(d));
+  return say(await payDraft(userId, draft));
 }
 
 const FLEX_LABEL: Partial<Record<DecodedPostback["action"], string>> = {
@@ -325,6 +377,11 @@ const FLEX_LABEL: Partial<Record<DecodedPostback["action"], string>> = {
   rem_edit: "แก้ยอด",
   rem_skip: "วันนี้ไม่ได้ซื้อ",
   rem_edit_cancel: "ยกเลิกการแก้",
+  keep_plan: "เก็บไว้ในแผน",
+  pay_real: "ยืนยันจ่ายจริง",
+  try_other: "ลองยอดอื่น",
+  try_cancel: "ไม่ซื้อ",
+  postpone_next: "เลื่อนไปรอบหน้า",
   ocr_save: "บันทึก",
   ocr_edit: "แก้ยอด",
   ocr_cancel: "ยกเลิก",
@@ -351,6 +408,7 @@ async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer>
   if (p.action === "menu_try") return say(howToTryMessage());
   if (p.action.startsWith("rem_")) return onReminderButton(userId, p);
   if (p.action.startsWith("ocr_")) return onOcrButton(userId, p);
+  if (["keep_plan", "pay_real", "try_other", "try_cancel", "postpone_next"].includes(p.action)) return onTryButton(userId, p);
   if (!["entry_edit", "entry_cat", "entry_cat_set", "entry_del", "entry_del_ok"].includes(p.action)) return say(notWiredMessage());
   try {
     const { entry, cancelled } = await entryForChat(userId, p.id);

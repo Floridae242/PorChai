@@ -168,8 +168,12 @@ describe("card 09: expenses from the chat", () => {
     vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "2012545254");
     eventIds.push(`F_${run}`);
     await deliver({ type: "follow", webhookEventId: `F_${run}`, replyToken: "rt-f", source: { type: "user", userId: lineA } });
-    expect(lastText()).toContain("ยินดีต้อนรับสู่พอใช้");
-    expect(lastButtons()).toEqual([{ type: "uri", label: "เปิดแอป", uri: "https://miniapp.line.me/2012545254-6025ZG1r" }]);
+    expect(last().type).toBe("flex"); // โฟรวิว's welcome card
+    expect(lastText()).toContain("สวัสดีครับ ฉันคือพอใช้");
+    expect(lastButtons()).toEqual([
+      { type: "uri", label: "เริ่มตั้งค่า ↗", uri: "https://miniapp.line.me/2012545254-6025ZG1r/consent" },
+      { type: "uri", label: "เปิดแอป", uri: "https://miniapp.line.me/2012545254-6025ZG1r" },
+    ]);
   });
 
   it("the app link stays a LIFF link when the app is the LIFF app", async () => {
@@ -240,10 +244,10 @@ describe("card 09: expenses from the chat", () => {
     await chat("ชาบู 350");
     const tryIt = lastButtons().find((b) => b.label === "ลองก่อนซื้อ") as { data: string };
     await tap(tryIt.data);
-    expect(lastText()).toContain("ไม่ซื้อ → วันละ 120 บาท");
-    expect(lastText()).toContain("ซื้อ → เหลือวันละ 90.75 บาท"); // (1,440 − 350) ÷ 12 = 90.83 → 90.75 (R3-quarter)
-    expect(lastText()).toContain("ค่ากินค่ารถยังพอทุกวัน");
-    expect(lastButtons().map((b) => b.label)).toContain("ยืนยันจ่ายจริง");
+    expect(last().type).toBe("flex"); // โฟรวิว's try-before-buy card
+    expect(lastText()).toContain("เหลือวันละ 90.75 บาท"); // (1,440 − 350) ÷ 12 = 90.83 → 90.75 (R3-quarter)
+    // a meal today: pay, try another price, or not buy
+    expect(lastButtons().map((b) => b.label).slice(0, 3)).toEqual(["ยืนยันจ่ายจริง", "ลองยอดอื่น", "ไม่ซื้อ"]);
     expect(await screenEntries()).toEqual([]);
   });
 
@@ -288,8 +292,12 @@ describe("card 15: questions in the chat", () => {
   it("«พรุ่งนี้กินชาบู 300 ไหวไหม» is answered, not recorded; for tomorrow only เก็บไว้ในแผน is offered", async () => {
     await figma();
     await chat("พรุ่งนี้กินชาบู 300 ไหวไหม");
-    expect(lastText()).toContain("ไหว ✓ ชาบู 300 บาท (พรุ่งนี้)");
-    expect(lastButtons().map((b) => b.label)).toEqual(["เก็บไว้ในแผน", "เปิดแอป"]);
+    expect(last().type).toBe("flex"); // โฟรวิว's AI compare card
+    expect(lastText()).toContain("ชาบู (พรุ่งนี้) 300 บาท");
+    expect(lastText()).toContain("ไหว ✓"); // the explanation (template: AI off)
+    expect(lastButtons().map((b) => b.label).slice(0, 3)).toEqual(["เก็บไว้ในแผน", "ยืนยันจ่ายจริง", "ลองยอดอื่น"]);
+    await tap(button("ยืนยันจ่ายจริง").data); // not today: keep it instead
+    expect(lastText()).toContain("ยังไม่ถึงวัน");
     expect(await screenEntries()).toEqual([]);
   });
 
@@ -306,7 +314,7 @@ describe("card 15: questions in the chat", () => {
   it("kept, then paid from the same answer → the plan is paid; money is taken once", async () => {
     await figma();
     await chat("ซื้อหูฟัง 500 ได้ไหม");
-    expect(lastButtons().map((b) => b.label)).toEqual(["ยืนยันจ่ายจริง", "เก็บไว้ในแผน", "เปิดแอป"]);
+    expect(lastButtons().map((b) => b.label)).toEqual(expect.arrayContaining(["ยืนยันจ่ายจริง", "เก็บไว้ในแผน"]));
     const pay = button("ยืนยันจ่ายจริง").data;
     await tap(button("เก็บไว้ในแผน").data);
     await tap(pay);
@@ -328,7 +336,8 @@ describe("card 15: questions in the chat", () => {
   it("bug 13 Nov: «ถ้ากิน ชาบู 150 บาท จะเหลือเงินใช้วันละเท่าไร» is a try, never a spend", async () => {
     await figma();
     await chat("ถ้ากิน ชาบู 150 บาท จะเหลือเงินใช้วันละเท่าไร");
-    expect(lastText()).toContain("ชาบู 150 บาท");
+    expect(lastText()).toContain("ชาบู");
+    expect(lastText()).toContain("150 บาท");
     expect(lastText()).not.toContain("จดแล้ว");
     expect(await screenEntries()).toEqual([]);
   });
@@ -744,5 +753,78 @@ describe("every answer has [เปิดแอป] above the keyboard (phone 13 
     for (const labels of answers) {
       expect(labels.filter((l) => l === "เปิดแอป")).toHaveLength(1);
     }
+  });
+});
+
+
+describe("โฟรวิว's try cards: their buttons (ลองยอดอื่น · ไม่ซื้อ · เลื่อนไปรอบหน้า)", () => {
+  beforeEach(() => {
+    replies.length = 0;
+    vi.stubEnv("LINE_CHANNEL_SECRET", secret);
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-channel");
+    vi.mocked(generate).mockReset().mockResolvedValue(null);
+  });
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    await db.from("users").delete().in("line_user_id", [lineA, `${lineA}_other`]);
+  });
+
+  const data = (label: string) => (lastButtons().find((b) => b.label === label) as { data: string }).data;
+  async function tryCard(text: string) {
+    await figma();
+    await chat(text);
+    await tap(data("ลองก่อนซื้อ"));
+  }
+  async function myPlans() {
+    const { data: u } = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const { data: p } = await db.from("plans").select("title, amount, status").eq("user_id", u!.id).eq("kind", "purchase");
+    return p!;
+  }
+
+  it("ลองยอดอื่น: «250» tries again — 1,190 ÷ 12 = 99.16 → 99 a day; nothing saved", async () => {
+    await tryCard("ชาบู 350");
+    await tap(data("ลองยอดอื่น"));
+    expect(lastText()).toContain("พิมพ์ราคาใหม่");
+    await chat("250");
+    expect(last().type).toBe("flex");
+    expect(lastText()).toContain("เหลือวันละ 99 บาท");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("ไม่ซื้อ: nothing saved, and its buttons do nothing afterwards", async () => {
+    await tryCard("ชาบู 350");
+    const pay = data("ยืนยันจ่ายจริง");
+    await tap(data("ไม่ซื้อ"));
+    expect(lastText()).toContain("ไม่ซื้อ");
+    await tap(pay);
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("not a meal: เลื่อนไปรอบหน้า keeps it as a postponed plan, held nothing this cycle", async () => {
+    await tryCard("หูฟัง 700");
+    expect(lastButtons().map((b) => b.label).slice(0, 3)).toEqual(["เก็บไว้ในแผน", "ยืนยันจ่ายจริง", "เลื่อนไปรอบหน้า"]);
+    await tap(data("เลื่อนไปรอบหน้า"));
+    expect(lastText()).toContain("เลื่อนไปรอบหน้าแล้ว ✓ หูฟัง 700 บาท");
+    expect(await myPlans()).toEqual([{ title: "หูฟัง", amount: 70000, status: "postponed" }]);
+  });
+
+  it("ยืนยันจ่ายจริง from the try card records it once", async () => {
+    await tryCard("ชาบู 350");
+    const pay = data("ยืนยันจ่ายจริง");
+    await tap(pay);
+    expect(lastText()).toContain("จดแล้ว ✓ ชาบู 350 บาท");
+    await tap(pay);
+    expect(await screenEntries()).toHaveLength(1);
+  });
+
+  it("someone else's draft id does nothing", async () => {
+    await tryCard("ชาบู 350");
+    const pay = data("ยืนยันจ่ายจริง");
+    const other = `${lineA}_other`;
+    eventIds.push(`Y_${run}`);
+    await deliver({ type: "postback", webhookEventId: `Y_${run}`, replyToken: "rt-y", source: { type: "user", userId: other }, postback: { data: pay } });
+    expect(lastText()).toContain("หมดเวลา");
+    expect(await screenEntries()).toEqual([]);
   });
 });
