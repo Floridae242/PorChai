@@ -10,6 +10,13 @@ import {
   askNewAmountMessage,
   categoryChangedMessage,
   deletedMessage,
+  demoNoHabitMessage,
+  reminderAlreadyMessage,
+  reminderCard,
+  reminderEditCancelledMessage,
+  reminderEditMessage,
+  reminderNotFoundMessage,
+  reminderSkippedMessage,
   entryNotFoundMessage,
   isUserCategory,
   notWiredMessage,
@@ -44,6 +51,7 @@ import {
 import { amountOnly, categoryOf, MAX_TITLE, parseExpense } from "@/lib/chat/parse";
 import { loadBudget, loadSummary, summaryOf } from "@/lib/db/budget";
 import { proposalFor, recentChat, remember, type ChatLine, type Pending } from "@/lib/db/chat-memory";
+import { demoReminder, markReminder, reminderById, type ReminderLog } from "@/lib/db/reminders";
 import { addEntry, cancelEntry, editEntry, entryExists, entryForChat } from "@/lib/db/entries";
 import { actOnPlan, addPlan, planIdByKey } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
@@ -124,7 +132,17 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   const pending = last?.role === "bot" ? last.pending : null; // only the very next message answers it
   const parsed = parseExpense(body);
 
+  // Card 58 demo: the presenter cannot wait for the reminder time (only with DEMO_MODE=1)
+  if (process.env.DEMO_MODE === "1" && body.trim() === "เดโมเตือน") {
+    const demo = await demoReminder(userId);
+    return say(demo ? reminderCard(demo.log, demo.time) : demoNoHabitMessage());
+  }
   const amount = amountOnly(body);
+  // Card 58 [แก้ยอด] → «60»: record the reminded habit with the amount typed
+  if (pending?.kind === "reminder" && amount !== null) {
+    const log = await reminderById(userId, pending.reminderId);
+    return say(log ? await recordReminder(userId, log, amount) : reminderNotFoundMessage());
+  }
   // Card 10 [แก้] → «50»: the new amount of that entry
   if (pending?.kind === "edit" && amount !== null) return say(await editAmount(userId, pending.entryId, amount));
   // «ข้าว» → «กี่บาท?» → «45»
@@ -272,6 +290,10 @@ const FLEX_LABEL: Partial<Record<DecodedPostback["action"], string>> = {
   entry_del: "ลบ",
   entry_del_ok: "ลบเลย",
   menu_today: "วันนี้ใช้ได้",
+  rem_yes: "ใช่ จดเลย",
+  rem_edit: "แก้ยอด",
+  rem_skip: "วันนี้ไม่ได้ซื้อ",
+  rem_edit_cancel: "ยกเลิกการแก้",
 };
 const flexLabel = (p: DecodedPostback) => FLEX_LABEL[p.action] ?? "กดปุ่มบนการ์ด";
 
@@ -286,6 +308,7 @@ const asRecorded = (e: { id: string; note: string | null; amount: number; catego
 // Every entry id is checked against the user: someone else's id is "not found", never touched.
 async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer> {
   if (p.action === "menu_today") return say(todayCard(await loadSummary(userId)));
+  if (p.action.startsWith("rem_")) return onReminderButton(userId, p);
   if (!["entry_edit", "entry_cat", "entry_cat_set", "entry_del", "entry_del_ok"].includes(p.action)) return say(notWiredMessage());
   try {
     const { entry, cancelled } = await entryForChat(userId, p.id);
@@ -307,6 +330,31 @@ async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer>
     if (err instanceof HttpError && err.code !== "no_cycle") return say(err.code === "not_found" ? entryNotFoundMessage() : text(err.message));
     throw err;
   }
+}
+
+// Card 58: the reminder card's buttons. Recording is keyed by the reminder, so ใช่ จดเลย twice, or
+// แก้ยอด then ใช่ จดเลย, records once.
+async function onReminderButton(userId: string, p: DecodedPostback): Promise<Answer> {
+  const log = await reminderById(userId, p.id);
+  if (!log) return say(reminderNotFoundMessage());
+  if (p.action === "rem_yes") return say(await recordReminder(userId, log, log.amount));
+  if (p.action === "rem_edit") return say(reminderEditMessage(log), { kind: "reminder", reminderId: log.id });
+  if (p.action === "rem_edit_cancel") return say(reminderEditCancelledMessage());
+  // rem_skip: not today, and not reminded again today (its row stays)
+  if (log.status !== "recorded") await markReminder(log.id, "skipped");
+  return say(reminderSkippedMessage(log, await loadSummary(userId)));
+}
+
+async function recordReminder(userId: string, log: ReminderLog, amount: number): Promise<ReplyMessage> {
+  const { entry, created } = await addEntry(
+    userId,
+    { amount, category: log.category, note: log.label, spentOn: log.day },
+    `reminder:${log.id}`,
+    "reminder",
+  );
+  if (!created) return reminderAlreadyMessage(log.label, entry.amount);
+  await markReminder(log.id, "recorded", entry.id);
+  return recorded(userId, { id: entry.id, title: log.label, amount: entry.amount, category: log.category });
 }
 
 async function editAmount(userId: string, entryId: string, amount: number): Promise<ReplyMessage> {

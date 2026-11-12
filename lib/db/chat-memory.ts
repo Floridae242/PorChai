@@ -18,7 +18,8 @@ export type Pending =
   | { kind: "amount"; title: string } // «ข้าว» → asked how much
   | { kind: "title"; amount: number } // «45» → asked what for
   | { kind: "items"; key: string; items: ProposedItem[] } // several spends → [จดทั้งหมด][ไม่ใช่]
-  | { kind: "edit"; entryId: string; title: string }; // card [แก้] → «50»
+  | { kind: "edit"; entryId: string; title: string } // card [แก้] → «50»
+  | { kind: "reminder"; reminderId: string }; // card 58 [แก้ยอด] → «60»
 
 export interface ChatLine {
   role: "user" | "bot";

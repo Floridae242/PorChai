@@ -1,4 +1,4 @@
-import type { FlexMessage } from "@/lib/line/flex/types";
+import type { FlexMessage, TextReplyMessage } from "@/lib/line/flex/types";
 
 // LINE Messaging API reply. A reply costs no quota (a push does), so chat answers always use this.
 
@@ -19,7 +19,7 @@ export function text(body: string, actions: QuickReplyAction[] = []): TextMessag
 }
 
 // Text, or a Flex card from lib/line/flex (โฟรวิว's cards)
-export type ReplyMessage = TextMessage | FlexMessage;
+export type ReplyMessage = TextMessage | TextReplyMessage | FlexMessage;
 
 export async function reply(replyToken: string, messages: ReplyMessage[]): Promise<void> {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;

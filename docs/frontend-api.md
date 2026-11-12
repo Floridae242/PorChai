@@ -239,6 +239,10 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 
 **แชตคุยกับ AI (ฝั่งแชตอย่างเดียว ไม่มี API ใหม่ให้หน้าจอ):** ทักทาย / «เหลือกี่บาท?» / «ข้าว» แล้วตอบยอด / «45» แล้วตอบชื่อ / หลายยอดในข้อความเดียว → ปุ่ม จดทั้งหมด / ไม่ใช่ · รายการที่จดจากแชตยังเป็น `source: "chat"` เหมือนเดิม · ⚠️ หน้ายินยอม W1–W3 ควรเพิ่ม: ข้อความแชตเก็บ 30 นาที และส่งให้ Google (Gemini) ประมวลผล
 
+### 3.7 การเตือนรายการประจำ (`/api/reminders`) — แอป › ตั้งค่า › การเตือน (การ์ด 58)
+
+`GET /api/reminders` → `{ enabled, time: "12:30", pausedUntil: "YYYY-MM-DD" | null, habits: [{ id, label, amount, time }] }` · `PUT /api/reminders { enabled, time: "HH:mm", pausedUntil }` → ค่าใหม่ (422 ถ้าเวลา/วันที่ผิด) · ค่าเริ่มต้นปิด · `habits` = รายการที่ระบบตรวจพบ (ชื่อเดียวกัน ≥ 3 วันใน 7 วัน) · ต่อใน `lib/client/live.ts` แล้ว · รายการที่จดจากปุ่มเตือนมี `source: "reminder"`
+
 ### รายจ่ายที่มาจากการจ่ายแผน (`source: "plan"`)
 
 - **เปลี่ยนหมวดได้** ด้วย `PATCH /api/entries/:id` `{ category }` (L9) ยกเว้นรายจ่ายบิล (`bills`)

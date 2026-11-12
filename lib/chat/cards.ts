@@ -1,7 +1,17 @@
 import { USER_CATEGORIES, type Summary, type UserCategory } from "@/lib/api-types";
 import type { BudgetResult } from "@/lib/calc/budget";
 import { baht, budgetLine, cheer, recordedMessage } from "@/lib/chat/messages";
-import { buildRecordedCard, buildTodayBudgetCard, categoryLabel, encodePostback, miniAppUrl } from "@/lib/line/flex";
+import type { ReminderLog } from "@/lib/db/reminders";
+import {
+  buildHabitEditAskMessage,
+  buildHabitReminderCard,
+  buildHabitSkippedMessage,
+  buildRecordedCard,
+  buildTodayBudgetCard,
+  categoryLabel,
+  encodePostback,
+  miniAppUrl,
+} from "@/lib/line/flex";
 import { text, type QuickReplyAction, type ReplyMessage, type TextMessage } from "@/lib/line/reply";
 
 // Card 10: what the bot says with โฟรวิว's Flex cards (lib/line/flex), and the answers to their buttons.
@@ -83,5 +93,25 @@ export const askNewAmountMessage = (e: RecordedEntry): TextMessage =>
 export const entryNotFoundMessage = (): TextMessage => text("ไม่พบรายการนี้ อาจถูกลบไปแล้วครับ");
 
 export const notWiredMessage = (): TextMessage => text("ปุ่มนี้ยังใช้ไม่ได้ครับ ทำในแอปได้เลย");
+
+// Card 58 (Figma F2): the reminder, and the answers to its buttons
+export const reminderCard = (log: ReminderLog, time: string): ReplyMessage =>
+  buildHabitReminderCard({ reminderId: log.id, habitTitle: log.label, habitAmount: log.amount, timeLabel: time });
+
+export const reminderEditMessage = (log: ReminderLog): ReplyMessage =>
+  buildHabitEditAskMessage({ reminderId: log.id, habitTitle: log.label, habitAmount: log.amount });
+
+export const reminderSkippedMessage = (log: ReminderLog, s: Summary): ReplyMessage =>
+  buildHabitSkippedMessage({ habitTitle: log.label, todayRemaining: s.budget.kind === "ok" ? s.budget.todayRemaining : 0 });
+
+export const reminderAlreadyMessage = (title: string, amount: number): TextMessage =>
+  text(`${title} ${baht(amount)} บาท จดไว้แล้วครับ ✓`);
+
+export const reminderNotFoundMessage = (): TextMessage => text("ไม่พบการเตือนนี้ครับ");
+
+export const reminderEditCancelledMessage = (): TextMessage => text("ยกเลิกการแก้แล้วครับ ยังไม่ได้จดอะไร");
+
+export const demoNoHabitMessage = (): TextMessage =>
+  text("ยังไม่มีรายการประจำครับ ต้องจดชื่อเดียวกันอย่างน้อย 3 วันใน 7 วันล่าสุด เช่น «ข้าวเที่ยง 50»");
 
 export const isUserCategory = (c: string | undefined): c is UserCategory => USER_CATEGORIES.includes(c as UserCategory);

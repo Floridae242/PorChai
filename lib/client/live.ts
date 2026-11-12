@@ -93,6 +93,9 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
       request({ method: "POST", path: "/api/plans", body: req, idempotencyKey }),
     planAction: (id, action, body) =>
       request({ method: "POST", path: `/api/plans/${seg(id)}/${action}`, body }),
+    // Card 58: แอป › ตั้งค่า › การเตือน
+    reminderSettings: () => request({ method: "GET", path: "/api/reminders" }),
+    saveReminderSettings: (req) => request({ method: "PUT", path: "/api/reminders", body: req }),
 
     // --- NOT ON THE SERVER YET (backend-gaps 13-20): wire each to its route when it ships ---
     consent: notImplemented,
@@ -108,8 +111,6 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     addIncome: notImplemented,
     dailySpend: notImplemented,
     categoryTotals: notImplemented,
-    reminderSettings: notImplemented,
-    saveReminderSettings: notImplemented,
     deleteMyData: notImplemented,
     // --- end not-implemented block ---
   };
