@@ -306,6 +306,33 @@ describe("card 15: questions in the chat", () => {
     expect(await screenEntries()).toHaveLength(1);
   });
 
+  it("bug 13 Nov: «ถ้ากิน ชาบู 150 บาท จะเหลือเงินใช้วันละเท่าไร» is a try, never a spend", async () => {
+    await figma();
+    await chat("ถ้ากิน ชาบู 150 บาท จะเหลือเงินใช้วันละเท่าไร");
+    expect(lastText()).toContain("ชาบู 150 บาท");
+    expect(lastText()).not.toContain("จดแล้ว");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("a question without a price never turns into «จ่ายไปกี่บาท?» — the answer is not recorded", async () => {
+    await figma();
+    vi.mocked(generate).mockResolvedValueOnce(JSON.stringify({ intent: "spend", topic: "money", item: "ชาบู", reply: "" }));
+    await chat("ถ้ากินชาบูจะเหลือเท่าไร");
+    expect(lastText()).toContain("ชาบู ราคาเท่าไรครับ");
+    expect(lastText()).not.toContain("จ่ายไป");
+    await chat("150");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("a question with two prices is not split into spends either", async () => {
+    await figma();
+    vi.mocked(generate).mockResolvedValue(JSON.stringify({ items: [{ title: "ชาบู", amount_baht: 150 }, { title: "ชาบู", amount_baht: 200 }] }));
+    await chat("ถ้ากินชาบู 150 หรือ 200 จะเหลือเท่าไร");
+    expect(lastButtons().map((b) => b.label)).not.toContain("จดทั้งหมด");
+    expect(await screenEntries()).toEqual([]);
+    vi.mocked(generate).mockReset().mockResolvedValue(null);
+  });
+
   it("a question with no price goes to the chat: the AI asks for the price (AI off: the template's example)", async () => {
     await figma();
     vi.mocked(generate).mockResolvedValueOnce(JSON.stringify({ intent: "chat", topic: "money", item: null, reply: "ชาบูราคาเท่าไรเอ่ย?" }));

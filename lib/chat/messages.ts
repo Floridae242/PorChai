@@ -169,6 +169,10 @@ export const offTopicMessage = (): TextMessage =>
 export const askAmountMessage = (title: string, approximate: boolean): TextMessage =>
   text(`${approximate ? "ขอยอดที่จ่ายจริงนะครับ " : ""}${title} จ่ายไปกี่บาทครับ? พิมพ์แค่ตัวเลขก็ได้ เช่น «45»`, [app("กรอกเองในแอป")]);
 
+// A what-if without a price: ask it to try (nothing is waited for, so the answer is not recorded)
+export const askPriceMessage = (item: string): TextMessage =>
+  text(`${item} ราคาเท่าไรครับ? ถามพร้อมราคาได้เลย เช่น «${item} 300 ไหวไหม»`, [app()]);
+
 // «45»: asked what for; the answer «ข้าว» is recorded
 export const askTitleMessage = (amount: number): TextMessage =>
   text(`${baht(amount)} บาท ค่าอะไรครับ? พิมพ์ชื่อได้เลย เช่น «ข้าว»`, [app("กรอกเองในแอป")]);

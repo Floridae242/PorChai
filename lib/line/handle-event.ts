@@ -9,6 +9,7 @@ import {
   alreadyManyMessage,
   alreadyMessage,
   askAmountMessage,
+  askPriceMessage,
   askMessage,
   askTitleMessage,
   chatFallbackMessage,
@@ -120,9 +121,12 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   }
 
   // Card 15: «พรุ่งนี้กินชาบู 300 ไหวไหม» is a question, not a spend — answer it, save nothing.
-  // Without a price («เหลือกี่บาท?», «ชาบูไหวไหม») it is chat.
-  const question = isQuestion(body);
-  if (question && readQuestion(body).amount !== null) return say(adviceMessage(await advise(userId, body), eventId));
+  // Without one clear price («เหลือกี่บาท?», «ชาบู 150 หรือ 200 ดี») it is chat. A question never
+  // reaches a path that records (bug 13 Nov: a what-if was saved as a spend).
+  if (isQuestion(body)) {
+    if (readQuestion(body).amount !== null) return say(adviceMessage(await advise(userId, body), eventId));
+    return converse(userId, body, history, { approximate: false, question: true });
+  }
   if (parsed.kind === "entry") {
     return spend(userId, { title: parsed.title, amount: parsed.amount, category: parsed.category, key: eventId });
   }
@@ -138,16 +142,25 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   }
 
   // No amount or an approximate one: the AI reads it with the recent chat
-  return converse(userId, body, history, parsed.reason === "approximate");
+  return converse(userId, body, history, { approximate: parsed.reason === "approximate", question: false });
 }
 
-async function converse(userId: string, body: string, history: ChatLine[], approximate: boolean): Promise<Answer> {
+async function converse(
+  userId: string,
+  body: string,
+  history: ChatLine[],
+  { approximate, question }: { approximate: boolean; question: boolean },
+): Promise<Answer> {
   const summary = await loadSummary(userId).catch((err) => {
     if (err instanceof HttpError && err.code === "no_cycle") return null; // chatting works before setup
     throw err;
   });
   const reading = await readChat(body, history, factsOf(summary));
-  if (reading?.kind === "spend") return say(askAmountMessage(reading.item, approximate), { kind: "amount", title: reading.item });
+  if (reading?.kind === "spend") {
+    // «ถ้ากินชาบูจะเหลือเท่าไร»: ask the price to try it, never «จ่ายไปกี่บาท?» (whose answer is recorded)
+    if (question) return say(askPriceMessage(reading.item));
+    return say(askAmountMessage(reading.item, approximate), { kind: "amount", title: reading.item });
+  }
   if (reading?.kind === "off_topic") return say(offTopicMessage());
   if (reading?.kind === "chat" && reading.reply) return say(chatMessage(reading.reply));
   return say(approximate ? askMessage("approximate") : chatFallbackMessage(summary));
