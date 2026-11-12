@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { LIFF_ID } from "@/lib/liff/config";
-import { initializeLiff } from "@/lib/line/liff-client";
+import { getLiff } from "@/lib/liff/client";
 import { shouldInitializeLegacyLiff } from "@/lib/liff/redirect";
 
 // A LIFF link with a path (liff.line.me/<id>/some/page) first opens the endpoint with
@@ -16,7 +15,7 @@ export function LiffStateRedirect() {
       )
     )
       return;
-    initializeLiff(LIFF_ID).catch(() =>
+    getLiff().catch(() =>
       console.error("LIFF deep-link initialization failed"),
     );
   }, []);
