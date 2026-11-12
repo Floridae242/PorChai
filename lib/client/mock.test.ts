@@ -414,3 +414,18 @@ describe("mock card 23 (payday / basis / stale)", () => {
     expect(r.plan.title).toBe("x");
   });
 });
+
+describe("mock validation like the server (card 23)", () => {
+  it("rejects a non-ISO or impossible payday and a negative balance with 422 invalid_input", async () => {
+    const api = createMockApi();
+    const { basis } = await api.summary();
+    for (const payday of ["tomorrow", "2026-2-3", "2026-02-31", ""]) {
+      await expectApiError(api.simulate({ payday }), 422, "invalid_input");
+      await expectApiError(api.changePayday({ payday, basis }), 422, "invalid_input");
+    }
+    await expectApiError(api.simulate({ balance: -1 }), 422, "invalid_input");
+    await expectApiError(api.adjustBalance({ balance: -100, basis }), 422, "invalid_input");
+    await expectApiError(api.adjustBalance({ balance: 1.5 }), 422, "invalid_input");
+    expect((await api.summary()).balance).toBe(240000);
+  });
+});

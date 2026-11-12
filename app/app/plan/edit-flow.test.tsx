@@ -270,7 +270,7 @@ describe("E3 / E5 done views", () => {
     expect(screen.getByRole("heading", { name: "อัปเดตแล้ว" })).toBeTruthy();
     expect(screen.getByText("120")).toBeTruthy();
     expect(screen.getByText("บาท/วัน")).toBeTruthy();
-    expect(screen.getByText("(2,400 − 600 − 240 − 120) ÷ 12 วัน")).toBeTruthy();
+    expect(screen.getByText("(2,400 − 600 − 240 − 120) ÷ 12 วัน ปัดลงเป็นช่วง 0.25 บาท")).toBeTruthy();
     expect(screen.getByRole("link", { name: "กลับ Dashboard" }).getAttribute("href")).toBe("/app");
     expect(screen.queryByRole("link", { name: "ย้อนกลับ" })).toBeNull();
   });
@@ -283,7 +283,7 @@ describe("E3 / E5 done views", () => {
 
   it("footnote is omitted when a value is missing (or today's spending is not 0)", async () => {
     const real: Summary = await mk().summary();
-    expect(footnoteOf(real)).toBe("(2,400 − 600 − 240 − 120) ÷ 12 วัน");
+    expect(footnoteOf(real)).toBe("(2,400 − 600 − 240 − 120) ÷ 12 วัน ปัดลงเป็นช่วง 0.25 บาท");
     expect(footnoteOf({ ...real, emergencyBuffer: undefined } as unknown as Summary)).toBeNull();
     expect(footnoteOf({ ...real, reserved: undefined } as unknown as Summary)).toBeNull();
     expect(footnoteOf({ ...real, budget: { kind: "payday-passed", usable: 0 } })).toBeNull();
@@ -305,5 +305,48 @@ describe("E3 / E5 done views", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("โหลดไม่ได้");
     await userEvent.setup().click(screen.getByRole("button", { name: "ลองใหม่" }));
     expect(await screen.findByText("ใช้ได้วันละ")).toBeTruthy();
+  });
+});
+
+describe("E2 extras", () => {
+  beforeEach(() => {
+    currentSearch = "payday=2026-11-26";
+  });
+
+  it.each(["shortfall", "essentials_short"] as const)("%s: neutral note above confirm, confirm stays enabled", async (verdict) => {
+    const api = mk();
+    vi.spyOn(api, "simulate").mockResolvedValue(
+      sim(
+        verdict === "shortfall"
+          ? { verdict, after: { kind: "shortfall", usable: -5000, shortfall: 5000, daysLeft: 15 }, overLimitBy: null }
+          : { verdict, after: ok(6150, 12, { essentialShortPerDay: 850 }), overLimitBy: 9000 },
+      ),
+    );
+    renderWith(api, <PaydayReviewView />);
+    expect(await screen.findByText("การยืนยันนี้เปลี่ยนแค่วันเงินเข้า ไม่ได้เปลี่ยนเงินในแอป")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "ยืนยันแผนใหม่" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("ok verdict has no such note", async () => {
+    renderWith(mk(), <PaydayReviewView />);
+    await screen.findByText("ก่อน");
+    expect(screen.queryByText(/เปลี่ยนแค่วันเงินเข้า/)).toBeNull();
+  });
+
+  it("after a stale reset a rapid double tap sends exactly one changePayday with the NEW basis", async () => {
+    const api = mk();
+    const change = vi.spyOn(api, "changePayday");
+    renderWith(api, <PaydayReviewView />);
+    const first = await screen.findByRole("button", { name: "ยืนยันแผนใหม่" });
+    await api.addEntry({ amount: 4500, category: "food" }, "elsewhere");
+    const fresh = await api.summary();
+    await userEvent.setup().click(first);
+    await screen.findByText("ข้อมูลเปลี่ยนไปแล้ว ลองดูผลใหม่อีกครั้ง");
+    const again = await screen.findByRole("button", { name: "ยืนยันแผนใหม่" });
+    fireEvent.click(again);
+    fireEvent.click(again);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/plan/edit/done"));
+    expect(change).toHaveBeenCalledTimes(2);
+    expect(change.mock.calls[1][0]).toEqual({ payday: "2026-11-26", basis: fresh.basis });
   });
 });

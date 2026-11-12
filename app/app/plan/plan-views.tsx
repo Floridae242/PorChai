@@ -433,7 +433,7 @@ export function PlanEditView() {
     if (reason === "payday") {
       router.push("/app/plan/edit/payday");
     } else if (reason === "balance") {
-      router.push("/app/balance/adjust");
+      router.push("/app/balance/adjust?back=edit");
     } else {
       // E1b: the income form reports ยังไม่พร้อมใช้งาน itself while addIncome is not_implemented.
       router.push("/app/record/new?type=income");
@@ -492,6 +492,8 @@ export function PlanEditView() {
 export function BalanceAdjustView() {
   const api = useApi();
   const router = useRouter();
+  // Whitelisted: only a link from E1 (?back=edit) goes back there; anything else goes to the dashboard
+  const backTarget = useSearchParams()?.get("back") === "edit" ? "/app/plan/edit" : "/app";
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -559,7 +561,7 @@ export function BalanceAdjustView() {
 
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
-      <AppHeader title="ปรับยอดให้ตรงเงินจริง" back="/app/plan/edit" tone="default" />
+      <AppHeader title="ปรับยอดให้ตรงเงินจริง" back={backTarget} tone="default" />
 
       {loadError ? (
         <>

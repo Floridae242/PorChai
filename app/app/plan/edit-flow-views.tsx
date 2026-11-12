@@ -398,6 +398,10 @@ export function PaydayReviewView() {
         <Banner kind="info" text="ดูตัวเลขก่อนและหลังด้านบน แล้วกดยืนยันถ้าถูกต้อง" />
       )}
 
+      {sim.verdict === "shortfall" || sim.verdict === "essentials_short" ? (
+        <p className="text-xs text-secondary">การยืนยันนี้เปลี่ยนแค่วันเงินเข้า ไม่ได้เปลี่ยนเงินในแอป</p>
+      ) : null}
+
       {confirmError ? <Banner kind="error" text={confirmError} /> : null}
 
       <div className="flex flex-col gap-2">
@@ -422,7 +426,7 @@ export function footnoteOf(s: Summary): string | null {
   const parts = [s.balance, s.reserved, s.savings, s.emergencyBuffer, s.spentToday, s.budget.daysLeft];
   if (parts.some((v) => typeof v !== "number")) return null;
   if (s.spentToday !== 0) return null;
-  return `(${formatBaht(s.balance)} − ${formatBaht(s.reserved)} − ${formatBaht(s.savings)} − ${formatBaht(s.emergencyBuffer)}) ÷ ${s.budget.daysLeft} วัน`;
+  return `(${formatBaht(s.balance)} − ${formatBaht(s.reserved)} − ${formatBaht(s.savings)} − ${formatBaht(s.emergencyBuffer)}) ÷ ${s.budget.daysLeft} วัน ปัดลงเป็นช่วง 0.25 บาท`;
 }
 
 export function UpdatedSummaryView({ title, pose }: { title: string; pose: MascotPose }) {

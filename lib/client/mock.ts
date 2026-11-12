@@ -29,6 +29,12 @@ import type { CategoryTotal, PlanActionName, PorchaiApi, Promo, ReminderSettings
 const mockBasis = (input: object) => JSON.stringify(input);
 const MSG_STALE = "ข้อมูลเปลี่ยนไปแล้ว ดูผลคำนวณใหม่ก่อนยืนยัน";
 const MSG_PAYDAY_AFTER_TODAY = "วันเงินเข้าต้องเป็นวันหลังวันนี้";
+const MSG_BAD_DATE = "วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD";
+const MSG_BAD_BALANCE = "ยอดเงินต้องเป็นจำนวนสตางค์ ไม่ติดลบ";
+// Same rules as lib/validate: a real calendar date, a non-negative whole number of satang
+const isoDateOk = (v: unknown): boolean =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(v).toISOString().slice(0, 10) === v;
+const satangOk = (v: unknown): boolean => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 const MSG_SET_ASIDE_OVER = "เงินออมรวมเงินเผื่อเกินเงินที่มี";
 
 export type MockScenario = "fresh" | "default" | "midCycle" | "shortfall" | "tight" | "paydayPassed";
@@ -346,7 +352,8 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
 
     async changePayday(req) {
       const c = requireCycle();
-      if (!req.payday || req.payday <= today) throw new ApiError(422, "invalid_input", MSG_PAYDAY_AFTER_TODAY);
+      if (!isoDateOk(req.payday)) throw new ApiError(422, "invalid_input", MSG_BAD_DATE);
+      if (req.payday <= today) throw new ApiError(422, "invalid_input", MSG_PAYDAY_AFTER_TODAY);
       if (!req.basis) throw new ApiError(422, "invalid_input", "ต้องส่งรหัสผลคำนวณ (basis) ที่หน้าจอแสดงอยู่");
       if (c.payday === req.payday) return { summary: summaryOf(c) }; // the other tap of a double tap
       requireBasis(c, req.basis);
@@ -356,6 +363,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
 
     async adjustBalance(req) {
       const c = requireCycle();
+      if (!satangOk(req.balance)) throw new ApiError(422, "invalid_input", MSG_BAD_BALANCE);
       requireBasis(c, req.basis || undefined);
       c.anchor = { amount: req.balance, asOf: req.asOf ? new Date(req.asOf) : now() };
       return { summary: summaryOf(c) };
@@ -364,6 +372,8 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
     async simulate(req) {
       const c = requireCycle();
       const input = inputOf(c);
+      if (req.payday != null && !isoDateOk(req.payday)) throw new ApiError(422, "invalid_input", MSG_BAD_DATE);
+      if (req.balance != null && !satangOk(req.balance)) throw new ApiError(422, "invalid_input", MSG_BAD_BALANCE);
       if (req.payday != null && req.payday <= today) {
         throw new ApiError(422, "invalid_input", MSG_PAYDAY_AFTER_TODAY);
       }

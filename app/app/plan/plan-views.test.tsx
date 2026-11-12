@@ -242,7 +242,7 @@ describe("PlanEditView (E1)", () => {
 
     await user.click(screen.getByRole("radio", { name: /ปรับยอดให้ตรงเงินจริง/ }));
     await user.click(screen.getByRole("button", { name: "ไปปรับยอดให้ตรง" }));
-    expect(push).toHaveBeenLastCalledWith("/app/balance/adjust");
+    expect(push).toHaveBeenLastCalledWith("/app/balance/adjust?back=edit");
     expect(screen.queryByText(/ยังไม่พร้อมใช้งาน/)).toBeNull();
   });
 });
@@ -356,5 +356,19 @@ describe("BalanceAdjustView (E4)", () => {
     vi.spyOn(api, "summary").mockRejectedValue(new ApiError(500, "internal", "โหลดไม่ได้"));
     renderWith(api, <BalanceAdjustView />);
     expect((await screen.findByRole("alert")).textContent).toContain("โหลดไม่ได้");
+  });
+});
+
+describe("BalanceAdjustView back target", () => {
+  it.each([
+    ["back=edit", "/app/plan/edit"],
+    ["", "/app"],
+    ["back=http://evil.test", "/app"],
+    ["back=EDIT", "/app"],
+  ])("?%s -> %s", async (search, href) => {
+    currentSearch = search;
+    renderWith(mk(), <BalanceAdjustView />);
+    await screen.findByText(/ยอดในพอใช้ตอนนี้/);
+    expect(screen.getByRole("link", { name: "ย้อนกลับ" }).getAttribute("href")).toBe(href);
   });
 });
