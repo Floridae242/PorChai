@@ -144,6 +144,20 @@ export async function cancelEntry(userId: string, id: string): Promise<Entry> {
   return toEntry(row);
 }
 
+// OCR: an entry with the same amount on that day — the slip may already be recorded
+export async function sameAmountOn(userId: string, day: string, amount: number): Promise<Entry | null> {
+  const { data, error } = await getDb()
+    .from("entries")
+    .select(COLUMNS)
+    .eq("user_id", userId)
+    .eq("spent_on", day)
+    .eq("amount", amount)
+    .is("cancelled_at", null)
+    .limit(1);
+  if (error) throw error;
+  return data[0] ? toEntry(data[0] as Row) : null;
+}
+
 export async function entryExists(userId: string, idempotencyKey: string): Promise<boolean> {
   const { count, error } = await getDb()
     .from("entries")

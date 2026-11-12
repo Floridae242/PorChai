@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { generate } from "@/lib/ai/gemini";
+import { generate, generateFromImage } from "@/lib/ai/gemini";
 
 // The Gemini call: model, waiting time and one retry when Google is busy (eval 13 Nov: gemini-3.5-flash-lite
 // answered 18 of 54, mostly 503 "high demand"; gemini-3.1-flash-lite 36 of 54, misses mostly over 8 s).
@@ -65,5 +65,43 @@ describe("generate", () => {
     vi.stubEnv("GEMINI_API_KEY", "");
     expect(await generate({ system: "s", input: "i" })).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("generateFromImage (OCR)", () => {
+  beforeEach(() => {
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    vi.stubEnv("GEMINI_MODEL", "");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("sends the prompt and the image inline (base64) to generateContent, and returns the text", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ candidates: [{ content: { parts: [{ text: '{"is_slip":true}' }] } }] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const out = await generateFromImage({ prompt: "อ่านสลิป", image: new Uint8Array([1, 2, 3]), mimeType: "image/jpeg", schema: {} });
+    expect(out).toBe('{"is_slip":true}');
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent");
+    const body = JSON.parse(String(init.body));
+    expect(body.contents[0].parts).toEqual([{ text: "อ่านสลิป" }, { inline_data: { mime_type: "image/jpeg", data: "AQID" } }]);
+    expect(body.generationConfig.responseMimeType).toBe("application/json");
+  });
+
+  it("busy once: tries again; no key or no answer: null", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 503 }))
+      .mockResolvedValueOnce(Response.json({ candidates: [{ content: { parts: [{ text: "ok" }] } }] }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await generateFromImage({ prompt: "p", image: new Uint8Array(), mimeType: "image/png", schema: {} })).toBe("ok");
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ candidates: [] })));
+    expect(await generateFromImage({ prompt: "p", image: new Uint8Array(), mimeType: "image/png", schema: {} })).toBeNull();
+    vi.stubEnv("GEMINI_API_KEY", "");
+    expect(await generateFromImage({ prompt: "p", image: new Uint8Array(), mimeType: "image/png", schema: {} })).toBeNull();
   });
 });

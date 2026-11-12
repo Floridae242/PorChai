@@ -23,6 +23,12 @@ import {
   howToRecordMessage,
   howToTryMessage,
   notWiredMessage,
+  ocrAlreadyMessage,
+  ocrAskAmountMessage,
+  ocrCancelledMessage,
+  ocrDraftCard,
+  ocrTransferMessage,
+  slipUnreadableMessage,
   recordedCard,
   todayCard,
   type RecordedEntry,
@@ -53,10 +59,12 @@ import {
   type Draft,
 } from "@/lib/chat/messages";
 import { amountOnly, categoryOf, MAX_TITLE, parseExpense } from "@/lib/chat/parse";
-import { loadBudget, loadSummary, summaryOf } from "@/lib/db/budget";
-import { proposalFor, recentChat, remember, type ChatLine, type Pending } from "@/lib/db/chat-memory";
+import { loadBudget, loadSummary, requireActiveCycle, summaryOf } from "@/lib/db/budget";
+import { ocrDraftFor, proposalFor, recentChat, remember, type ChatLine, type OcrDraft, type Pending } from "@/lib/db/chat-memory";
 import { DEMO_HABIT, demoReminder, markReminder, reminderById, seedDemoHabit, type ReminderLog } from "@/lib/db/reminders";
-import { addEntry, cancelEntry, editEntry, entryExists, entryForChat } from "@/lib/db/entries";
+import { addEntry, cancelEntry, editEntry, entryExists, entryForChat, sameAmountOn } from "@/lib/db/entries";
+import { messageImage } from "@/lib/line/content";
+import { readSlip } from "@/lib/ocr/slip";
 import { addIncome } from "@/lib/db/income";
 import { actOnPlan, addPlan, planIdByKey } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
@@ -70,7 +78,7 @@ interface LineEvent {
   webhookEventId?: unknown;
   replyToken?: unknown;
   source?: { type?: unknown; userId?: unknown };
-  message?: { type?: unknown; text?: unknown };
+  message?: { type?: unknown; text?: unknown; id?: unknown };
   postback?: { data?: unknown };
 }
 
@@ -96,6 +104,9 @@ export async function handleEvent(event: unknown): Promise<void> {
     if (e.type === "message" && e.message?.type === "text" && typeof e.message.text === "string") {
       said = e.message.text;
       answer = await onText(userId, e.message.text, String(e.webhookEventId));
+    } else if (e.type === "message" && e.message?.type === "image" && typeof e.message.id === "string") {
+      said = "(ส่งรูป)"; // the photo itself is never kept
+      answer = await onPhoto(userId, e.message.id);
     } else if (e.type === "postback" && typeof e.postback?.data === "string") {
       const tapped = await onPostback(userId, e.postback.data);
       if (tapped) [said, answer] = [`(กด ${tapped.label})`, tapped.answer];
@@ -147,6 +158,10 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     return say(demo ? reminderCard(demo.log, demo.time) : demoNoHabitMessage());
   }
   const amount = amountOnly(body);
+  // OCR [แก้ยอด] → «120»: the draft again with the new amount, still to confirm
+  if (pending?.kind === "ocr" && pending.awaiting === "amount" && amount !== null) {
+    return ocrDraftAnswer(userId, { ...pending.draft, amount });
+  }
   // Card 58 [แก้ยอด] → «60»: record the reminded habit with the amount typed
   if (pending?.kind === "reminder" && amount !== null) {
     const log = await reminderById(userId, pending.reminderId);
@@ -310,6 +325,13 @@ const FLEX_LABEL: Partial<Record<DecodedPostback["action"], string>> = {
   rem_edit: "แก้ยอด",
   rem_skip: "วันนี้ไม่ได้ซื้อ",
   rem_edit_cancel: "ยกเลิกการแก้",
+  ocr_save: "บันทึก",
+  ocr_edit: "แก้ยอด",
+  ocr_cancel: "ยกเลิก",
+  ocr_pick_amount: "เลือกยอด",
+  ocr_kind_expense: "รายจ่าย",
+  ocr_kind_income: "รับเงิน",
+  ocr_kind_transfer: "โอนระหว่างบัญชี",
 };
 const flexLabel = (p: DecodedPostback) => FLEX_LABEL[p.action] ?? "กดปุ่มบนการ์ด";
 
@@ -328,6 +350,7 @@ async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer>
   if (p.action === "menu_record") return say(howToRecordMessage());
   if (p.action === "menu_try") return say(howToTryMessage());
   if (p.action.startsWith("rem_")) return onReminderButton(userId, p);
+  if (p.action.startsWith("ocr_")) return onOcrButton(userId, p);
   if (!["entry_edit", "entry_cat", "entry_cat_set", "entry_del", "entry_del_ok"].includes(p.action)) return say(notWiredMessage());
   try {
     const { entry, cancelled } = await entryForChat(userId, p.id);
@@ -349,6 +372,52 @@ async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer>
     if (err instanceof HttpError && err.code !== "no_cycle") return say(err.code === "not_found" ? entryNotFoundMessage() : text(err.message));
     throw err;
   }
+}
+
+// OCR (layer 4): read the slip, answer with the draft card. Nothing is recorded here (user's choice 13 Nov).
+async function onPhoto(userId: string, messageId: string): Promise<Answer> {
+  await requireActiveCycle(userId); // no cycle → set up first, before using the AI
+  const image = await messageImage(messageId);
+  const reading = image && (await readSlip(image.bytes, image.mimeType, thaiDate(new Date())));
+  if (!reading) return say(slipUnreadableMessage());
+  return ocrDraftAnswer(userId, { id: crypto.randomUUID(), ...reading });
+}
+
+async function ocrDraftAnswer(userId: string, draft: OcrDraft): Promise<Answer> {
+  const same = await sameAmountOn(userId, draft.date, draft.amount);
+  return say(ocrDraftCard(draft, thaiDate(new Date()), same), { kind: "ocr", draft });
+}
+
+// The draft card's buttons. The draft is the latest version in the chat memory (30 minutes); a
+// cancelled one, an own transfer or someone else's id does nothing. Saving is keyed by the draft.
+async function onOcrButton(userId: string, p: DecodedPostback): Promise<Answer> {
+  const found = await ocrDraftFor(userId, p.id);
+  if (!found || found.closed) return say(expiredMessage());
+  const { draft } = found;
+  if (p.action === "ocr_cancel") return say(ocrCancelledMessage(), { kind: "ocr", draft, closed: true });
+  if (p.action === "ocr_kind_transfer") return say(ocrTransferMessage(), { kind: "ocr", draft, closed: true });
+  if (p.action === "ocr_kind_expense") return ocrDraftAnswer(userId, { ...draft, kind: "expense" });
+  if (p.action === "ocr_kind_income") return ocrDraftAnswer(userId, { ...draft, kind: "income" });
+  if (p.action === "ocr_pick_amount") {
+    const picked = Number(p.extra);
+    return draft.candidates.includes(picked) ? ocrDraftAnswer(userId, { ...draft, amount: picked }) : say(ocrDraftCard(draft, thaiDate(new Date()), null), { kind: "ocr", draft });
+  }
+  if (p.action === "ocr_edit") return say(ocrAskAmountMessage(draft), { kind: "ocr", draft, awaiting: "amount" });
+  if (p.action !== "ocr_save") return say(notWiredMessage());
+  if (draft.kind === "unknown" || draft.kind === "transfer") return ocrDraftAnswer(userId, draft); // pick the kind first
+  const key = `ocr:${draft.id}`;
+  if (draft.kind === "income") {
+    const { created } = await addIncome(userId, { amount: draft.amount, note: draft.merchant, receivedOn: draft.date }, key, "chat");
+    return say(created ? incomeMessage(draft.amount, await loadSummary(userId)) : ocrAlreadyMessage(draft));
+  }
+  const { entry, created } = await addEntry(
+    userId,
+    { amount: draft.amount, category: categoryOf(draft.merchant), note: draft.merchant, spentOn: draft.date },
+    key,
+    "ocr",
+  );
+  if (!created) return say(ocrAlreadyMessage(draft));
+  return say(await recorded(userId, asRecorded(entry)));
 }
 
 // Card 58: the reminder card's buttons. Recording is keyed by the reminder, so ใช่ จดเลย twice, or

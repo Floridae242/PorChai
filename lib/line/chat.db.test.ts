@@ -635,7 +635,7 @@ describe("card 10: the recorded card's buttons (โฟรวิว's Flex card, 
 
   it("a card button not wired yet says so instead of doing nothing", async () => {
     await figma();
-    await tap("v1.ocr_save.abc");
+    await tap("v1.bill_paid.abc"); // OCR buttons are wired now
     expect(lastText()).toContain("ปุ่มนี้ยังใช้ไม่ได้");
   });
 
@@ -737,7 +737,7 @@ describe("every answer has [เปิดแอป] above the keyboard (phone 13 
     const del = (lastButtons().find((b) => b.label === "ลบ") as { data: string }).data;
     await tap(del); // ask to delete (only ลบเลย before)
     answers.push(quick());
-    await tap("v1.ocr_save.abc"); // not wired yet (no buttons before)
+    await tap("v1.bill_paid.abc"); // OCR buttons are wired now // not wired yet (no buttons before)
     answers.push(quick());
     await chat("Hey"); // template (already had เปิดแอป)
     answers.push(quick());

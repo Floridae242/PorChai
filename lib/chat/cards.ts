@@ -1,11 +1,14 @@
 import { USER_CATEGORIES, type Summary, type UserCategory } from "@/lib/api-types";
 import type { BudgetResult } from "@/lib/calc/budget";
 import { baht, budgetLine, cheer, recordedMessage } from "@/lib/chat/messages";
+import type { OcrDraft } from "@/lib/db/chat-memory";
+import type { Entry } from "@/lib/api-types";
 import type { ReminderLog } from "@/lib/db/reminders";
 import {
   buildHabitEditAskMessage,
   buildHabitReminderCard,
   buildHabitSkippedMessage,
+  buildOcrDraftCard,
   buildRecordedCard,
   buildTodayBudgetCard,
   categoryLabel,
@@ -130,5 +133,37 @@ export const demoReadyMessage = (title: string, amount: number, time: string): T
 
 export const demoNoHabitMessage = (): TextMessage =>
   text("ยังไม่มีรายการประจำครับ ต้องจดชื่อเดียวกันอย่างน้อย 3 วันใน 7 วันล่าสุด เช่น «ข้าวเที่ยง 50»");
+
+// OCR (layer 4): โฟรวิว's draft card. Asks the kind when the AI was not sure, or read an own-account transfer.
+const MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const dayLabel = (date: string, today: string) =>
+  date === today ? "วันนี้" : `${Number(date.slice(8, 10))} ${MONTHS[Number(date.slice(5, 7)) - 1]}`;
+
+export function ocrDraftCard(d: OcrDraft, today: string, same: Entry | null): ReplyMessage {
+  return buildOcrDraftCard({
+    ocrId: d.id,
+    merchantName: d.merchant,
+    amount: d.amount,
+    dateLabel: dayLabel(d.date, today),
+    candidateAmounts: d.candidates.filter((c) => c !== d.amount),
+    duplicateEntry: same ? { id: same.id, title: same.note ?? "รายการ", amount: same.amount, timeLabel: dayLabel(same.spentOn, today) } : undefined,
+    needsSlipKind: d.kind === "unknown" || d.kind === "transfer",
+  });
+}
+
+export const slipUnreadableMessage = (): TextMessage =>
+  text("อ่านสลิปไม่ออกครับ พิมพ์ชื่อกับยอดได้เลย เช่น «ข้าว 45» หรือกรอกในแอป", [
+    { type: "uri", label: "กรอกในแอป", uri: miniAppUrl("/app/record/new") },
+  ]);
+
+export const ocrAskAmountMessage = (d: OcrDraft): TextMessage =>
+  text(`พิมพ์ยอดที่ถูกต้องของ ${d.merchant} ได้เลยครับ (ตอนนี้ ${baht(d.amount)} บาท) เช่น «120»`);
+
+export const ocrCancelledMessage = (): TextMessage => text("ยกเลิกแล้วครับ ไม่ได้จดอะไร");
+
+export const ocrTransferMessage = (): TextMessage =>
+  text("โอนระหว่างบัญชีตัวเอง ไม่นับเป็นรายจ่ายหรือรายรับครับ ไม่ได้จดอะไร");
+
+export const ocrAlreadyMessage = (d: OcrDraft): TextMessage => text(`สลิปนี้บันทึกไปแล้วครับ ✓ ${d.merchant} ${baht(d.amount)} บาท`);
 
 export const isUserCategory = (c: string | undefined): c is UserCategory => USER_CATEGORIES.includes(c as UserCategory);
