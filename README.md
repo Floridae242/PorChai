@@ -15,6 +15,10 @@ npm run test:watch           # รันเทสต์ทุกครั้ง�
 
 `npm test` ไม่แตะฐานข้อมูล (ข้ามไฟล์ `*.db.test.ts`) เปิดฐานข้อมูลหรือไม่ก็ผ่าน
 
+Frontend foundation อยู่ที่ `/app` และตัวอย่าง UI ที่ `/app/demo/ui` มี shell, consent gate และ API client; หน้าสรุปยังเป็น placeholder. โหมดพัฒนาใช้ mock เป็นค่าเริ่มต้น ส่วน production ใช้ live เว้นแต่กำหนด `NEXT_PUBLIC_API_MODE` ชัดเจน.
+
+เมื่อใช้ Developing MINI App ชุดนี้ ให้ตั้ง `NEXT_PUBLIC_LIFF_ID` และ `LINE_LOGIN_CHANNEL_ID` ตาม `.env.example`. หน้า `/app` ล็อกอินผ่าน callback `/miniapp` ซึ่งตรงกับ Console endpoint แล้วกลับเฉพาะ path ภายใน `/app` หลังตรวจ ID token ฝั่งเซิร์ฟเวอร์สำเร็จ. หน้า `/miniapp` เดิมยังเปิดได้ตามปกติ; การใช้ API ข้อมูลส่วนตัวต้องตั้งค่า Supabase ฝั่งเซิร์ฟเวอร์ด้วย.
+
 ## ฐานข้อมูลบนเครื่อง (Supabase)
 
 ต้องมี Docker Desktop (เปิดอยู่) และ [Supabase CLI](https://supabase.com/docs/guides/cli)

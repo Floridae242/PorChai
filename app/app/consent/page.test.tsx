@@ -1,0 +1,44 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/client/errors";
+import { createMockApi } from "@/lib/client/mock";
+import { ApiContext } from "@/lib/client/use-api";
+
+const replace = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
+
+import ConsentPage from "./page";
+
+afterEach(() => {
+  cleanup();
+  replace.mockClear();
+});
+
+async function submit(err: unknown) {
+  const api = createMockApi({ consented: false });
+  vi.spyOn(api, "acceptConsent").mockRejectedValue(err);
+  render(
+    <ApiContext.Provider value={api}>
+      <ConsentPage />
+    </ApiContext.Provider>,
+  );
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("checkbox"));
+  await user.click(screen.getByRole("button", { name: "เริ่มต้นใช้งาน" }));
+}
+
+describe("ConsentPage errors", () => {
+  it("shows an ApiError message and re-enables the button", async () => {
+    await submit(new ApiError(500, "boom", "เซิร์ฟเวอร์ขัดข้อง"));
+    expect((await screen.findByRole("alert")).textContent).toBe("เซิร์ฟเวอร์ขัดข้อง");
+    await waitFor(() => expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(false));
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("shows a generic message for other errors", async () => {
+    await submit(new Error("x"));
+    expect((await screen.findByRole("alert")).textContent).toBe("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
+  });
+});
