@@ -10,9 +10,14 @@ export type SubmitResult<T> =
 function newKey(): string {
   const c = typeof globalThis !== "undefined" ? globalThis.crypto : undefined;
   if (c && typeof c.randomUUID === "function") return c.randomUUID();
-  let hex = "";
-  for (let i = 0; i < 32; i++) hex += Math.floor(Math.random() * 16).toString(16);
-  return hex;
+  const bytes = new Uint8Array(16);
+  if (c && typeof c.getRandomValues === "function") {
+    c.getRandomValues(bytes);
+  } else {
+    // No crypto at all (very old WebView): last resort.
+    for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function fingerprint(payload: unknown): string {

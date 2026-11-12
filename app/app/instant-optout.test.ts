@@ -1,9 +1,9 @@
 import { globSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-// The MINI App is client-gated (LIFF + consent), so every page opts out of instant-navigation validation.
+// The MINI App is client-gated (LIFF + consent), so every page (app/app and app/shop) opts out of instant-navigation validation.
 // Layout opt-out does not cover child segments, and a "use client" file cannot export `instant`.
-const pages = globSync("app/app/**/page.tsx");
+const pages = [...globSync("app/app/**/page.tsx"), ...globSync("app/shop/**/page.tsx")];
 
 describe("instant opt-out", () => {
   it("finds the app pages", () => expect(pages.length).toBeGreaterThanOrEqual(3));

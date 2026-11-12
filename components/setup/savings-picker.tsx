@@ -5,7 +5,7 @@ import { Chip } from "@/components/ui/chip";
 import { InputField } from "@/components/ui/input-field";
 import type { Satang } from "@/lib/calc/money";
 import { bahtErrorMessage } from "@/lib/format/baht-error";
-import { formatBaht, parseBahtInput } from "@/lib/format/money";
+import { formatBaht, parseBahtInput, satangToInputString } from "@/lib/format/money";
 
 export interface SavingsPickerProps {
   mode: "percent" | "amount" | "none" | null; // null = not chosen yet
@@ -27,7 +27,7 @@ export function SavingsPicker({
   onClear,
 }: SavingsPickerProps) {
   const [customText, setCustomText] = useState(() =>
-    mode === "amount" && savingsSatang > 0 ? formatBaht(savingsSatang).replace(/,/g, "") : "",
+    mode === "amount" && savingsSatang > 0 ? satangToInputString(savingsSatang) : "",
   );
   const [customError, setCustomError] = useState<string | null>(null);
 
@@ -79,7 +79,7 @@ export function SavingsPicker({
           onClick={() => {
             setCustomError(null);
             // keep the text box in step with the amount being switched to (empty when nothing is set yet)
-            setCustomText(savingsSatang > 0 ? formatBaht(savingsSatang).replace(/,/g, "") : "");
+            setCustomText(savingsSatang > 0 ? satangToInputString(savingsSatang) : "");
             onChangeAmount(savingsSatang > 0 ? savingsSatang : null);
           }}
         >
@@ -128,7 +128,7 @@ const BUFFER_PRESETS: Satang[] = [0, 12000, 30000];
 export function BufferCard({ bufferSatang, onChangeBuffer }: BufferCardProps) {
   const [customOpen, setCustomOpen] = useState(bufferSatang !== null && !BUFFER_PRESETS.includes(bufferSatang));
   const [customText, setCustomText] = useState(() =>
-    bufferSatang !== null && bufferSatang > 0 ? formatBaht(bufferSatang).replace(/,/g, "") : "",
+    bufferSatang !== null && bufferSatang > 0 ? satangToInputString(bufferSatang) : "",
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -179,7 +179,7 @@ export function BufferCard({ bufferSatang, onChangeBuffer }: BufferCardProps) {
           selected={customOpen}
           onClick={() => {
             setCustomOpen(true);
-            setCustomText(bufferSatang !== null && bufferSatang > 0 ? formatBaht(bufferSatang).replace(/,/g, "") : "");
+            setCustomText(bufferSatang !== null && bufferSatang > 0 ? satangToInputString(bufferSatang) : "");
           }}
         >
           กำหนดเอง
@@ -224,12 +224,12 @@ export function EssentialPicker({
   onChangeNote,
 }: EssentialPickerProps) {
   const [text, setText] = useState(() =>
-    essentialPerDay !== null && essentialPerDay > 0 ? formatBaht(essentialPerDay).replace(/,/g, "") : "",
+    essentialPerDay !== null && essentialPerDay > 0 ? satangToInputString(essentialPerDay) : "",
   );
   const [error, setError] = useState<string | null>(null);
 
   function selectPreset(satang: Satang) {
-    setText(formatBaht(satang).replace(/,/g, ""));
+    setText(satangToInputString(satang));
     setError(null);
     onChangeEssential(satang);
   }

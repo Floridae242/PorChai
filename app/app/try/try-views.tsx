@@ -15,6 +15,7 @@ import { ApiError } from "@/lib/client/errors";
 import { clearTryDraft, loadTryDraft, saveTryDraft, type TryItemDraft } from "@/lib/client/try-draft";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
+import { essentialsFromDaily } from "@/lib/client/essentials";
 import { formatBaht, parseBahtInput, type ParseBahtResult } from "@/lib/format/money";
 
 // Shown when the user leaves the name empty. A label, not data.
@@ -49,12 +50,6 @@ function parseEssentialsInput(text: string): { ok: true; satang: Satang } | { ok
   const parsed = parseBahtInput(trimmed);
   if (parsed.ok) return { ok: true, satang: parsed.satang };
   return { ok: false, message: AMOUNT_MESSAGES[parsed.reason].replace("ราคา", "ค่าจำเป็น") };
-}
-
-// Backend gap #2: the API takes food and transport separately, the screen asks for one total
-// ("ค่าจำเป็นต่อวัน" as in Figma H8). The whole total goes in `food` until the contract has a total field.
-function essentialsFromTotal(total: Satang): { food: Satang; transport: Satang } {
-  return { food: total, transport: 0 };
 }
 
 // ---------------------------------------------------------------- C1
@@ -187,7 +182,7 @@ export function TryResultView() {
       .simulate({
         amount: item.amount,
         dueOn: item.dueOn,
-        ...(essentialsAnswer !== null ? { essentials: essentialsFromTotal(essentialsAnswer) } : {}),
+        ...(essentialsAnswer !== null ? { essentials: essentialsFromDaily(essentialsAnswer) } : {}),
       })
       .then((res) => {
         if (cancelled) return;
@@ -240,7 +235,7 @@ export function TryResultView() {
     }
     setEssentialsError(null);
     const result = await remember.submit(parsed.satang, async () => {
-      await api.setEssentials(essentialsFromTotal(parsed.satang));
+      await api.setEssentials(essentialsFromDaily(parsed.satang));
     });
     if (result.ok) {
       setEssentialsAnswer(parsed.satang);

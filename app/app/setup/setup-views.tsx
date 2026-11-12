@@ -28,7 +28,7 @@ import { useLoadedSetupDraft } from "@/lib/client/use-setup-draft";
 import { useSubmit } from "@/lib/client/use-submit";
 import { bahtErrorMessage } from "@/lib/format/baht-error";
 import { formatThaiDate } from "@/lib/format/date";
-import { formatBaht, parseBahtInput } from "@/lib/format/money";
+import { formatBaht, parseBahtInput, satangToInputString } from "@/lib/format/money";
 
 const SOURCES: { key: NonNullable<SetupDraft["incomeSource"]>; label: string }[] = [
   { key: "family", label: "ทางบ้านส่งให้" },
@@ -45,7 +45,7 @@ const FREQUENCIES: { key: NonNullable<SetupDraft["incomeFrequency"]>; label: str
 const TIGHT_THRESHOLD_SATANG = 5000; // 50 baht/day (Figma A5b)
 
 function toBahtText(satang: number | null): string {
-  return satang !== null ? formatBaht(satang).replace(/,/g, "") : "";
+  return satang !== null ? satangToInputString(satang) : "";
 }
 
 // The saved draft lives in localStorage, which only exists in the browser. Every step therefore renders

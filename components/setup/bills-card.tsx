@@ -8,7 +8,7 @@ import { InputField } from "@/components/ui/input-field";
 import type { Satang } from "@/lib/calc/money";
 import type { BillStatus, DraftBill } from "@/lib/client/setup-draft";
 import { bahtErrorMessage } from "@/lib/format/baht-error";
-import { formatBaht, parseBahtInput } from "@/lib/format/money";
+import { formatBaht, parseBahtInput, satangToInputString } from "@/lib/format/money";
 
 const STATUS_LABELS: Record<BillStatus, { short: string; detail: string }> = {
   unpaid: { short: "ยังไม่จ่าย", detail: "ยังไม่จ่าย · หักจากงบ" },
@@ -49,7 +49,7 @@ export function BillsCard({ bills, unpaidBillsTotal, onAdd, onUpdate, onDelete }
 
   function openEdit(bill: DraftBill) {
     setTitle(bill.title);
-    setAmountText(formatBaht(bill.amount).replace(/,/g, ""));
+    setAmountText(satangToInputString(bill.amount));
     setStatus(bill.status);
     clearErrors();
     setSheetMode({ kind: "edit", bill });

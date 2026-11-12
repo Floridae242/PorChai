@@ -128,6 +128,39 @@ describe("useSubmit", () => {
     expect(fb).toMatch(/^[0-9a-f]{32}$/);
   });
 
+  it("(f2) without randomUUID the key is hex of 16 crypto.getRandomValues bytes; Math.random only with no crypto", async () => {
+    vi.stubGlobal("crypto", {
+      getRandomValues: (a: Uint8Array) => {
+        a.fill(0xab);
+        return a;
+      },
+    });
+    const { result } = renderHook(() => useSubmit<string>());
+    let k1 = "";
+    await act(async () => {
+      await result.current.submit(1, async (k) => {
+        k1 = k;
+        return "ok";
+      });
+    });
+    expect(k1).toBe("ab".repeat(16));
+
+    vi.stubGlobal("crypto", undefined);
+    const rnd = vi.spyOn(Math, "random");
+    const { result: r2 } = renderHook(() => useSubmit<string>());
+    let k2 = "";
+    await act(async () => {
+      await r2.current.submit(1, async (k) => {
+        k2 = k;
+        return "ok";
+      });
+    });
+    expect(k2).toMatch(/^[0-9a-f]{32}$/);
+    expect(rnd).toHaveBeenCalled();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it("(g) no state update / warning after unmount", async () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const { result, unmount } = renderHook(() => useSubmit<string>());

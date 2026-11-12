@@ -2,8 +2,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const ROOT = join(process.cwd(), "app", "app");
-const EXCLUDED_DIR = join(ROOT, "demo", "ui");
+const ROOTS = [join(process.cwd(), "app", "app"), join(process.cwd(), "app", "shop"), join(process.cwd(), "components")];
+const EXCLUDED_DIR = join(process.cwd(), "app", "app", "demo", "ui");
 const MOCK_IMPORT =
   /from\s+["'][^"']*lib\/client\/mock(?:-fixtures)?["']|import\(\s*["'][^"']*lib\/client\/mock(?:-fixtures)?["']\s*\)/;
 
@@ -27,8 +27,8 @@ const ALLOWED = new Set(["app/app/_providers/api-provider.tsx"]);
 const PENDING_T4: string[] = [];
 
 describe("no mock code in screens", () => {
-  it("no non-test file under app/app imports lib/client/mock or mock-fixtures", () => {
-    const offenders = walk(ROOT)
+  it("no non-test file under app/app, app/shop or components imports lib/client/mock or mock-fixtures", () => {
+    const offenders = ROOTS.flatMap((r) => walk(r))
       .filter((f) => MOCK_IMPORT.test(readFileSync(f, "utf8")))
       .map((f) => relative(process.cwd(), f).split(sep).join("/"))
       .filter((f) => !ALLOWED.has(f));
@@ -36,7 +36,7 @@ describe("no mock code in screens", () => {
   });
 
   it("the pending T4 list has no stale entries (delete an entry once its file is clean)", () => {
-    const offenders = walk(ROOT)
+    const offenders = ROOTS.flatMap((r) => walk(r))
       .filter((f) => MOCK_IMPORT.test(readFileSync(f, "utf8")))
       .map((f) => relative(process.cwd(), f).split(sep).join("/"));
     for (const f of PENDING_T4) expect(offenders).toContain(f);
