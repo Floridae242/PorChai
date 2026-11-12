@@ -1,10 +1,11 @@
-import { Button, type ButtonProps } from "./button";
+import Link from "next/link";
+import { Button, buttonClass, type ButtonProps } from "./button";
 import { Mascot, type MascotPose } from "./mascot";
 
 export type EmptyStateProps = {
   title: string;
   body?: string;
-  action?: { label: string; onClick?: () => void; variant?: ButtonProps["variant"] };
+  action?: { label: string; href?: string; onClick?: () => void; variant?: ButtonProps["variant"] };
   mascotPose?: MascotPose;
 };
 
@@ -14,7 +15,11 @@ export function EmptyState({ title, body, action, mascotPose = "greeting" }: Emp
       <Mascot pose={mascotPose} size={80} />
       <h2 className="text-lg font-semibold text-primary">{title}</h2>
       {body ? <p className="text-sm text-secondary">{body}</p> : null}
-      {action ? (
+      {action?.href ? (
+        <Link href={action.href} onClick={action.onClick} className={buttonClass(action.variant ?? "primary")}>
+          {action.label}
+        </Link>
+      ) : action ? (
         <Button variant={action.variant ?? "primary"} onClick={action.onClick}>
           {action.label}
         </Button>

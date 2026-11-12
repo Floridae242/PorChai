@@ -29,3 +29,25 @@ describe("Button", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 });
+
+describe("Button extras", () => {
+  it("defaults to type=button", () => {
+    render(<Button>x</Button>);
+    expect(screen.getByRole("button").getAttribute("type")).toBe("button");
+  });
+  it("disabled blocks onClick", async () => {
+    const onClick = vi.fn();
+    render(
+      <Button disabled onClick={onClick}>
+        x
+      </Button>,
+    );
+    await userEvent.setup().click(screen.getByRole("button"));
+    expect(onClick).not.toHaveBeenCalled();
+  });
+  it("busy keeps the label and shows a spinner", () => {
+    render(<Button busy>ส่ง</Button>);
+    const btn = screen.getByRole("button", { name: "ส่ง" });
+    expect(btn.querySelector("span[aria-hidden='true']")).not.toBeNull();
+  });
+});

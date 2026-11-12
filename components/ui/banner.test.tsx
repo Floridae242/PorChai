@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Banner } from "./banner";
 
 afterEach(cleanup);
@@ -19,5 +20,14 @@ describe("Banner", () => {
     );
     expect(screen.getAllByRole("status")).toHaveLength(2);
     expect(screen.getByRole("link", { name: "ดู" }).getAttribute("href")).toBe("/x");
+  });
+});
+
+describe("Banner action onClick", () => {
+  it("renders a button that calls onClick", async () => {
+    const onClick = vi.fn();
+    render(<Banner kind="warn" text="t" action={{ label: "ลองใหม่", onClick }} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "ลองใหม่" }));
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });
