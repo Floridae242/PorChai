@@ -7,6 +7,7 @@ export type AskReason = "no_amount" | "many_amounts" | "approximate" | "no_title
 
 export type ParsedExpense =
   | { kind: "entry"; title: string; amount: number; category: UserCategory }
+  | { kind: "income"; amount: number; note: string | null } // «รับ 500»
   | { kind: "ask"; reason: AskReason };
 
 export const MAX_AMOUNT = 10_000_000; // 100,000 baht: above this a typo is likelier than a spend
@@ -15,9 +16,9 @@ export const MAX_TITLE = 40; // fits a LINE postback with room to spare
 const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
 // «ร้อยกว่า», «ประมาณ 50», «~50», «40-50»: the user does not know the exact amount yet
 const APPROXIMATE = /กว่า|ประมาณ|ราว|เกือบ|~|\d\s*-\s*\d/;
-// Not spends the chat can record yet: money in (no income in chat) and another day (it would be saved as
-// today). Asked back, never recorded as a spend (โฟรวิว's how-to card showed «รับ 500», «เมื่อวาน ข้าว 45»).
-const INCOME = /^(รับเงิน|รับ|เงินเข้า|ได้เงิน|รายรับ)/;
+// Money in («รับ 500», โฟรวิว's how-to card): income, never a spend
+const INCOME = /^(รับเงิน|รับ|เงินเข้า|ได้เงิน|รายรับ|เงินเดือน)/;
+// Another day: the chat records today only, so «เมื่อวาน ข้าว 45» is asked back (the app picks the date)
 const BACKDATED = /เมื่อวาน|วานนี้|เมื่อคืน/;
 const NUMBER = /\d+(?:\.\d{1,2})?/g;
 const CURRENCY = /บาท|฿|\.-/g;
@@ -65,16 +66,20 @@ export function amountOnly(raw: string): number | null {
 export function parseExpense(raw: string): ParsedExpense {
   const text = clean(raw);
 
-  if (INCOME.test(text)) return { kind: "ask", reason: "income" };
   if (BACKDATED.test(text)) return { kind: "ask", reason: "backdated" };
   if (APPROXIMATE.test(text)) return { kind: "ask", reason: "approximate" };
+  const income = INCOME.test(text);
   const numbers = text.match(NUMBER) ?? [];
-  if (numbers.length === 0) return { kind: "ask", reason: "no_amount" };
+  if (numbers.length === 0) return { kind: "ask", reason: income ? "income" : "no_amount" };
   if (numbers.length > 1) return { kind: "ask", reason: "many_amounts" };
 
   const amount = Math.round(Number(numbers[0]) * 100);
-  if (amount <= 0) return { kind: "ask", reason: "no_amount" };
+  if (amount <= 0) return { kind: "ask", reason: income ? "income" : "no_amount" };
   if (amount > MAX_AMOUNT) return { kind: "ask", reason: "too_large" };
+  if (income) {
+    const note = text.replace(INCOME, " ").replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim();
+    return { kind: "income", amount, note: note.slice(0, MAX_TITLE) || null };
+  }
 
   const title = text.replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TITLE);
   if (!title) return { kind: "ask", reason: "no_title" };

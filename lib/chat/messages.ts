@@ -42,7 +42,7 @@ const ASK: Record<AskReason, string> = {
   approximate: "ขอยอดที่จ่ายจริงเป็นตัวเลขนะ เช่น «ข้าว 120» จะได้จดไม่ผิด",
   no_title: "ยอดนี้ค่าอะไร? พิมพ์ชื่อด้วย เช่น «ข้าว 50»",
   too_large: "ยอดนี้สูงมาก ถ้าถูกต้องกรอกเองในแอปได้เลย",
-  income: "ตอนนี้ยังจดรายรับในแชตไม่ได้ครับ ถ้ามีเงินเข้า ปรับยอดเงินในแอปได้เลย",
+  income: "รายรับพิมพ์ รับ ตามด้วยยอดได้เลยครับ เช่น «รับ 500»",
   backdated: "จดย้อนหลังในแชตยังไม่ได้ครับ กรอกในแอปแล้วเลือกวันที่ได้เลย",
 };
 
@@ -136,6 +136,10 @@ export function keptMessage(d: Draft, s: Summary): TextMessage {
   const daily = s.budget.kind === "ok" ? `\nตอนนี้ใช้ได้วันละ ${baht(s.budget.dailyBudget)} บาท` : "";
   return text(`เก็บไว้ในแผนแล้ว ✓ ${line(d)}\nยังไม่หักเงินจริง กดจ่ายแล้วในแอปเมื่อจ่ายจริง${daily}`, [app()]);
 }
+
+// «รับ 500»: money in, and what it does to today
+export const incomeMessage = (amount: number, s: Summary): TextMessage =>
+  text(`รับเงินแล้ว ✓ +${baht(amount)} บาท\n${budgetLine(s.budget, s.spentToday)}`, [app()]);
 
 // Someone adds the OA as a friend
 export const welcomeMessage = (): TextMessage =>

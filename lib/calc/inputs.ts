@@ -26,13 +26,21 @@ export function latestAnchor(start: BalanceAnchor, checks: BalanceAnchor[]): Bal
   return checks.reduce((latest, c) => (c.asOf > latest.asOf ? c : latest), start);
 }
 
-// Money on hand now. Only entries logged after the anchor, for its day or later, come off it:
-// anything else was already spent when the user read that balance, so it must not be taken twice.
-export function balanceNow(anchor: BalanceAnchor, entries: EntryLike[]): Satang {
+// Money received («รับ 500», the app's รายรับ). Never a future day: money not yet in is not money to use today.
+export interface IncomeLike {
+  amount: Satang;
+  receivedOn: string; // YYYY-MM-DD Thai
+  createdAt: Date;
+}
+
+// Money on hand now. Only entries and income logged after the anchor, for its day or later, change it:
+// anything else was already in the balance the user read, so it must not be counted twice.
+export function balanceNow(anchor: BalanceAnchor, entries: EntryLike[], incomes: IncomeLike[] = []): Satang {
   const anchorDay = thaiDate(anchor.asOf);
-  return entries
-    .filter((e) => e.createdAt > anchor.asOf && e.spentOn >= anchorDay)
-    .reduce((left, e) => left - e.amount, anchor.amount);
+  const after = (createdAt: Date, day: string) => createdAt > anchor.asOf && day >= anchorDay;
+  const spent = entries.filter((e) => after(e.createdAt, e.spentOn)).reduce((sum, e) => sum + e.amount, 0);
+  const received = incomes.filter((i) => after(i.createdAt, i.receivedOn)).reduce((sum, i) => sum + i.amount, 0);
+  return anchor.amount - spent + received;
 }
 
 // Spending that counts against one day's budget. A paid plan is left out: its money was

@@ -662,11 +662,11 @@ describe("rich menu (โฟรวิว's spec and image) and what the bot canno
     await db.from("users").delete().eq("line_user_id", lineA);
   });
 
-  it("จดรายรับ/จ่าย: how to record — only what works (no «รับ 500», no «เมื่อวาน»)", async () => {
+  it("จดรายรับ/จ่าย: how to record — only what works («ข้าว 45», «รับ 500»; no «เมื่อวาน»)", async () => {
     await figma();
     await tap("v1.menu_record.richmenu");
     expect(lastText()).toContain("«ข้าว 45»");
-    expect(lastText()).not.toContain("รับ 500");
+    expect(lastText()).toContain("«รับ 500»");
     expect(lastText()).not.toContain("เมื่อวาน");
     expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "กรอกในแอป" }));
   });
@@ -685,13 +685,23 @@ describe("rich menu (โฟรวิว's spec and image) and what the bot canno
     expect(lastText()).toContain("120 บาท");
   });
 
-  it("«รับ 500» is income, not a 500 baht spend: nothing recorded, pointed to the app", async () => {
+  it("«รับ 500» is income, never a spend: money on hand +500, a day 120 → 161.50; LINE redelivering it adds it once", async () => {
     await figma();
-    for (const t of ["รับ 500", "เงินเข้า 1000", "ได้เงิน 300", "รายรับ 200"]) {
-      await chat(t);
-      expect(lastText(), t).toContain("รายรับ");
-    }
-    expect(await screenEntries()).toEqual([]);
+    await chat("รับ 500", `E_${run}_income`);
+    expect(lastText()).toContain("รับเงินแล้ว ✓ +500 บาท");
+    expect(lastText()).toContain("วันนี้ใช้ได้อีก 161.50 บาท");
+    await db.from("line_events").delete().eq("webhook_event_id", `E_${run}_income`); // as if handling failed
+    await chat("รับ 500", `E_${run}_income`);
+    expect(await screenEntries()).toEqual([]); // not a spend
+    const { data: u } = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const { data } = await db.from("incomes").select("amount").eq("user_id", u!.id);
+    expect(data).toEqual([{ amount: 50000 }]);
+  });
+
+  it("«รับ» with no amount asks how much", async () => {
+    await figma();
+    await chat("รับ");
+    expect(lastText()).toContain("รับ 500");
   });
 
   it("«เมื่อวาน ข้าว 45» is not recorded as today: nothing recorded, pointed to the app", async () => {

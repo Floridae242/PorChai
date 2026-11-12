@@ -52,11 +52,20 @@ describe("parseExpense — unclear messages are asked, never recorded", () => {
     }
   });
 
-  it("money in or another day is asked back, never recorded as today's spend", () => {
-    for (const t of ["รับ 500", "รับเงิน 500", "เงินเข้า 1000", "ได้เงิน 300", "รายรับ 200"]) {
-      expect(parseExpense(t), t).toEqual({ kind: "ask", reason: "income" });
-    }
-    for (const t of ["เมื่อวาน ข้าว 45", "ข้าว 45 เมื่อวาน", "เมื่อคืน ชาบู 300", "วานนี้ กาแฟ 40"]) {
+  it("money in is income, never a spend: «รับ 500» (โฟรวิว's how-to card)", () => {
+    expect(parseExpense("รับ 500")).toEqual({ kind: "income", amount: 50000, note: null });
+    expect(parseExpense("รับเงิน 1,200 จากแม่")).toEqual({ kind: "income", amount: 120000, note: "จากแม่" });
+    for (const t of ["เงินเข้า 1000", "ได้เงิน 300", "รายรับ 200", "เงินเดือน 5000"]) expect(parseExpense(t).kind, t).toBe("income");
+  });
+
+  it("income that is not clear is asked, like a spend", () => {
+    expect(parseExpense("รับ")).toEqual({ kind: "ask", reason: "income" });
+    expect(parseExpense("รับ 500 และ 300")).toEqual({ kind: "ask", reason: "many_amounts" });
+    expect(parseExpense("ได้เงินประมาณ 500")).toEqual({ kind: "ask", reason: "approximate" });
+  });
+
+  it("another day is asked back, never recorded as today (income too)", () => {
+    for (const t of ["เมื่อวาน ข้าว 45", "ข้าว 45 เมื่อวาน", "เมื่อคืน ชาบู 300", "วานนี้ กาแฟ 40", "รับ 500 เมื่อวาน"]) {
       expect(parseExpense(t), t).toEqual({ kind: "ask", reason: "backdated" });
     }
   });

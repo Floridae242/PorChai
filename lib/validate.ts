@@ -370,3 +370,19 @@ export function parseReminderSettings(body: unknown): ReminderSettingsChange {
   if (typeof b.time !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(b.time)) throw invalid("เวลาไม่ถูกต้อง");
   return { enabled: b.enabled, time: b.time, pausedUntil: b.pausedUntil == null ? null : isoDate(b.pausedUntil) };
 }
+
+// รายรับ (POST /api/income, โฟรวิว's NewIncomeRequest): never a future day — money not yet in is not money to use
+export interface NewIncome {
+  amount: number;
+  note: string | null;
+  receivedOn: string;
+}
+
+export function parseNewIncome(body: unknown, today: string): NewIncome {
+  const b = asObject(body);
+  return {
+    amount: amount(b.amount),
+    note: note(b.note),
+    receivedOn: b.receivedOn === undefined ? today : spentOn(b.receivedOn, today),
+  };
+}

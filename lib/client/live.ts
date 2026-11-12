@@ -93,6 +93,7 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
       request({ method: "POST", path: "/api/plans", body: req, idempotencyKey }),
     planAction: (id, action, body) =>
       request({ method: "POST", path: `/api/plans/${seg(id)}/${action}`, body }),
+    addIncome: (req, idempotencyKey) => request({ method: "POST", path: "/api/income", body: req, idempotencyKey }),
     // Card 58: แอป › ตั้งค่า › การเตือน
     reminderSettings: () => request({ method: "GET", path: "/api/reminders" }),
     saveReminderSettings: (req) => request({ method: "PUT", path: "/api/reminders", body: req }),
@@ -108,7 +109,6 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     rewards: notImplemented,
     redeemReward: notImplemented,
     shopRedeem: notImplemented,
-    addIncome: notImplemented,
     dailySpend: notImplemented,
     categoryTotals: notImplemented,
     deleteMyData: notImplemented,

@@ -99,7 +99,6 @@ describe("createLiveApi", () => {
       () => api.rewards(),
       () => api.redeemReward("r", "k"),
       () => api.shopRedeem("c"),
-      () => api.addIncome({ amount: 100 }, "k"),
       () => api.dailySpend(),
       () => api.categoryTotals(),
       () => api.deleteMyData(),
@@ -112,7 +111,7 @@ describe("createLiveApi", () => {
 
   it("(f) URLs never contain user id or token; endpoints map correctly", async () => {
     const ok = () => json(200, { userId: "U-secret", hasActiveCycle: true, plan: {}, summary: {}, entry: {}, entries: [], plans: [] });
-    const { api, calls } = setup(Array.from({ length: 15 }, ok));
+    const { api, calls } = setup(Array.from({ length: 16 }, ok));
     await api.me();
     await api.createCycle({ incomeSource: "family", incomeFrequency: "monthly", payday: "2030-01-01", balance: 1 });
     await api.summary();
@@ -128,6 +127,7 @@ describe("createLiveApi", () => {
     await api.entries();
     await api.reminderSettings();
     await api.saveReminderSettings({ enabled: true, time: "12:30", pausedUntil: null });
+    await api.addIncome({ amount: 50000 }, "k-income");
     const got = calls.map((c) => `${c.init.method} ${c.url.replace("https://x.test", "")}`);
     expect(got).toEqual([
       "GET /api/me",
@@ -145,6 +145,7 @@ describe("createLiveApi", () => {
       "GET /api/entries",
       "GET /api/reminders",
       "PUT /api/reminders",
+      "POST /api/income",
     ]);
     for (const c of calls) {
       expect(c.url).not.toMatch(/tok-|U-secret|\?/);

@@ -43,6 +43,7 @@ import {
   welcomeMessage,
   keptMessage,
   holdMessage,
+  incomeMessage,
   noCycleMessage,
   offTopicMessage,
   proposalMessage,
@@ -56,6 +57,7 @@ import { loadBudget, loadSummary, summaryOf } from "@/lib/db/budget";
 import { proposalFor, recentChat, remember, type ChatLine, type Pending } from "@/lib/db/chat-memory";
 import { DEMO_HABIT, demoReminder, markReminder, reminderById, seedDemoHabit, type ReminderLog } from "@/lib/db/reminders";
 import { addEntry, cancelEntry, editEntry, entryExists, entryForChat } from "@/lib/db/entries";
+import { addIncome } from "@/lib/db/income";
 import { actOnPlan, addPlan, planIdByKey } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
 import { userIdForLine } from "@/lib/db/users";
@@ -168,6 +170,11 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   if (isQuestion(body)) {
     if (readQuestion(body).amount !== null) return say(adviceMessage(await advise(userId, body), eventId));
     return converse(userId, body, history, { approximate: false, question: true });
+  }
+  // «รับ 500»: income, saved once under this message (a redelivery adds nothing)
+  if (parsed.kind === "income") {
+    await addIncome(userId, { amount: parsed.amount, note: parsed.note, receivedOn: thaiDate(new Date()) }, `line:${eventId}`, "chat");
+    return say(incomeMessage(parsed.amount, await loadSummary(userId)));
   }
   if (parsed.kind === "entry") {
     return spend(userId, { title: parsed.title, amount: parsed.amount, category: parsed.category, key: eventId });
