@@ -28,6 +28,12 @@ describe("formatBaht", () => {
   });
 });
 
+describe("formatBaht guards", () => {
+  it("throws RangeError on 1e21 (unsafe integer)", () => {
+    expect(() => formatBaht(1e21)).toThrow(RangeError);
+  });
+});
+
 describe("formatBahtOrUnknown", () => {
   it("returns the label when satang is null", () => {
     expect(formatBahtOrUnknown(null, "ไม่ทราบ")).toBe("ไม่ทราบ");
@@ -51,7 +57,10 @@ describe("parseBahtInput", () => {
     expect(parseBahtInput("0.29")).toEqual({ ok: true, satang: 29 });
   });
   it('rejects "45บาท" as not_number', () => {
-    expect(parseBahtInput("45บาท")).toEqual({ ok: false, reason: "not_number" });
+    expect(parseBahtInput("45บาท")).toEqual({
+      ok: false,
+      reason: "not_number",
+    });
   });
   it('rejects "-5" as not_positive', () => {
     expect(parseBahtInput("-5")).toEqual({ ok: false, reason: "not_positive" });
@@ -71,5 +80,58 @@ describe("parseBahtInput", () => {
   });
   it("rejects stray text like abc as not_number", () => {
     expect(parseBahtInput("abc")).toEqual({ ok: false, reason: "not_number" });
+  });
+  it('rejects "45,50" as not_number (bad grouping)', () => {
+    expect(parseBahtInput("45,50")).toEqual({
+      ok: false,
+      reason: "not_number",
+    });
+  });
+  it('rejects "1,2,3" as not_number', () => {
+    expect(parseBahtInput("1,2,3")).toEqual({
+      ok: false,
+      reason: "not_number",
+    });
+  });
+  it('rejects ",,45" as not_number', () => {
+    expect(parseBahtInput(",,45")).toEqual({ ok: false, reason: "not_number" });
+  });
+  it('parses "1,200" as 120000', () => {
+    expect(parseBahtInput("1,200")).toEqual({ ok: true, satang: 120000 });
+  });
+  it('parses "12,345,678.90" as 1234567890', () => {
+    expect(parseBahtInput("12,345,678.90")).toEqual({
+      ok: true,
+      satang: 1234567890,
+    });
+  });
+  it('parses ".5" as 50', () => {
+    expect(parseBahtInput(".5")).toEqual({ ok: true, satang: 50 });
+  });
+  it('parses "45." as 4500', () => {
+    expect(parseBahtInput("45.")).toEqual({ ok: true, satang: 4500 });
+  });
+  it('rejects "." and "-" as not_number', () => {
+    expect(parseBahtInput(".")).toEqual({ ok: false, reason: "not_number" });
+    expect(parseBahtInput("-")).toEqual({ ok: false, reason: "not_number" });
+  });
+  it('rejects "99999999999999999999" as too_large', () => {
+    expect(parseBahtInput("99999999999999999999")).toEqual({
+      ok: false,
+      reason: "too_large",
+    });
+  });
+  it('rejects "-0" and "0.00" as not_positive', () => {
+    expect(parseBahtInput("-0")).toEqual({ ok: false, reason: "not_positive" });
+    expect(parseBahtInput("0.00")).toEqual({
+      ok: false,
+      reason: "not_positive",
+    });
+  });
+  it('rejects "-1.234" as too_many_decimals (decimals checked before sign)', () => {
+    expect(parseBahtInput("-1.234")).toEqual({
+      ok: false,
+      reason: "too_many_decimals",
+    });
   });
 });
