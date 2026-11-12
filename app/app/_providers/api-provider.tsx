@@ -23,7 +23,9 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     if (API_MODE !== "mock") return;
     let cancelled = false;
     import("@/lib/client/mock").then(({ createMockApi }) => {
-      if (!cancelled) setApi(createMockApi({ scenario: parseScenario(window.location.search) }));
+      if (!cancelled) setApi(createMockApi({
+          scenario: process.env.NODE_ENV !== "production" ? parseScenario(window.location.search) : "default",
+        }));
     });
     return () => {
       cancelled = true;

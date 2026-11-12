@@ -120,7 +120,7 @@ export function SummaryView() {
   const { budget } = summary;
   const categories = summarizeCategories(entries);
   const recentEntries = entries.slice(0, 5);
-  const isMidCycle = searchParams?.get("scenario") === "midCycle" || searchParams?.get("view") === "cycle";
+  const isMidCycle = searchParams?.get("view") === "cycle";
 
   return (
     <main className="flex flex-col gap-4 py-4 font-body">

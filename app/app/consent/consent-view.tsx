@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -56,14 +55,8 @@ export function ConsentView() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-between gap-6 px-4 py-6 font-body">
       <div className="flex flex-col gap-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center">
           <span className="font-display text-2xl text-primary">พอใช้</span>
-          <Link
-            href="/app/demo"
-            className="rounded-pill border border-line-strong bg-subtle px-3 py-1 text-xs font-semibold text-link"
-          >
-            DEMO
-          </Link>
         </div>
 
         <div className="flex flex-col items-center gap-3 pt-2 text-center">

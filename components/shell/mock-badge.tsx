@@ -1,6 +1,7 @@
 /** Small pill shown only in mock mode so sample data is never mistaken for real data. */
 export function MockBadge({ mode }: { mode: "mock" | "live" }) {
-  if (mode !== "mock") return null;
+  // Never in production, regardless of the mode prop: real users must not see the sample-data pill.
+  if (process.env.NODE_ENV === "production" || mode !== "mock") return null;
   return (
     <div
       aria-hidden={false}

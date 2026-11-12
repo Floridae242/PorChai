@@ -338,8 +338,6 @@ export function TryResultView() {
 export function TryDecideView() {
   const api = useApi();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const forceQuotaFull = searchParams?.get("quota") === "full";
 
   const [item] = useState<TryItemDraft>(() => loadTryDraft());
   const [decision, setDecision] = useState<"keep" | "pay" | "postpone">("keep");
@@ -357,7 +355,7 @@ export function TryDecideView() {
       .catch(() => {});
   }, [api]);
 
-  const quotaFull = forceQuotaFull || reservedCount >= FREE_PLAN_LIMIT;
+  const quotaFull = reservedCount >= FREE_PLAN_LIMIT;
 
   async function handleConfirm() {
     setBusy(true);

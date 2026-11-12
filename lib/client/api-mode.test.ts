@@ -4,12 +4,16 @@ import { parseScenario, resolveApiMode } from "./api-mode";
 describe("resolveApiMode", () => {
   it("honours an explicit value", () => {
     expect(resolveApiMode("live", "development")).toBe("live");
-    expect(resolveApiMode("mock", "production")).toBe("mock");
+    expect(resolveApiMode("mock", "development")).toBe("mock");
   });
   it("defaults to mock outside production and live in production", () => {
     expect(resolveApiMode(undefined, "development")).toBe("mock");
     expect(resolveApiMode(undefined, "test")).toBe("mock");
     expect(resolveApiMode(undefined, "production")).toBe("live");
+  });
+  it("is always live in production, even when mock is requested", () => {
+    expect(resolveApiMode("mock", "production")).toBe("live");
+    expect(resolveApiMode("live", "production")).toBe("live");
   });
   it("ignores an invalid value and uses the default", () => {
     expect(resolveApiMode("banana", "production")).toBe("live");

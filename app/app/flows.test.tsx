@@ -17,7 +17,6 @@ vi.mock("next/navigation", () => ({
   useParams: () => currentParams,
 }));
 
-import { DemoMenuView } from "./demo/demo-view";
 import { PerksListView, PointsView, ShopVerifyView } from "./perks/perks-views";
 import { PlanMainView } from "./plan/plan-views";
 import { RecordNewView } from "./record/record-views";
@@ -165,8 +164,5 @@ describe("Phase 2 Core Flows (G05–G12)", () => {
     expect(screen.getByText("ข้าวเที่ยง ~50 บาท")).toBeTruthy();
     expect(screen.getByText("ค่ารถ ~20 บาท")).toBeTruthy();
     unmountR1();
-
-    render(<DemoMenuView />);
-    expect(screen.getByText(/เมนูเดโม/)).toBeTruthy();
   });
 });

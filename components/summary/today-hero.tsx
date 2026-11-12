@@ -32,14 +32,8 @@ export function TodayHero({ summary, entries, initialView = "today" }: TodayHero
       style={{ backgroundImage: "var(--hero-gradient)" }}
       className="flex flex-col gap-4 rounded-md p-5 text-on-hero"
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
         <span className="font-display text-2xl text-on-hero">พอใช้</span>
-        <Link
-          href="/app/demo"
-          className="rounded-pill bg-white/15 px-3 py-1 text-xs font-semibold text-on-hero"
-        >
-          DEMO
-        </Link>
       </div>
 
       <div role="tablist" aria-label="มุมมองงบ" className="grid grid-cols-2 gap-1 rounded-pill bg-white/15 p-1">
