@@ -90,6 +90,12 @@ async function ownEntry(userId: string, id: string): Promise<Row> {
 
 const CANCELLED = () => new HttpError(409, "entry_cancelled", "รายการนี้ถูกยกเลิกแล้ว");
 
+// The chat card's buttons (card 10): the owner's entry and whether it was cancelled; 404 for anyone else
+export async function entryForChat(userId: string, id: string): Promise<{ entry: Entry; cancelled: boolean }> {
+  const row = await ownEntry(userId, id);
+  return { entry: toEntry(row), cancelled: row.cancelled_at !== null };
+}
+
 // Paying a plan made this entry: its amount and date are the plan's, and undoing it belongs to the
 // plan (unpay), or the plan would stay "paid". Only a purchase's category may change (L9).
 function checkPlanEntryEdit(row: Row, patch: EntryPatch): void {

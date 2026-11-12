@@ -3,6 +3,20 @@ import { tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
 import { advise } from "@/lib/advice/advise";
 import { isQuestion, readQuestion } from "@/lib/advice/question";
+import {
+  alreadyDeletedMessage,
+  askCategoryMessage,
+  askDeleteMessage,
+  askNewAmountMessage,
+  categoryChangedMessage,
+  deletedMessage,
+  entryNotFoundMessage,
+  isUserCategory,
+  notWiredMessage,
+  recordedCard,
+  todayCard,
+  type RecordedEntry,
+} from "@/lib/chat/cards";
 import { factsOf, readChat, splitItems } from "@/lib/chat/converse";
 import {
   adviceMessage,
@@ -30,12 +44,13 @@ import {
 import { amountOnly, categoryOf, MAX_TITLE, parseExpense } from "@/lib/chat/parse";
 import { loadBudget, loadSummary, summaryOf } from "@/lib/db/budget";
 import { proposalFor, recentChat, remember, type ChatLine, type Pending } from "@/lib/db/chat-memory";
-import { addEntry, entryExists } from "@/lib/db/entries";
+import { addEntry, cancelEntry, editEntry, entryExists, entryForChat } from "@/lib/db/entries";
 import { actOnPlan, addPlan, planIdByKey } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
 import { userIdForLine } from "@/lib/db/users";
 import { HttpError } from "@/lib/http";
-import { reply, type TextMessage } from "@/lib/line/reply";
+import { decodePostback, type DecodedPostback } from "@/lib/line/flex/postback";
+import { reply, text, type ReplyMessage, type TextMessage } from "@/lib/line/reply";
 
 interface LineEvent {
   type?: unknown;
@@ -48,10 +63,10 @@ interface LineEvent {
 
 // What the bot says, and what that answer waits for (kept in the chat memory)
 interface Answer {
-  message: TextMessage;
+  message: ReplyMessage;
   pending?: Pending;
 }
-const say = (message: TextMessage, pending?: Pending): Answer => ({ message, pending });
+const say = (message: ReplyMessage, pending?: Pending): Answer => ({ message, pending });
 
 // The webhook verified LINE's signature before calling this, so source.userId is LINE's word, not the client's.
 // Throws only when a spend could not be saved: the webhook then lets LINE deliver the event again.
@@ -70,7 +85,7 @@ export async function handleEvent(event: unknown): Promise<void> {
       answer = await onText(userId, e.message.text, String(e.webhookEventId));
     } else if (e.type === "postback" && typeof e.postback?.data === "string") {
       const tapped = await onPostback(userId, e.postback.data);
-      if (tapped) [said, answer] = [`(กด ${tapped.label})`, say(tapped.message)];
+      if (tapped) [said, answer] = [`(กด ${tapped.label})`, tapped.answer];
     } else if (e.type === "follow") {
       answer = say(welcomeMessage());
     }
@@ -83,7 +98,7 @@ export async function handleEvent(event: unknown): Promise<void> {
     // Memory only helps the next reply; losing it must not lose the spend or make LINE send the event again
     await remember(userId, [
       { role: "user", body: said },
-      { role: "bot", body: answer.message.text, pending: answer.pending },
+      { role: "bot", body: answer.message.type === "text" ? answer.message.text : answer.message.altText, pending: answer.pending },
     ]).catch((err) => console.error("chat memory", err instanceof Error ? err.name : ""));
   }
   if (typeof e.replyToken === "string") {
@@ -109,8 +124,10 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   const pending = last?.role === "bot" ? last.pending : null; // only the very next message answers it
   const parsed = parseExpense(body);
 
-  // «ข้าว» → «กี่บาท?» → «45»
   const amount = amountOnly(body);
+  // Card 10 [แก้] → «50»: the new amount of that entry
+  if (pending?.kind === "edit" && amount !== null) return say(await editAmount(userId, pending.entryId, amount));
+  // «ข้าว» → «กี่บาท?» → «45»
   if (pending?.kind === "amount" && amount !== null) {
     return spend(userId, { title: pending.title, amount, category: categoryOf(pending.title), key: eventId });
   }
@@ -172,24 +189,27 @@ async function spend(userId: string, draft: Draft): Promise<Answer> {
   if (budget.kind === "ok" && budget.todayRemaining >= 0 && draft.amount > budget.todayRemaining) {
     return say(holdMessage(draft, budget.todayRemaining));
   }
-  await record(userId, draft);
-  return say(await recorded(userId, draft));
+  const { entry } = await record(userId, draft);
+  return say(await recorded(userId, { ...draft, category: draft.category as UserCategory, id: entry.id }));
 }
 
-async function recorded(userId: string, d: Draft): Promise<TextMessage> {
+// Card 10: โฟรวิว's recorded card, its buttons pointing at this entry
+async function recorded(userId: string, e: RecordedEntry, heading?: string): Promise<ReplyMessage> {
   const loaded = await loadBudget(userId);
-  return recordedMessage(d, summaryOf(loaded), tomorrowBudget(loaded.input));
+  return recordedCard(e, summaryOf(loaded), tomorrowBudget(loaded.input), heading);
 }
 
 const LABEL = { pay: "ยืนยันจ่ายจริง", try: "ลองก่อนซื้อ", keep: "เก็บไว้ในแผน", all: "จดทั้งหมด", no: "ไม่ใช่" } as const;
 
 // Buttons from holdMessage / tryMessage / adviceMessage / proposalMessage. Anything malformed is ignored.
-async function onPostback(userId: string, data: string): Promise<{ label: string; message: TextMessage } | null> {
+async function onPostback(userId: string, data: string): Promise<{ label: string; answer: Answer } | null> {
+  const flex = decodePostback(data);
+  if (flex) return { label: flexLabel(flex), answer: await onCardButton(userId, flex) };
   const choice = readChoice(data);
-  if (choice) return { label: LABEL[choice.action], message: await onChoice(userId, choice.action, choice.key) };
+  if (choice) return { label: LABEL[choice.action], answer: say(await onChoice(userId, choice.action, choice.key)) };
   const draft = readDraft(data);
   if (!draft) return null;
-  return { label: LABEL[draft.action], message: await onDraft(userId, draft) };
+  return { label: LABEL[draft.action], answer: say(await onDraft(userId, draft)) };
 }
 
 // [จดทั้งหมด] / [ไม่ใช่] on several spends the AI split. Each item is saved once under its own key.
@@ -208,7 +228,7 @@ async function onChoice(userId: string, action: "all" | "no", key: string): Prom
   return recordedManyMessage(items, summaryOf(loaded), tomorrowBudget(loaded.input));
 }
 
-async function onDraft(userId: string, draft: Draft & { action: "pay" | "try" | "keep" }): Promise<TextMessage> {
+async function onDraft(userId: string, draft: Draft & { action: "pay" | "try" | "keep" }): Promise<ReplyMessage> {
   if (draft.action === "try") {
     const r = await simulate(userId, {
       amount: draft.amount,
@@ -237,11 +257,66 @@ async function onDraft(userId: string, draft: Draft & { action: "pay" | "try" | 
   if (planId) {
     const plan = await actOnPlan(userId, planId, "pay", draft.category as UserCategory, thaiDate(new Date()));
     if (plan.status !== "paid") return alreadyMessage(draft);
-    return recorded(userId, draft);
+    if (!plan.entryId) return recordedMessage(draft, await loadSummary(userId), tomorrowBudget((await loadBudget(userId)).input));
+    return recorded(userId, { ...draft, category: draft.category as UserCategory, id: plan.entryId });
   }
-  const { created } = await record(userId, draft);
+  const { entry, created } = await record(userId, draft);
   if (!created) return alreadyMessage(draft);
-  return recorded(userId, draft);
+  return recorded(userId, { ...draft, category: draft.category as UserCategory, id: entry.id });
+}
+
+const FLEX_LABEL: Partial<Record<DecodedPostback["action"], string>> = {
+  entry_edit: "แก้",
+  entry_cat: "เปลี่ยนหมวด",
+  entry_cat_set: "เลือกหมวด",
+  entry_del: "ลบ",
+  entry_del_ok: "ลบเลย",
+  menu_today: "วันนี้ใช้ได้",
+};
+const flexLabel = (p: DecodedPostback) => FLEX_LABEL[p.action] ?? "กดปุ่มบนการ์ด";
+
+const asRecorded = (e: { id: string; note: string | null; amount: number; category: string }): RecordedEntry => ({
+  id: e.id,
+  title: e.note ?? "รายการ",
+  amount: e.amount,
+  category: (isUserCategory(e.category) ? e.category : "other") as UserCategory,
+});
+
+// Card 10: the buttons on โฟรวิว's cards (format v1.<action>.<id>, lib/line/flex/postback.ts).
+// Every entry id is checked against the user: someone else's id is "not found", never touched.
+async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer> {
+  if (p.action === "menu_today") return say(todayCard(await loadSummary(userId)));
+  if (!["entry_edit", "entry_cat", "entry_cat_set", "entry_del", "entry_del_ok"].includes(p.action)) return say(notWiredMessage());
+  try {
+    const { entry, cancelled } = await entryForChat(userId, p.id);
+    const e = asRecorded(entry);
+    if (cancelled) return say(alreadyDeletedMessage(e));
+    if (p.action === "entry_cat") return say(askCategoryMessage(e));
+    if (p.action === "entry_cat_set") {
+      if (!isUserCategory(p.extra)) return say(notWiredMessage());
+      return say(categoryChangedMessage(asRecorded(await editEntry(userId, e.id, { category: p.extra }))));
+    }
+    if (p.action === "entry_del") return say(askDeleteMessage(e));
+    if (p.action === "entry_del_ok") {
+      await cancelEntry(userId, e.id);
+      return say(deletedMessage(e, await loadSummary(userId)));
+    }
+    // entry_edit: the next «50» is the new amount
+    return say(askNewAmountMessage(e), { kind: "edit", entryId: e.id, title: e.title });
+  } catch (err) {
+    if (err instanceof HttpError && err.code !== "no_cycle") return say(err.code === "not_found" ? entryNotFoundMessage() : text(err.message));
+    throw err;
+  }
+}
+
+async function editAmount(userId: string, entryId: string, amount: number): Promise<ReplyMessage> {
+  try {
+    const entry = await editEntry(userId, entryId, { amount });
+    return recorded(userId, asRecorded(entry), "แก้แล้ว ✓");
+  } catch (err) {
+    if (err instanceof HttpError && err.code !== "no_cycle") return err.code === "not_found" ? entryNotFoundMessage() : text(err.message);
+    throw err;
+  }
 }
 
 function readDraft(data: string): (Draft & { action: "pay" | "try" | "keep" }) | null {

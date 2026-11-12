@@ -51,7 +51,7 @@ export const noCycleMessage = (): TextMessage => text("ยังไม่ได�
 const line = (d: Pick<Draft, "title" | "amount" | "category">) =>
   `${d.title} ${baht(d.amount)} บาท (${CATEGORY[d.category]})`;
 
-function budgetLine(b: BudgetResult, spentToday: number): string {
+export function budgetLine(b: BudgetResult, spentToday: number): string {
   if (b.kind === "payday-passed") return "ถึงวันเงินเข้าแล้ว เงินเข้าหรือยัง? ตั้งรอบใหม่ในแอปได้เลย";
   if (b.kind === "shortfall") return `ตอนนี้เงินไม่พอสำหรับบิล ออม และเงินเผื่อ ขาด ${baht(b.shortfall)} บาท`;
   if (b.todayRemaining < 0) return `เกินงบวันนี้ ${baht(-b.todayRemaining)} บาท (งบวันนี้ ${baht(b.dailyBudget)})`;
@@ -80,7 +80,7 @@ function afterRecording(s: Summary, tomorrow: BudgetResult): string[] {
 }
 
 // A friendly last line (no AI, no numbers): how today is going
-function cheer(b: BudgetResult, overWithTomorrow: boolean): string | null {
+export function cheer(b: BudgetResult, overWithTomorrow: boolean): string | null {
   if (b.kind !== "ok") return null;
   if (b.todayRemaining < 0) return overWithTomorrow ? "ไม่เป็นไรครับ งบพรุ่งนี้ปรับให้แล้ว" : null;
   if (b.todayRemaining === 0) return "พอดีงบวันนี้เป๊ะเลยครับ";
@@ -145,20 +145,11 @@ export const welcomeMessage = (): TextMessage =>
 // Chat with the AI (card 15). The AI's reply, guarded in lib/chat/converse.ts
 export const chatMessage = (reply: string): TextMessage => text(reply, [app()]);
 
-// AI off, failed or broke a guard: hello, what is left today, the 3 things the bot does
+// AI off, failed or broke a guard: who the bot is and what is left today. It also answers «นายเป็นใคร»
+// when Gemini is busy (13 Nov); the list of 3 things was removed at the user's request.
 export function chatFallbackMessage(s: Summary | null): TextMessage {
   const today = s ? budgetLine(s.budget, s.spentToday) : "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าในแอปก่อนนะครับ";
-  return text(
-    [
-      "สวัสดีครับ",
-      today,
-      "พอใช้ช่วยได้ 3 อย่างครับ",
-      "• จดรายจ่าย พิมพ์ชื่อกับยอด เช่น «ข้าว 45»",
-      "• ถามก่อนจ่าย เช่น «ชาบู 300 ไหวไหม»",
-      "• ดูสรุปและตั้งค่าในแอป",
-    ].join("\n"),
-    [app()],
-  );
+  return text(["สวัสดีครับ ผมชื่อพอใช้ ผู้ช่วยเรื่องเงินของคุณ", today].join("\n"), [app()]);
 }
 
 // Not about money or the app: never the AI's words, always this

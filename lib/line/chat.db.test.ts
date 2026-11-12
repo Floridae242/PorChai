@@ -4,7 +4,7 @@ import { addDays, thaiDate } from "@/lib/calc/time";
 import { getDb } from "@/lib/db/client";
 import { generate } from "@/lib/ai/gemini";
 import type { VerifyResult } from "@/lib/line/id-token";
-import type { TextMessage } from "@/lib/line/reply";
+import type { ReplyMessage } from "@/lib/line/reply";
 import { POST as webhook } from "@/app/api/line/webhook/route";
 import { POST as createCycle } from "@/app/api/cycle/route";
 import { GET as listEntries } from "@/app/api/entries/route";
@@ -12,10 +12,10 @@ import { GET as listEntries } from "@/app/api/entries/route";
 // Card 09: «ข้าว 50» in the chat → recorded straight away; unclear → asked; over today's budget → held (Figma L6).
 // End to end through the signed webhook; only LINE itself (reply + ID token check) is faked.
 
-const replies: { token: string; messages: TextMessage[] }[] = [];
+const replies: { token: string; messages: ReplyMessage[] }[] = [];
 vi.mock("@/lib/line/reply", async (orig) => ({
   ...(await orig<typeof import("@/lib/line/reply")>()),
-  reply: vi.fn(async (token: string, messages: TextMessage[]) => {
+  reply: vi.fn(async (token: string, messages: ReplyMessage[]) => {
     replies.push({ token, messages });
   }),
 }));
@@ -65,8 +65,24 @@ function tap(data: string) {
   });
 }
 
-const lastText = () => replies.at(-1)!.messages[0].text;
-const lastButtons = () => replies.at(-1)!.messages[0].quickReply?.items.map((i) => i.action) ?? [];
+// A Flex card reads as its altText plus every text in it (card 10: the recorded card)
+type Action = { type: string; label: string; data?: string; uri?: string };
+type Node = { type?: string; text?: string; contents?: Node[]; action?: Action; header?: Node; body?: Node; footer?: Node };
+const textsOf = (n: Node | undefined): string[] =>
+  !n ? [] : [n.text ?? "", ...[n.header, n.body, n.footer, ...(n.contents ?? [])].flatMap(textsOf)].filter(Boolean);
+const buttonsOf = (n: Node | undefined): Action[] =>
+  !n ? [] : [...(n.type === "button" && n.action ? [n.action] : []), ...[n.header, n.body, n.footer, ...(n.contents ?? [])].flatMap(buttonsOf)];
+const last = () => replies.at(-1)!.messages[0];
+const lastText = () => {
+  const m = last();
+  return m.type === "text" ? m.text : [m.altText, ...textsOf(m.contents as Node)].join(" ");
+};
+// Card buttons first, then the quick replies above the keyboard
+const lastButtons = (): Action[] => {
+  const m = last();
+  const quick = m.quickReply?.items.map((i) => i.action) ?? [];
+  return m.type === "flex" ? [...buttonsOf(m.contents as Node), ...quick] : quick;
+};
 
 // Figma: 2,400 · bill 600 · savings 240 · buffer 120 · essentials 70 · 12 days → 120 a day
 async function figma() {
@@ -110,8 +126,11 @@ describe("card 09: expenses from the chat", () => {
   it("L2: «ข้าว 45» is recorded at once and the reply says 75 left today — and it shows on the LIFF screens (card 06)", async () => {
     await figma();
     expect((await chat("ข้าว 45")).status).toBe(200);
-    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท (อาหาร)");
-    expect(lastText()).toContain("วันนี้ใช้ได้อีก 75 บาท · ใช้ไปแล้ว 45 / 120");
+    expect(last().type).toBe("flex"); // card 10: โฟรวิว's recorded card
+    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท");
+    expect(lastText()).toContain("อาหาร");
+    expect(lastText()).toContain("วันนี้ใช้ได้อีก 75 บาท");
+    expect(lastText()).toContain("ใช้ไปแล้ว 45 / 120 บาท");
     expect(lastText()).toContain("ยังเหลืออีกเยอะ ใช้ได้สบาย ๆ"); // a friendly last line, no AI
 
     expect(await screenEntries()).toEqual([
@@ -130,8 +149,8 @@ describe("card 09: expenses from the chat", () => {
   it("09: unclear messages are asked back (AI off), with a button to the app; nothing is recorded", async () => {
     await figma();
     const cases: [string, string, string][] = [
-      ["ข้าว", "พิมพ์ชื่อกับยอด", "เปิดแอป"],
-      ["Hey", "พิมพ์ชื่อกับยอด", "เปิดแอป"],
+      ["ข้าว", "ผมชื่อพอใช้", "เปิดแอป"],
+      ["Hey", "ผมชื่อพอใช้", "เปิดแอป"],
       ["ข้าว 50 น้ำ 20", "ทีละรายการ", "กรอกเองในแอป"],
       ["ข้าวร้อยกว่า", "ยอดที่จ่ายจริง", "กรอกเองในแอป"],
       ["50", "ค่าอะไร", "กรอกเองในแอป"],
@@ -180,9 +199,9 @@ describe("card 09: expenses from the chat", () => {
     const data = (pay as { data: string }).data;
 
     await tap(data);
-    expect(lastText()).toContain("จดแล้ว ✓ ชาบู 350 บาท (อาหาร)");
-    expect(lastText()).toContain("เกินงบวันนี้ 230 บาท");
-    expect(lastText()).toContain("พรุ่งนี้ใช้ได้ 99 บาท/วัน (เดิม 120)");
+    expect(lastText()).toContain("จดแล้ว ✓ ชาบู 350 บาท");
+    expect(lastText()).toContain("เกินงบ 230 บาท");
+    expect(lastText()).toContain("พรุ่งนี้ใช้ได้ 120 → 99 บาท/วัน");
     expect(lastText()).toContain("ไม่เป็นไรครับ งบพรุ่งนี้ปรับให้แล้ว");
 
     await tap(data);
@@ -196,9 +215,9 @@ describe("card 09: expenses from the chat", () => {
     await tap((lastButtons().find((b) => b.label === "ยืนยันจ่ายจริง") as { data: string }).data);
 
     await chat("น้ำ 10");
-    expect(lastText()).toContain("จดแล้ว ✓ น้ำ 10 บาท (อาหาร)");
-    expect(lastText()).toContain("เกินงบวันนี้ 240 บาท");
-    expect(lastText()).toContain("พรุ่งนี้ใช้ได้ 98 บาท/วัน (เดิม 120)"); // (1,440 − 360) ÷ 11
+    expect(lastText()).toContain("จดแล้ว ✓ น้ำ 10 บาท");
+    expect(lastText()).toContain("เกินงบ 240 บาท");
+    expect(lastText()).toContain("พรุ่งนี้ใช้ได้ 120 → 98 บาท/วัน"); // (1,440 − 360) ÷ 11
     expect(await screenEntries()).toHaveLength(2);
   });
 
@@ -333,13 +352,13 @@ describe("card 15: questions in the chat", () => {
     vi.mocked(generate).mockReset().mockResolvedValue(null);
   });
 
-  it("a question with no price goes to the chat: the AI asks for the price (AI off: the template's example)", async () => {
+  it("a question with no price goes to the chat: the AI asks for the price (AI off: the template)", async () => {
     await figma();
     vi.mocked(generate).mockResolvedValueOnce(JSON.stringify({ intent: "chat", topic: "money", item: null, reply: "ชาบูราคาเท่าไรเอ่ย?" }));
     await chat("ชาบูไหวไหม");
     expect(lastText()).toBe("ชาบูราคาเท่าไรเอ่ย?");
     await chat("ชาบูไหวไหม");
-    expect(lastText()).toContain("«ชาบู 300 ไหวไหม»");
+    expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
   });
 });
 
@@ -388,13 +407,13 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     });
   });
 
-  it("AI off or a reply with a made-up number → the template: hello, what is left today, 3 things it can do", async () => {
+  it("AI off or a reply with a made-up number → the template: who the bot is and what is left today (no list of 3 things)", async () => {
     await figma();
     await chat("Hey");
     expect(lastText()).toContain("สวัสดี");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
-    expect(lastText()).toContain("«ข้าว 45»");
-    expect(lastText()).toContain("ไหวไหม");
+    expect(lastText()).toContain("ผมชื่อพอใช้ ผู้ช่วยเรื่องเงินของคุณ");
+    expect(lastText()).not.toContain("3 อย่าง");
     aiSays({ intent: "chat", topic: "money", item: null, reply: "เหลือ 999 บาทจ้า" });
     await chat("เหลือเท่าไร");
     expect(lastText()).not.toContain("999");
@@ -428,7 +447,7 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     await chat("ข้าว");
     expect(lastText()).toContain("ข้าว จ่ายไปกี่บาท");
     await chat("45");
-    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท (อาหาร)");
+    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท");
     expect(await screenEntries()).toEqual([expect.objectContaining({ amount: 4500, note: "ข้าว", source: "chat" })]);
   });
 
@@ -465,7 +484,7 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     await chat("45");
     expect(lastText()).toContain("45 บาท ค่าอะไร");
     await chat("ข้าว");
-    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท (อาหาร)");
+    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท");
     expect(vi.mocked(generate)).not.toHaveBeenCalled();
   });
 
@@ -473,7 +492,7 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     await figma();
     await chat("ข้าว 45");
     expect(vi.mocked(generate)).not.toHaveBeenCalled();
-    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท (อาหาร)");
+    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท");
   });
 
   it("several spends: the AI proposes, [จดทั้งหมด] records each once", async () => {
@@ -526,5 +545,106 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     await tap(JSON.stringify({ a: "all", k: "never-proposed" }));
     expect(lastText()).toContain("หมดเวลา");
     expect(await screenEntries()).toEqual([]);
+  });
+});
+
+describe("card 10: the recorded card's buttons (โฟรวิว's Flex card, wired here)", () => {
+  beforeEach(() => {
+    replies.length = 0;
+    vi.stubEnv("LINE_CHANNEL_SECRET", secret);
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-channel");
+    vi.mocked(generate).mockReset().mockResolvedValue(null);
+  });
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    await db.from("users").delete().in("line_user_id", [lineA, `${lineA}_other`]);
+  });
+
+  const data = (label: string) => (lastButtons().find((b) => b.label === label) as { data: string }).data;
+
+  it("the card's buttons point at the saved entry: [แก้] [เปลี่ยนหมวด] [ลบ], then เปิดแผน / วันนี้ใช้ได้", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    const [entry] = await screenEntries();
+    expect(lastButtons().map((b) => b.label)).toEqual(["แก้", "เปลี่ยนหมวด", "ลบ", "เปิดแผน", "วันนี้ใช้ได้"]);
+    expect(data("ลบ")).toBe(`v1.entry_del.${entry.id}`);
+  });
+
+  it("L9 เปลี่ยนหมวด: four categories as quick replies; picking one changes it", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    await tap(data("เปลี่ยนหมวด"));
+    expect(lastButtons().map((b) => b.label)).toEqual(["อาหาร", "เดินทาง", "ของใช้", "อื่น ๆ"]);
+    await tap(data("เดินทาง"));
+    expect(lastText()).toContain("เปลี่ยนหมวดแล้วครับ ✓ ข้าว 45 บาท → เดินทาง");
+    expect(await screenEntries()).toEqual([expect.objectContaining({ category: "transport" })]);
+  });
+
+  it("ลบ asks first; ลบเลย removes it once and says what is left today", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    await tap(data("ลบ"));
+    expect(lastText()).toContain("ลบ ข้าว 45 บาท ใช่ไหมครับ");
+    expect(await screenEntries()).toHaveLength(1); // nothing yet
+    const ok = data("ลบเลย");
+    await tap(ok);
+    expect(lastText()).toContain("ลบแล้วครับ ✓ ข้าว 45 บาท");
+    expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
+    expect(await screenEntries()).toEqual([]);
+    await tap(ok);
+    expect(lastText()).toContain("ลบไปแล้ว");
+  });
+
+  it("แก้: asks for the new amount; «50» changes it and shows the card again", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    await tap(data("แก้"));
+    expect(lastText()).toContain("พิมพ์ยอดใหม่ของ ข้าว");
+    expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "แก้ในแอป" }));
+    await chat("50");
+    expect(last().type).toBe("flex");
+    expect(lastText()).toContain("แก้แล้ว ✓ ข้าว 50 บาท");
+    expect(await screenEntries()).toEqual([expect.objectContaining({ amount: 5000 })]); // still one entry
+  });
+
+  it("วันนี้ใช้ได้: today's budget card", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    await tap(data("วันนี้ใช้ได้"));
+    expect(last().type).toBe("flex");
+    expect(lastText()).toContain("75 บาท");
+  });
+
+  it("someone else's entry id in a forged button changes nothing", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    const [entry] = await screenEntries();
+    const other = `${lineA}_other`;
+    eventIds.push(`X_${run}`);
+    await deliver({
+      type: "postback",
+      webhookEventId: `X_${run}`,
+      replyToken: "rt-x",
+      source: { type: "user", userId: other },
+      postback: { data: `v1.entry_del_ok.${entry.id}` },
+    });
+    expect(lastText()).toContain("ไม่พบรายการนี้");
+    expect(await screenEntries()).toHaveLength(1);
+  });
+
+  it("a card button not wired yet says so instead of doing nothing", async () => {
+    await figma();
+    await tap("v1.ocr_save.abc");
+    expect(lastText()).toContain("ปุ่มนี้ยังใช้ไม่ได้");
+  });
+
+  it("several at once ([จดทั้งหมด]) stays a text list: the card's [แก้] [ลบ] fit one entry only", async () => {
+    await figma();
+    vi.mocked(generate).mockResolvedValueOnce(JSON.stringify({ items: [{ title: "ข้าว", amount_baht: 45 }, { title: "น้ำ", amount_baht: 20 }] }));
+    await chat("ข้าว 45 น้ำ 20");
+    await tap(data("จดทั้งหมด"));
+    expect(last().type).toBe("text");
+    expect(lastText()).toContain("จดแล้ว ✓ 2 รายการ");
   });
 });
