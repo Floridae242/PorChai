@@ -15,9 +15,9 @@ npm run test:watch           # รันเทสต์ทุกครั้ง�
 
 `npm test` ไม่แตะฐานข้อมูล (ข้ามไฟล์ `*.db.test.ts`) เปิดฐานข้อมูลหรือไม่ก็ผ่าน
 
-Frontend foundation อยู่ที่ `/app` และตัวอย่าง UI ที่ `/app/demo/ui` มี shell, consent gate และ API client; หน้าสรุปยังเป็น placeholder. โหมดพัฒนาใช้ mock เป็นค่าเริ่มต้น ส่วน production ใช้ live เว้นแต่กำหนด `NEXT_PUBLIC_API_MODE` ชัดเจน.
+MINI App หลักอยู่ที่ `/app` บน `https://porchai.vercel.app` มีหน้าแผน จดรายจ่าย ลองก่อนจ่าย และตั้งค่า ส่วน `/miniapp` เป็นหน้าแนะนำแบบการ์ดพร้อมมาสคอต. โหมดพัฒนาใช้ mock เป็นค่าเริ่มต้น ส่วน production ใช้ live เสมอ.
 
-เมื่อใช้ Developing MINI App ชุดนี้ ให้ตั้ง `NEXT_PUBLIC_LIFF_ID` และ `LINE_LOGIN_CHANNEL_ID` ตาม `.env.example`. หน้า `/app` ล็อกอินผ่าน callback `/miniapp` ซึ่งตรงกับ Console endpoint แล้วกลับเฉพาะ path ภายใน `/app` หลังตรวจ ID token ฝั่งเซิร์ฟเวอร์สำเร็จ. หน้า `/miniapp` เดิมยังเปิดได้ตามปกติ; การใช้ API ข้อมูลส่วนตัวต้องตั้งค่า Supabase ฝั่งเซิร์ฟเวอร์ด้วย.
+ตั้ง `NEXT_PUBLIC_LIFF_ID` และ channel audience ตาม `.env.example`. LINE Developers Developing Endpoint ใช้ `https://porchai.vercel.app/app`; ปุ่ม OA ใช้ permanent links ที่สัมพันธ์กับ endpoint นี้. ล็อกอินใน browser กลับไปยัง path ที่ตรวจแล้วภายใต้ `/app` โดยตรง และ API ตรวจ ID token ฝั่งเซิร์ฟเวอร์. ดู [การ์ด OA และ LIFF](docs/LINE-CARDS.md) สำหรับรูปมาสคอตบน Vercel และวิธีทดสอบ.
 
 ## ฐานข้อมูลบนเครื่อง (Supabase)
 
@@ -103,12 +103,12 @@ supabase stop
 หน้า `/` เป็นหน้าแนะนำ ส่วน `/miniapp` เริ่ม LIFF และส่ง ID token ไป `POST /api/line/verify`.
 เซิร์ฟเวอร์ส่ง token ไป LINE พร้อม `LINE_MINIAPP_CHANNEL_ID` และตรวจ issuer,
 audience, expiry และ subject ก่อนคืนชื่อที่ยืนยันแล้ว ไม่เชื่อ profile ที่ client ส่งมา.
-ยังไม่สร้าง session: API ข้อมูลส่วนตัวในอนาคตต้องตรวจ token หรือ session ของตัวเองทุกครั้ง.
+API ข้อมูลส่วนตัวตรวจ ID token ทุกครั้งผ่าน `requireUser()` และใช้เฉพาะ user ID ที่เซิร์ฟเวอร์ยืนยัน.
 
 `POST /api/line/webhook` ตรวจ `x-line-signature` ด้วย HMAC-SHA256 บน raw bytes
 ก่อน parse JSON. ลายเซ็นผิด/หายได้ 401, JSON หรือ events ผิดรูปแบบได้ 400,
 ไม่ตั้ง secret ได้ 503 และ `events: []` ที่เซ็นถูกได้ 200.
-รุ่น Developing ตอบข้อความต้อนรับเมื่อเพิ่มเพื่อนและข้อความช่วยเหลือเมื่อได้รับข้อความตัวอักษร พร้อมปุ่มเปิด MINI App. ยังไม่บันทึกรายจ่าย. เมื่อส่งล้มเหลว redelivery ลองส่งใหม่ได้ภายในข้อจำกัด reply token ของ LINE; มี cache คำตอบที่สำเร็จใน process เพื่อลดการตอบซ้ำ แต่ไม่มีคิวถาวรหรือ cache ร่วมข้าม instance. รายละเอียดใน [คู่มือ LINE OA](docs/LINE-OA-DEVELOPING.md).
+OA แสดง Flex carousel เมื่อเพิ่มเพื่อนหรือส่งคำสั่งเมนู และรับรายจ่ายทีละรายการผ่านแชต. หลังบันทึกสำเร็จแสดงใบเสร็จพร้อมลิงก์ดู/แก้ไขรายการใน LIFF. การรับ event ซ้ำใช้ Supabase และ financial idempotency key; เมื่อประมวลผลไม่สำเร็จคืน marker และตอบ non-2xx เพื่อให้ LINE ส่งซ้ำ. หากบันทึกแล้วแต่ส่งคำตอบล้มเหลวจะไม่บันทึกรายจ่ายซ้ำ. ดู [คู่มือ LINE OA](docs/LINE-OA-DEVELOPING.md).
 
 ### Environment
 
@@ -135,7 +135,7 @@ Webhook จะบันทึก event ID และเชื่อมตัว�
    localhost อย่างเดียวใช้ทดสอบจาก LINE ไม่ได้. ใช้ dev tunnel ที่ทีมอนุมัติหรือ
    dev hosting ที่มีอยู่และรันโค้ดชุดนี้. ถ้าใช้ tunnel เครื่องและ process ต้องเปิดอยู่ตลอดการทดสอบ.
 2. เปิด MINI App channel **2012545254** → Web app settings → **Developing**.
-   ตั้ง Endpoint URL เป็น `https://<dev-host>/miniapp` และตรวจ LIFF ID ว่าตรงกับ
+   ตั้ง Endpoint URL เป็น `https://<dev-host>/app` และตรวจ LIFF ID ว่าตรงกับ
    `2012545254-6025ZG1r`. แอปใช้ `openid` และ `profile` เพื่อรับ ID token และชื่อ
    (MINI App มีค่า scope ตามที่แพลตฟอร์มกำหนด ไม่ได้ปรับแยกแต่ละ internal channel แบบ LINE Login LIFF).
    บัญชีทดสอบต้องมีสิทธิ์ใน channel สำหรับ Developing.
@@ -177,6 +177,6 @@ npm run build
 
 อ้างอิงดีไซน์เพิ่มเติมจาก Figma หน้า Conversation; เฟรมที่ตรวจและส่วนที่นำมาใช้ระบุใน [Design references](docs/DESIGN-REFERENCES.md).
 
-หน้าแนะนำมี desktop scroll showcase 6 ฉาก, ตัวเลือกบนมือถือ, การ์ดเลื่อนแนวนอน, สลับข้อมูลนักศึกษา/ร้านค้า, สถานการณ์สมมติ, FAQ และปุ่มกลับด้านบน. รองรับ reduced motion โดยปิด animation และช่วง pinned. `/miniapp` มีหน้าล็อกอิน สถานะเชื่อมต่อ และหน้าหลัก/โปร/เกี่ยวกับหลังตรวจตัวตนสำเร็จ.
+หน้าแนะนำมี desktop scroll showcase 6 ฉาก, ตัวเลือกบนมือถือ, การ์ดเลื่อนแนวนอน, สลับข้อมูลนักศึกษา/ร้านค้า, สถานการณ์สมมติ, FAQ และปุ่มกลับด้านบน. รองรับ reduced motion โดยปิด animation และช่วง pinned. `/miniapp` มีหน้าแนะนำแบบการ์ด มาสคอตเคลื่อนไหว สถานะ LINE และปุ่มเปิดหน้าการเงินจริงใน `/app`.
 
-`/` คือหน้าแนะนำ PorChai พร้อมแชตตัวอย่างแบบสลับได้และ FAQ. `/miniapp` คือหน้าทดสอบที่ตรวจตัวตน LINE; `/business/demo` คือรายงานธุรกิจสมมติ. ตั้ง Console Endpoint URL เป็น `https://<dev-host>/miniapp` เพื่อให้ LIFF เริ่มและรับ redirect ที่หน้าเดียวกันทุกครั้ง รวมถึงการเปิด MINI App URL ที่ไม่มีพารามิเตอร์. หากเคยตั้งเป็น root ให้เปลี่ยนก่อนทดสอบรอบนี้. ยังไม่ใช่การรับรอง MINI App หรือหลักฐานทดสอบ LINE จริง.
+`/` คือหน้าแนะนำ PorChai พร้อมแชตตัวอย่างแบบสลับได้และ FAQ. `/miniapp` คือหน้าทดสอบที่ตรวจตัวตน LINE; `/business/demo` คือรายงานธุรกิจสมมติ. ตั้ง Console Endpoint URL เป็น `https://<dev-host>/app` เพื่อให้ LIFF เริ่มและรับ redirect ภายใต้ `/app` รวมถึงการเปิด MINI App URL ที่ไม่มีพารามิเตอร์. หากเคยตั้งเป็น root ให้เปลี่ยนก่อนทดสอบรอบนี้. ยังไม่ใช่การรับรอง MINI App หรือหลักฐานทดสอบ LINE จริง.

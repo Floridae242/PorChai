@@ -22,7 +22,7 @@ import { actOnPlan, addPlan, planIdByKey } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
 import { userIdForLine } from "@/lib/db/users";
 import { HttpError } from "@/lib/http";
-import { reply, type TextMessage } from "@/lib/line/reply";
+import { reply, type LineMessage } from "@/lib/line/reply";
 
 interface LineEvent {
   type?: unknown;
@@ -42,9 +42,13 @@ export async function handleEvent(event: unknown): Promise<void> {
   if (source?.type !== "user" || typeof source.userId !== "string") return;
   const userId = await userIdForLine(source.userId);
 
-  let answer: TextMessage | null = null;
+  let answer: LineMessage | null = null;
   try {
-    if (e.type === "message" && e.message?.type === "text" && typeof e.message.text === "string") {
+    if (
+      e.type === "message" &&
+      e.message?.type === "text" &&
+      typeof e.message.text === "string"
+    ) {
       answer = await onText(userId, e.message.text, String(e.webhookEventId));
     } else if (e.type === "postback" && typeof e.postback?.data === "string") {
       answer = await onPostback(userId, e.postback.data);
@@ -65,36 +69,69 @@ export async function handleEvent(event: unknown): Promise<void> {
 function record(userId: string, d: Draft) {
   return addEntry(
     userId,
-    { amount: d.amount, category: d.category as UserCategory, note: d.title, spentOn: thaiDate(new Date()) },
+    {
+      amount: d.amount,
+      category: d.category as UserCategory,
+      note: d.title,
+      spentOn: thaiDate(new Date()),
+    },
     `line:${d.key}`,
     "chat",
   );
 }
 
 // Card 09 / Figma L2 + L6
-async function onText(userId: string, body: string, eventId: string): Promise<TextMessage> {
+async function onText(
+  userId: string,
+  body: string,
+  eventId: string,
+): Promise<LineMessage> {
+  if (["สวัสดี", "เริ่มต้น", "เมนู", "ทดสอบ", "วิธีใช้"].includes(body.trim()))
+    return welcomeMessage();
   // Card 15: «พรุ่งนี้กินชาบู 300 ไหวไหม» is a question, not a spend — answer it, save nothing
-  if (isQuestion(body)) return adviceMessage(await advise(userId, body), eventId);
+  if (isQuestion(body))
+    return adviceMessage(await advise(userId, body), eventId);
   const parsed = parseExpense(body);
   if (parsed.kind === "ask") return askMessage(parsed.reason);
-  const draft: Draft = { title: parsed.title, amount: parsed.amount, category: parsed.category, key: eventId };
+  const draft: Draft = {
+    title: parsed.title,
+    amount: parsed.amount,
+    category: parsed.category,
+    key: eventId,
+  };
 
   const { budget } = await loadSummary(userId);
   // L6: more than what is left today → ask first, the user decides (never decided for them)
-  if (budget.kind === "ok" && budget.todayRemaining >= 0 && draft.amount > budget.todayRemaining) {
+  if (
+    budget.kind === "ok" &&
+    budget.todayRemaining >= 0 &&
+    draft.amount > budget.todayRemaining
+  ) {
     return holdMessage(draft, budget.todayRemaining);
   }
-  await record(userId, draft);
-  return recorded(userId, draft);
+  const { entry } = await record(userId, draft);
+  return recorded(userId, draft, entry.id);
 }
 
-async function recorded(userId: string, d: Draft): Promise<TextMessage> {
+async function recorded(
+  userId: string,
+  d: Draft,
+  entryId?: string,
+): Promise<LineMessage> {
   const loaded = await loadBudget(userId);
-  return recordedMessage(d, summaryOf(loaded), tomorrowBudget(loaded.input));
+  return recordedMessage(
+    d,
+    summaryOf(loaded),
+    tomorrowBudget(loaded.input),
+    entryId,
+  );
 }
 
 // Buttons from holdMessage / tryMessage. Anything malformed is ignored.
-async function onPostback(userId: string, data: string): Promise<TextMessage | null> {
+async function onPostback(
+  userId: string,
+  data: string,
+): Promise<LineMessage | null> {
   const draft = readDraft(data);
   if (!draft) return null;
   if (draft.action === "try") {
@@ -115,25 +152,50 @@ async function onPostback(userId: string, data: string): Promise<TextMessage | n
     if (await entryExists(userId, key)) return alreadyMessage(draft);
     const { created } = await addPlan(
       userId,
-      { kind: "purchase", title: draft.title, amount: draft.amount, dueOn: draft.dueOn ?? null, category: draft.category as UserCategory, status: "reserved", basis: null },
+      {
+        kind: "purchase",
+        title: draft.title,
+        amount: draft.amount,
+        dueOn: draft.dueOn ?? null,
+        category: draft.category as UserCategory,
+        status: "reserved",
+        basis: null,
+      },
       key,
     );
-    return created ? keptMessage(draft, await loadSummary(userId)) : alreadyMessage(draft);
+    return created
+      ? keptMessage(draft, await loadSummary(userId))
+      : alreadyMessage(draft);
   }
   // Kept first, paid now: pay that plan (card 57), so the money is not taken as a plan and a spend
   const planId = await planIdByKey(userId, key);
   if (planId) {
-    const plan = await actOnPlan(userId, planId, "pay", draft.category as UserCategory, thaiDate(new Date()));
+    const plan = await actOnPlan(
+      userId,
+      planId,
+      "pay",
+      draft.category as UserCategory,
+      thaiDate(new Date()),
+    );
     if (plan.status !== "paid") return alreadyMessage(draft);
-    return recorded(userId, draft);
+    return recorded(userId, draft, plan.entryId ?? undefined);
   }
-  const { created } = await record(userId, draft);
+  const { created, entry } = await record(userId, draft);
   if (!created) return alreadyMessage(draft);
-  return recorded(userId, draft);
+  return recorded(userId, draft, entry.id);
 }
 
-function readDraft(data: string): (Draft & { action: "pay" | "try" | "keep" }) | null {
-  let d: { a?: unknown; t?: unknown; m?: unknown; c?: unknown; k?: unknown; d?: unknown };
+function readDraft(
+  data: string,
+): (Draft & { action: "pay" | "try" | "keep" }) | null {
+  let d: {
+    a?: unknown;
+    t?: unknown;
+    m?: unknown;
+    c?: unknown;
+    k?: unknown;
+    d?: unknown;
+  };
   try {
     d = JSON.parse(data);
   } catch {
@@ -141,7 +203,8 @@ function readDraft(data: string): (Draft & { action: "pay" | "try" | "keep" }) |
   }
   const ok =
     (d.a === "pay" || d.a === "try" || d.a === "keep") &&
-    (d.d === undefined || (typeof d.d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.d))) &&
+    (d.d === undefined ||
+      (typeof d.d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.d))) &&
     typeof d.t === "string" &&
     d.t.length > 0 &&
     d.t.length <= 40 &&
