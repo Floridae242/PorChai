@@ -4,7 +4,7 @@ import type { Category } from "@/lib/api-types";
 
 export const DEFAULT_TODAY = "2026-11-11";
 export const CYCLE_DAYS = 12; // default payday = today + 12 days (2026-11-23)
-export const CONSENT_VERSION = "2026-11-11";
+export { CONSENT_VERSION } from "./consent-version";
 
 export const DEFAULT_CYCLE = {
   balance: 240000,

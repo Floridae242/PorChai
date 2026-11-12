@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CONSENT_VERSION } from "@/lib/client/mock-fixtures";
+import { CONSENT_VERSION } from "@/lib/client/consent-version";
+import { ApiError } from "@/lib/client/errors";
 import { useApi } from "@/lib/client/use-api";
 
 // Temporary stub: replaced by the designed consent screen later.
@@ -11,12 +12,16 @@ export default function ConsentPage() {
   const router = useRouter();
   const [ticked, setTicked] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function start() {
     setBusy(true);
+    setError(null);
     try {
       await api.acceptConsent(CONSENT_VERSION);
       router.replace("/app");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
     } finally {
       setBusy(false);
     }
@@ -40,6 +45,11 @@ export default function ConsentPage() {
       >
         เริ่มต้นใช้งาน
       </button>
+      {error && (
+        <p role="alert" className="font-body text-sm text-secondary">
+          {error}
+        </p>
+      )}
     </main>
   );
 }
