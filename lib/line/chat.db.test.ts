@@ -142,6 +142,22 @@ describe("card 09: expenses from the chat", () => {
     expect(await screenEntries()).toEqual([]);
   });
 
+  it("adding the OA as a friend: a welcome with a button to the app (MINI App link when the app is a MINI App)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_LIFF_ID", "2012545254-6025ZG1r");
+    vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "2012545254");
+    eventIds.push(`F_${run}`);
+    await deliver({ type: "follow", webhookEventId: `F_${run}`, replyToken: "rt-f", source: { type: "user", userId: lineA } });
+    expect(lastText()).toContain("ยินดีต้อนรับสู่พอใช้");
+    expect(lastButtons()).toEqual([{ type: "uri", label: "เปิดแอป", uri: "https://miniapp.line.me/2012545254-6025ZG1r" }]);
+  });
+
+  it("the app link stays a LIFF link when the app is the LIFF app", async () => {
+    vi.stubEnv("NEXT_PUBLIC_LIFF_ID", "2012545176-udYyTUiA");
+    vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "2012545254");
+    await chat("Hey");
+    expect(lastButtons()).toEqual([expect.objectContaining({ uri: "https://liff.line.me/2012545176-udYyTUiA" })]);
+  });
+
   it("before setup: asks to set up the cycle first, records nothing", async () => {
     await chat("ข้าว 45");
     expect(lastText()).toContain("ยังไม่ได้ตั้งรอบเงิน");

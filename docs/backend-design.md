@@ -193,10 +193,13 @@ Backend จึงมีหน้าที่หลักสองอย่าง
 4. ทุกคำสั่งที่อ่านหรือเขียนข้อมูลใช้ `user_id` จากขั้นนี้เท่านั้น **ไม่เชื่อ user ID ที่ส่งมาใน body หรือ URL**
 5. token หมดอายุหรือไม่ผ่าน → ตอบ 401 หน้าจอขอ token ใหม่
 
+**LIFF หรือ MINI App (รวม main 12 พ.ย.):** หน้าจอของทีมเปิดเป็น MINI App (`2012545254`) ส่วน LIFF เดิมอยู่ใน LINE Login (`2012545176`) server รับ token ได้ทั้งสอง (`LINE_LOGIN_CHANNEL_ID` และ `LINE_MINIAPP_CHANNEL_ID`) โดยดู `aud` ใน token เพื่อเลือกว่าจะให้ LINE ตรวจกับ channel ไหน (LINE เป็นคนตรวจจริง ปลอมไม่ได้) · ทั้งสอง channel อยู่ Provider เดียวกัน คนเดียวจึงได้ผู้ใช้แถวเดียว (มีเทสต์) · ปุ่มเปิดแอปในแชตใช้ `appUrl()` → `miniapp.line.me/<id>` ถ้า `NEXT_PUBLIC_LIFF_ID` เป็นของ MINI App ไม่งั้น `liff.line.me/<id>`
+
 **จากแชต (webhook)**
 1. ตรวจ `x-line-signature` (HMAC-SHA256 ของ body ดิบด้วย channel secret) ไม่ตรง → ตอบ 401 และไม่ทำอะไร
 2. ลายเซ็นตรง → เชื่อ `source.userId` ใน event ได้
 3. บันทึก `webhookEventId` ลง `line_events` ก่อน ถ้าซ้ำ → ข้าม (LINE อาจส่ง event เดิมซ้ำ)
+รวม main 12 พ.ย.: ตรวจลายเซ็นจาก byte ดิบ ไม่มี secret → 503 (จาก branch MINI App) · ข้อความ "พอใช้รุ่นทดสอบ Developing" ของ branch MINI App ถูกแทนด้วยบอทการ์ด 09/15 · คนแอดเพื่อน (follow) → ข้อความต้อนรับ + ปุ่มเปิดแอป
 4. แชตแบบตัวต่อตัว (`source.type = "user"`) → หาหรือสร้างแถวใน `users` ด้วย `source.userId` **ฟังก์ชันเดียวกับ LIFF** (`userIdForLine`) · แชตกลุ่ม/ห้อง ไม่สร้างผู้ใช้
 
 **บัญชีเดียวกันทั้งสองทาง ✅ (เกณฑ์การ์ด 06 ข้อ 1):** channel แชต (Messaging API) กับ channel LIFF (LINE Login) อยู่ใต้ Provider "PorChai" เดียวกัน LINE จึงให้ user ID ตัวเดียวกัน → ทักแชตก่อนหรือเปิด LIFF ก่อนก็ได้ผู้ใช้แถวเดียว (เทสต์ `lib/line/handle-event.db.test.ts`) · ถ้าวันหนึ่งย้าย channel ไปคนละ Provider จะได้ user ID คนละตัว และระบบจะแยกเป็นสองคน

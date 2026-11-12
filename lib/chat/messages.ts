@@ -2,13 +2,13 @@ import type { Summary, SimulateResponse } from "@/lib/api-types";
 import type { Advice } from "@/lib/advice/advise";
 import type { AskReason } from "@/lib/chat/parse";
 import type { BudgetResult } from "@/lib/calc/budget";
-import { LIFF_ID } from "@/lib/liff/config";
+import { appUrl } from "@/lib/liff/config";
 import { text, type QuickReplyAction, type TextMessage } from "@/lib/line/reply";
 
 // What the bot says (card 09 / Figma L2, L6). Plain text for now; card 10 adds the edit buttons.
 
-const APP: QuickReplyAction = { type: "uri", label: "เปิดแอป", uri: `https://liff.line.me/${LIFF_ID}` };
-const FORM: QuickReplyAction = { ...APP, label: "กรอกเองในแอป" };
+// Getters: the app's URL depends on runtime env (LIFF or MINI App)
+const app = (label = "เปิดแอป"): QuickReplyAction => ({ type: "uri", label, uri: appUrl() });
 
 const CATEGORY = { food: "อาหาร", transport: "เดินทาง", supplies: "ของใช้", other: "อื่น ๆ", bills: "บิล" } as const;
 
@@ -42,9 +42,9 @@ const ASK: Record<AskReason, string> = {
   too_large: "ยอดนี้สูงมาก ถ้าถูกต้องกรอกเองในแอปได้เลย",
 };
 
-export const askMessage = (reason: AskReason): TextMessage => text(ASK[reason], [FORM]);
+export const askMessage = (reason: AskReason): TextMessage => text(ASK[reason], [app("กรอกเองในแอป")]);
 
-export const noCycleMessage = (): TextMessage => text("ยังไม่ได้ตั้งรอบเงิน ตั้งค่าในแอปก่อนเริ่มจดนะ", [APP]);
+export const noCycleMessage = (): TextMessage => text("ยังไม่ได้ตั้งรอบเงิน ตั้งค่าในแอปก่อนเริ่มจดนะ", [app()]);
 
 const line = (d: Pick<Draft, "title" | "amount" | "category">) =>
   `${d.title} ${baht(d.amount)} บาท (${CATEGORY[d.category]})`;
@@ -63,7 +63,7 @@ export function recordedMessage(d: Draft, s: Summary, tomorrow: BudgetResult): T
   if (s.budget.kind === "ok" && s.budget.todayRemaining < 0 && tomorrow.kind === "ok") {
     lines.push(`พรุ่งนี้ใช้ได้ ${baht(tomorrow.dailyBudget)} บาท/วัน (เดิม ${baht(s.budget.dailyBudget)})`);
   }
-  return text(lines.join("\n"), [APP]);
+  return text(lines.join("\n"), [app()]);
 }
 
 // L6: over what is left today — held until the user says it was really paid
@@ -73,13 +73,13 @@ export const holdMessage = (d: Draft, todayRemaining: number): TextMessage =>
     { type: "postback", label: "ลองก่อนซื้อ", data: draftData("try", d), displayText: "ลองก่อนซื้อ" },
   ]);
 
-export const alreadyMessage = (d: Draft): TextMessage => text(`รายการนี้จดไว้แล้ว ✓ ${line(d)}`, [APP]);
+export const alreadyMessage = (d: Draft): TextMessage => text(`รายการนี้จดไว้แล้ว ✓ ${line(d)}`, [app()]);
 
 // L6 "ลองก่อนซื้อ": the card 14 try, nothing saved
 export function tryMessage(d: Draft, r: SimulateResponse): TextMessage {
   if (r.verdict === "ask") {
     const why = r.needs.includes("payday") ? "ถึงวันเงินเข้าแล้ว ตั้งรอบใหม่ก่อน" : "ยังไม่รู้ค่ากินค่ารถต่อวัน ตั้งในแอปก่อนนะ";
-    return text(`ลองก่อนซื้อ: ${line(d)}\n${why}`, [APP]);
+    return text(`ลองก่อนซื้อ: ${line(d)}\n${why}`, [app()]);
   }
   const lines = [`ลองก่อนซื้อ: ${line(d)}`];
   if (r.before?.kind === "ok") lines.push(`ไม่ซื้อ → วันละ ${baht(r.before.dailyBudget)} บาท`);
@@ -90,7 +90,7 @@ export function tryMessage(d: Draft, r: SimulateResponse): TextMessage {
   }
   if (r.verdict === "shortfall" && r.after?.kind === "shortfall") lines.push(`เงินไม่พอ ขาด ${baht(r.after.shortfall)} บาท`);
   lines.push("ออมและเงินเผื่อไม่ถูกแตะ");
-  return text(lines.join("\n"), [payButton(d), APP]);
+  return text(lines.join("\n"), [payButton(d), app()]);
 }
 
 const keepButton = (d: Draft): QuickReplyAction => ({
@@ -102,13 +102,20 @@ const keepButton = (d: Draft): QuickReplyAction => ({
 
 // Card 15: the answer first, confirming is a button (today: pay or keep; another day: keep)
 export function adviceMessage(a: Advice, key: string): TextMessage {
-  if (a.verdict === "ask" || a.amount === null) return text(a.explanation, [APP]);
+  if (a.verdict === "ask" || a.amount === null) return text(a.explanation, [app()]);
   const d: Draft = { title: a.item ?? "รายการ", amount: a.amount, category: a.category, key, dueOn: a.dueOn };
-  return text(a.explanation, a.dueOn === null ? [payButton(d), keepButton(d), APP] : [keepButton(d), APP]);
+  return text(a.explanation, a.dueOn === null ? [payButton(d), keepButton(d), app()] : [keepButton(d), app()]);
 }
 
 // L8: kept in the plan — held back, not spent
 export function keptMessage(d: Draft, s: Summary): TextMessage {
   const daily = s.budget.kind === "ok" ? `\nตอนนี้ใช้ได้วันละ ${baht(s.budget.dailyBudget)} บาท` : "";
-  return text(`เก็บไว้ในแผนแล้ว ✓ ${line(d)}\nยังไม่หักเงินจริง กดจ่ายแล้วในแอปเมื่อจ่ายจริง${daily}`, [APP]);
+  return text(`เก็บไว้ในแผนแล้ว ✓ ${line(d)}\nยังไม่หักเงินจริง กดจ่ายแล้วในแอปเมื่อจ่ายจริง${daily}`, [app()]);
 }
+
+// Someone adds the OA as a friend
+export const welcomeMessage = (): TextMessage =>
+  text(
+    "สวัสดีครับ ยินดีต้อนรับสู่พอใช้ 🌱\nจดรายจ่าย พิมพ์ได้เลย เช่น «ข้าว 45»\nถามก่อนจ่าย เช่น «พรุ่งนี้กินชาบู 300 ไหวไหม»\nเริ่มจากตั้งรอบเงินในแอปก่อนนะ",
+    [app()],
+  );

@@ -96,4 +96,39 @@ describe("requireUser", () => {
     expect(err).toBeInstanceOf(Error);
     expect(err).not.toBeInstanceOf(HttpError);
   });
+
+  describe("LIFF app and MINI App tokens (the frontend opens the MINI App)", () => {
+    const token = (aud: string) =>
+      ["h", Buffer.from(JSON.stringify({ aud, sub: "x" })).toString("base64url"), "sig"].join(".");
+    const spy = () => {
+      const calls: string[] = [];
+      return { calls, deps: { verify: async (_t: string, channel: string): Promise<VerifyResult> => {
+        calls.push(channel);
+        return { ok: true, lineUserId: lineA };
+      } } };
+    };
+
+    it("a MINI App token is verified against the MINI App channel; a LIFF token against the Login channel", async () => {
+      vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "miniapp-channel");
+      const s = spy();
+      await requireUser(req(`Bearer ${token("miniapp-channel")}`), s.deps);
+      await requireUser(req(`Bearer ${token("test-channel")}`), s.deps);
+      expect(s.calls).toEqual(["miniapp-channel", "test-channel"]);
+    });
+
+    it("any other audience is sent to the Login channel, where LINE rejects it", async () => {
+      vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "miniapp-channel");
+      const s = spy();
+      await requireUser(req(`Bearer ${token("someone-elses-channel")}`), s.deps);
+      await requireUser(req("Bearer not-a-jwt"), s.deps);
+      expect(s.calls).toEqual(["test-channel", "test-channel"]);
+    });
+
+    it("both apps give the same user row for one LINE account (one provider)", async () => {
+      vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "miniapp-channel");
+      const viaLiff = await requireUser(req(`Bearer ${token("test-channel")}`), verifyAs({ ok: true, lineUserId: lineA }));
+      const viaMiniApp = await requireUser(req(`Bearer ${token("miniapp-channel")}`), verifyAs({ ok: true, lineUserId: lineA }));
+      expect(viaMiniApp.userId).toBe(viaLiff.userId);
+    });
+  });
 });

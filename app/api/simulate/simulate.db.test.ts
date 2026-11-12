@@ -7,6 +7,7 @@ import { GET as getSummary } from "../summary/route";
 import { POST as createCycle } from "../cycle/route";
 import { PUT as setEssentials } from "../cycle/essentials/route";
 import { POST as addPlan } from "../plans/route";
+import { POST as addEntry } from "../entries/route";
 
 // Card 14: try before paying — before / after, asks when something is missing, and never saves (57 criterion 1).
 
@@ -101,6 +102,20 @@ describe("card 14: POST /api/simulate", () => {
   it("401 without a token", async () => {
     const res = await simulate(new Request("http://localhost/api/simulate", { method: "POST", body: "{}" }));
     expect(res.status).toBe(401);
+  });
+
+  it("still explains a shortfall after spending consumes the existing protected amounts", async () => {
+    await figma(lineA);
+    const spent = await addEntry(req("/api/entries", lineA, {
+      method: "POST", key: crypto.randomUUID(),
+      body: { amount: 230000, category: "other" },
+    }));
+    expect(spent.status).toBe(201);
+    const res = await tryIt(lineA, { amount: 100 });
+    expect(res.status).toBe(200);
+    expect((await res.json()).verdict).toBe("shortfall");
+    // Explicitly requesting an unaffordable buffer still receives validation.
+    expect((await tryIt(lineA, { emergencyBuffer: 12000 })).status).toBe(422);
   });
 
   it("W12: shoes 480 → 120 a day becomes 80; bill, essentials, savings and buffer all checked", async () => {

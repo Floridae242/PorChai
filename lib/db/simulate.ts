@@ -26,7 +26,11 @@ export async function simulate(userId: string, trial: Trial, now = new Date()): 
   // Card 19 / 15: what if part of the buffer were used (or more set aside)
   const emergencyBuffer = trial.emergencyBuffer ?? input.emergencyBuffer;
   const balance = trial.balance ?? input.balance;
-  if (!setAsideFits(balance, input.savings, emergencyBuffer)) throw invalid(SET_ASIDE_OVER);
+  // Only a buffer the user is trying is checked: after spending, the stored savings + buffer may already
+  // exceed the money on hand, and the try must still answer "short" rather than refuse (main c46150f)
+  if (trial.emergencyBuffer !== null && !setAsideFits(balance, input.savings, emergencyBuffer)) {
+    throw invalid(SET_ASIDE_OVER);
+  }
   const result = tryOut(tried, {
     buy: countsThisCycle ? trial.amount : 0,
     release: postponed.reduce((sum, p) => sum + p.amount, 0),

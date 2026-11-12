@@ -1,0 +1,332 @@
+import { describe, expect, it } from "vitest";
+import { ApiError } from "./errors";
+import { createMockApi } from "./mock";
+
+const food = { amount: 4500, category: "food" as const, note: "ข้าว" };
+
+async function expectApiError(p: Promise<unknown>, status: number, code: string) {
+  const err = await p.then(
+    () => null,
+    (e: unknown) => e,
+  );
+  expect(err).toBeInstanceOf(ApiError);
+  expect(err).toMatchObject({ status, code });
+}
+
+describe("mock default scenario (Figma reference numbers)", () => {
+  it("starts day 1 of a 12 day cycle", async () => {
+    const s = await createMockApi().summary();
+    expect(s).toMatchObject({
+      today: "2026-11-11",
+      payday: "2026-11-23",
+      balance: 240000,
+      savings: 24000,
+      emergencyBuffer: 12000,
+      reserved: 60000,
+      essentialPerDay: 7000,
+      spentToday: 0,
+    });
+    expect(s.budget).toMatchObject({ kind: "ok", dailyBudget: 12000, maxPurchase: 60000, daysLeft: 12 });
+  });
+
+  it("addEntry lowers todayRemaining and balance; the same key is one spend", async () => {
+    const api = createMockApi();
+    const first = await api.addEntry(food, "k1");
+    expect(first.summary.spentToday).toBe(4500);
+    expect(first.summary.balance).toBe(235500);
+    expect(first.summary.budget).toMatchObject({ kind: "ok", todayRemaining: 7500 });
+    const again = await api.addEntry(food, "k1");
+    expect(again.entry.id).toBe(first.entry.id);
+    expect(again.summary.balance).toBe(235500);
+    expect((await api.entries()).entries).toHaveLength(1);
+  });
+
+  it("simulate: 480 baht leaves 80 a day; 700 baht is 100 over the limit", async () => {
+    const api = createMockApi();
+    const ok = await api.simulate({ amount: 48000 });
+    expect(ok.verdict).toBe("ok");
+    expect(ok.after).toMatchObject({ kind: "ok", dailyBudget: 8000 });
+    const over = await api.simulate({ amount: 70000 });
+    expect(over.verdict).toBe("essentials_short");
+    expect(over.overLimitBy).toBe(10000);
+  });
+
+  it("separateBills frees the held money", async () => {
+    const api = createMockApi({ separateBills: ["ค่าหอ"] });
+    const s = await api.summary();
+    expect(s.reserved).toBe(20000);
+    expect(s.budget).toMatchObject({ kind: "ok", dailyBudget: 15300 });
+  });
+
+  it("addPlan raises reserved when held this cycle, not when due after payday", async () => {
+    const api = createMockApi();
+    const held = await api.addPlan({ title: "รองเท้า", amount: 30000 }, "p1");
+    expect(held.summary.reserved).toBe(90000);
+    expect(held.plan.heldThisCycle).toBe(true);
+    const next = await api.addPlan({ title: "ของรอบหน้า", amount: 1000, dueOn: "2026-12-01" }, "p2");
+    expect(next.summary.reserved).toBe(90000);
+    const again = await api.addPlan({ title: "รองเท้า", amount: 30000 }, "p1");
+    expect(again.plan.id).toBe(held.plan.id);
+    expect(again.summary.reserved).toBe(90000);
+  });
+});
+
+describe("mock scenarios", () => {
+  it("fresh: no cycle until createCycle", async () => {
+    const api = createMockApi({ scenario: "fresh", consented: true });
+    expect((await api.me()).hasActiveCycle).toBe(false);
+    await expectApiError(api.summary(), 409, "no_cycle");
+    const { summary } = await api.createCycle({
+      incomeSource: "family",
+      incomeFrequency: "monthly",
+      payday: "2026-11-23",
+      balance: 240000,
+      savingsAmount: 24000,
+      emergencyBuffer: 12000,
+      bills: [{ title: "ค่าหอ", amount: 40000 }],
+      essentials: { food: 5000, transport: 2000 },
+    });
+    expect(summary.budget).toMatchObject({ kind: "ok", dailyBudget: 13600 });
+    expect((await api.me()).hasActiveCycle).toBe(true);
+  });
+
+  it("midCycle: day 5 with earlier spending", async () => {
+    const s = await createMockApi({ scenario: "midCycle" }).summary();
+    expect(s.today).toBe("2026-11-15");
+    expect(s.budget.kind).toBe("ok");
+    expect(s.spentToday).toBe(4500);
+  });
+
+  it("shortfall", async () => {
+    expect((await createMockApi({ scenario: "shortfall" }).summary()).budget.kind).toBe("shortfall");
+  });
+
+  it("tight: ok but under 50 baht a day", async () => {
+    const { budget } = await createMockApi({ scenario: "tight" }).summary();
+    expect(budget.kind).toBe("ok");
+    if (budget.kind === "ok") expect(budget.dailyBudget).toBeLessThan(5000);
+  });
+
+  it("paydayPassed", async () => {
+    expect((await createMockApi({ scenario: "paydayPassed" }).summary()).budget.kind).toBe("payday-passed");
+  });
+});
+
+describe("mock entries and plans", () => {
+  it("edit and cancel an entry", async () => {
+    const api = createMockApi();
+    const { entry } = await api.addEntry(food, "k");
+    const edited = await api.editEntry(entry.id, { amount: 1000 });
+    expect(edited.entry.amount).toBe(1000);
+    expect(edited.summary.spentToday).toBe(1000);
+    const cancelled = await api.cancelEntry(entry.id);
+    expect(cancelled.summary.spentToday).toBe(0);
+    expect(cancelled.summary.balance).toBe(240000);
+    expect((await api.entries()).entries).toHaveLength(0);
+    await expectApiError(api.editEntry(entry.id, { amount: 5 }), 409, "entry_cancelled");
+    await expectApiError(api.cancelEntry("nope"), 404, "not_found");
+  });
+
+  it("pay / unpay a bill moves money between reserved and balance, not into today", async () => {
+    const api = createMockApi();
+    const bill = (await api.plans()).plans.find((p) => p.title === "ค่าน้ำ")!;
+    const paid = await api.planAction(bill.id, "pay");
+    expect(paid.plan.status).toBe("paid");
+    expect(paid.summary).toMatchObject({ reserved: 55000, balance: 235000, spentToday: 0 });
+    expect((await api.planAction(bill.id, "pay")).summary.balance).toBe(235000);
+    await expectApiError(api.planAction(bill.id, "cancel"), 409, "plan_status");
+    const undone = await api.planAction(bill.id, "unpay");
+    expect(undone.summary).toMatchObject({ reserved: 60000, balance: 240000 });
+  });
+
+  it("postpone, keep and cancel release or hold money", async () => {
+    const api = createMockApi();
+    const bill = (await api.plans()).plans.find((p) => p.title === "ค่าไฟ")!;
+    expect((await api.planAction(bill.id, "postpone")).summary.reserved).toBe(45000);
+    expect((await api.planAction(bill.id, "keep")).summary.reserved).toBe(60000);
+    expect((await api.planAction(bill.id, "cancel")).summary.reserved).toBe(45000);
+  });
+
+  it("simulate can try postponing a held plan", async () => {
+    const api = createMockApi();
+    const bill = (await api.plans()).plans.find((p) => p.title === "ค่าหอ")!;
+    const r = await api.simulate({ postponePlanIds: [bill.id] });
+    expect(r.after).toMatchObject({ kind: "ok", dailyBudget: 15300 });
+    await expectApiError(api.simulate({ postponePlanIds: ["nope"] }), 422, "invalid_input");
+  });
+
+  it("adjustBalance and setEssentials change the summary", async () => {
+    const api = createMockApi();
+    expect((await api.adjustBalance({ balance: 300000 })).summary.balance).toBe(300000);
+    expect((await api.setEssentials({ food: 4000, transport: 1000 })).summary.essentialPerDay).toBe(5000);
+  });
+});
+
+describe("mock consent", () => {
+  it("blocks every financial call until accepted; me still works", async () => {
+    const api = createMockApi({ consented: false });
+    expect(await api.consent()).toEqual({ accepted: false, version: null });
+    expect((await api.me()).hasActiveCycle).toBe(true);
+    const calls: Promise<unknown>[] = [
+      api.summary(),
+      api.entries(),
+      api.addEntry(food, "k"),
+      api.simulate({ amount: 100 }),
+      api.plans(),
+      api.addPlan({ title: "x", amount: 1 }, "k"),
+      api.planAction("x", "pay"),
+      api.createCycle({ incomeSource: "family", incomeFrequency: "monthly", payday: "2026-11-23", balance: 1 }),
+      api.adjustBalance({ balance: 1 }),
+      api.setEssentials({ food: 1, transport: 1 }),
+      api.editEntry("x", {}),
+      api.cancelEntry("x"),
+    ];
+    for (const c of calls) await expectApiError(c, 403, "no_consent");
+    await api.acceptConsent("2026-11-11");
+    expect(await api.consent()).toEqual({ accepted: true, version: "2026-11-11" });
+    expect((await api.summary()).balance).toBe(240000);
+  });
+
+  it("fresh scenario defaults to not consented", async () => {
+    expect((await createMockApi({ scenario: "fresh" }).consent()).accepted).toBe(false);
+  });
+});
+
+describe("mock points and rewards", () => {
+  it("claims once per day", async () => {
+    const api = createMockApi();
+    expect(await api.points()).toEqual({ balance: 11, claimedToday: false });
+    expect(await api.claimPoints("a")).toEqual({ balance: 12, claimedToday: true });
+    expect(await api.claimPoints("b")).toEqual({ balance: 12, claimedToday: true });
+    expect((await api.points()).claimedToday).toBe(true);
+  });
+
+  it("redeems a reward: deducts points and stock, idempotent, then not enough points", async () => {
+    const api = createMockApi();
+    const [r] = await api.rewards();
+    expect(r).toMatchObject({ name: "สติกเกอร์พอใช้", cost: 10, stock: 5 });
+    const first = await api.redeemReward(r.id, "k1");
+    expect(first.balance).toBe(1);
+    expect(await api.redeemReward(r.id, "k1")).toEqual(first);
+    expect((await api.rewards())[0].stock).toBe(4);
+    await expectApiError(api.redeemReward(r.id, "k2"), 409, "not_enough_points");
+    await expectApiError(api.redeemReward("nope", "k3"), 404, "not_found");
+  });
+});
+
+describe("mock promos", () => {
+  it("lists the two fixtures with budget fit from today's daily budget", async () => {
+    const [moo, tea] = await createMockApi().promos();
+    expect(moo).toMatchObject({ shop: "หมูกระทะลุงชัย", price: 12900, sponsored: true, fitsBudget: false, leftAfter: -900 });
+    expect(tea).toMatchObject({ shop: "ชานมหน้ามอ", price: 3500, fitsBudget: true, leftAfter: 8500 });
+  });
+
+  it("fitsBudget is false when over, null when the budget is not ok", async () => {
+    const [moo] = await createMockApi({ scenario: "tight" }).promos();
+    expect(moo).toMatchObject({ fitsBudget: false, leftAfter: 4000 - 12900 });
+    const [none] = await createMockApi({ scenario: "shortfall" }).promos();
+    expect(none).toMatchObject({ fitsBudget: null, leftAfter: null });
+  });
+
+  it("claim code is stable; shopRedeem redeems once", async () => {
+    const api = createMockApi();
+    const { code } = await api.claimPromo("promo-chanom");
+    expect(code).toMatch(/^PC-[A-Z0-9]{4}$/);
+    expect((await api.claimPromo("promo-chanom")).code).toBe(code);
+    expect(await api.shopRedeem(code)).toEqual({ status: "redeemed", promoTitle: "ชานมไข่มุก แก้วใหญ่" });
+    expect((await api.shopRedeem(code)).status).toBe("already_redeemed");
+    expect((await api.shopRedeem("PC-ZZZZ")).status).toBe("invalid");
+    await expectApiError(api.promo("nope"), 404, "not_found");
+  });
+});
+
+describe("mock shopRedeem needs no student consent", () => {
+  it("answers invalid instead of throwing no_consent for a shop owner", async () => {
+    const api = createMockApi({ scenario: "fresh" });
+    expect(await api.shopRedeem("PC-ZZZZ")).toEqual({ status: "invalid" });
+  });
+});
+
+describe("mock T1b surface (income, aggregates, quota, reminders, delete)", () => {
+  it("addIncome raises balance once per key; rejects 0, negative and future dates", async () => {
+    const api = createMockApi();
+    const first = await api.addIncome({ amount: 50000, note: "ค่าขนม" }, "i1");
+    expect(first.summary.balance).toBe(290000);
+    const again = await api.addIncome({ amount: 50000, note: "ค่าขนม" }, "i1");
+    expect(again.summary.balance).toBe(290000);
+    expect((await api.summary()).balance).toBe(290000);
+    await expectApiError(api.addIncome({ amount: 0 }, "i2"), 422, "invalid_input");
+    await expectApiError(api.addIncome({ amount: -5 }, "i3"), 422, "invalid_input");
+    await expectApiError(api.addIncome({ amount: 100, receivedOn: "2026-11-12" }, "i4"), 422, "invalid_input");
+    expect((await api.summary()).balance).toBe(290000);
+  });
+
+  it("categoryTotals and dailySpend agree with the entries added", async () => {
+    const api = createMockApi();
+    await api.addEntry(food, "a");
+    await api.addEntry({ amount: 3000, category: "food" }, "b");
+    await api.addEntry({ amount: 9000, category: "transport" }, "c");
+    expect((await api.categoryTotals()).items).toEqual([
+      { category: "transport", amount: 9000, count: 1 },
+      { category: "food", amount: 7500, count: 2 },
+    ]);
+    const { days } = await api.dailySpend();
+    expect(days).toHaveLength(12);
+    expect(days[0]).toEqual({ date: "2026-11-11", spent: 16500 + 0, over: true });
+    expect(days[1]).toEqual({ date: "2026-11-12", spent: null, over: false });
+    expect(days.filter((d) => d.spent === null)).toHaveLength(11);
+  });
+
+  it("planQuota counts reserved/paid purchases; the 4th reserved purchase is quota_full", async () => {
+    const api = createMockApi();
+    expect(await api.planQuota()).toEqual({ used: 0, limit: 3 });
+    for (let i = 0; i < 3; i++) await api.addPlan({ title: `p${i}`, amount: 1000 }, `k${i}`);
+    expect(await api.planQuota()).toEqual({ used: 3, limit: 3 });
+    await expectApiError(api.addPlan({ title: "p4", amount: 1000 }, "k4"), 409, "quota_full");
+    // retrying an accepted key is still fine
+    await api.addPlan({ title: "p0", amount: 1000 }, "k0");
+  });
+
+  it("reminderSettings round-trip; invalid time rejected; habits stay empty", async () => {
+    const api = createMockApi();
+    expect(await api.reminderSettings()).toEqual({ enabled: false, time: "12:30", pausedUntil: null, habits: [] });
+    const saved = await api.saveReminderSettings({ enabled: true, time: "08:05", pausedUntil: "2026-12-01" });
+    expect(saved).toEqual({ enabled: true, time: "08:05", pausedUntil: "2026-12-01", habits: [] });
+    expect(await api.reminderSettings()).toEqual(saved);
+    await expectApiError(api.saveReminderSettings({ enabled: true, time: "25:00", pausedUntil: null }), 422, "invalid_input");
+    await expectApiError(api.saveReminderSettings({ enabled: true, time: "8:5", pausedUntil: null }), 422, "invalid_input");
+    expect(await api.reminderSettings()).toEqual(saved);
+  });
+
+  it("deleteMyData returns the instance to fresh and not consented", async () => {
+    const api = createMockApi();
+    await api.addEntry(food, "a");
+    await api.deleteMyData();
+    expect((await api.consent()).accepted).toBe(false);
+    await expectApiError(api.summary(), 403, "no_consent");
+    await api.acceptConsent("v");
+    expect(await api.me()).toEqual({ hasActiveCycle: false });
+    await expectApiError(api.summary(), 409, "no_cycle");
+  });
+
+  it("promos expose overBy: 0 when it fits, positive when over, null without a budget", async () => {
+    const [over, fits] = await createMockApi().promos();
+    expect(over.overBy).toBe(900);
+    expect(fits.overBy).toBe(0);
+    const [moo] = await createMockApi({ scenario: "tight" }).promos();
+    expect(moo.overBy).toBe(12900 - 4000);
+    const [none] = await createMockApi({ scenario: "shortfall" }).promos();
+    expect(none.overBy).toBeNull();
+  });
+
+  it("not consented: new financial methods throw 403 no_consent", async () => {
+    const api = createMockApi({ consented: false });
+    await expectApiError(api.addIncome({ amount: 100 }, "k"), 403, "no_consent");
+    await expectApiError(api.dailySpend(), 403, "no_consent");
+    await expectApiError(api.categoryTotals(), 403, "no_consent");
+    await expectApiError(api.planQuota(), 403, "no_consent");
+    await expectApiError(api.reminderSettings(), 403, "no_consent");
+    await expectApiError(api.saveReminderSettings({ enabled: false, time: "12:30", pausedUntil: null }), 403, "no_consent");
+    await expectApiError(api.deleteMyData(), 403, "no_consent");
+  });
+});

@@ -7,6 +7,7 @@ import {
   adviceMessage,
   alreadyMessage,
   askMessage,
+  welcomeMessage,
   keptMessage,
   holdMessage,
   noCycleMessage,
@@ -47,6 +48,8 @@ export async function handleEvent(event: unknown): Promise<void> {
       answer = await onText(userId, e.message.text, String(e.webhookEventId));
     } else if (e.type === "postback" && typeof e.postback?.data === "string") {
       answer = await onPostback(userId, e.postback.data);
+    } else if (e.type === "follow") {
+      answer = welcomeMessage();
     }
   } catch (err) {
     if (!(err instanceof HttpError && err.code === "no_cycle")) throw err;
