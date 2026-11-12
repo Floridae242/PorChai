@@ -9,8 +9,8 @@ export type ParsedExpense =
   | { kind: "entry"; title: string; amount: number; category: UserCategory }
   | { kind: "ask"; reason: AskReason };
 
-const MAX_AMOUNT = 10_000_000; // 100,000 baht: above this a typo is likelier than a spend
-const MAX_TITLE = 40; // fits a LINE postback with room to spare
+export const MAX_AMOUNT = 10_000_000; // 100,000 baht: above this a typo is likelier than a spend
+export const MAX_TITLE = 40; // fits a LINE postback with room to spare
 
 const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
 // «ร้อยกว่า», «ประมาณ 50», «~50», «40-50»: the user does not know the exact amount yet
@@ -41,13 +41,25 @@ export function categoryOf(title: string): UserCategory {
   return KEYWORDS.find(([, words]) => words.some((w) => t.includes(w)))?.[0] ?? "other";
 }
 
-export function parseExpense(raw: string): ParsedExpense {
-  const text = raw
+function clean(raw: string): string {
+  return raw
     .replace(/[๐-๙]/g, (d) => String(THAI_DIGITS.indexOf(d)))
     .replace(/(\d),(?=\d{3}(?!\d))/g, "$1") // 1,200 → 1200
     .replace(/^[\s/\\]+/, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// The answer to «ข้าว กี่บาท?»: only a bare amount («45», «45 บาท»), else null
+export function amountOnly(raw: string): number | null {
+  const text = clean(raw).replace(CURRENCY, "").trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(text)) return null;
+  const amount = Math.round(Number(text) * 100);
+  return amount > 0 && amount <= MAX_AMOUNT ? amount : null;
+}
+
+export function parseExpense(raw: string): ParsedExpense {
+  const text = clean(raw);
 
   if (APPROXIMATE.test(text)) return { kind: "ask", reason: "approximate" };
   const numbers = text.match(NUMBER) ?? [];

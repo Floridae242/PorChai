@@ -51,3 +51,6 @@ export function numbersIn(text: string): number[] {
 export function onlyKnownNumbers(text: string, known: number[]): boolean {
   return numbersIn(text).every((n) => known.includes(n));
 }
+
+// Never suggested by the AI, in any answer: cutting food or transport, or touching savings (card 15)
+export const FORBIDDEN = /ลดค่ากิน|ลดค่าอาหาร|ลดค่ารถ|ลดค่าเดินทาง|กินน้อยลง|อดข้าว|ถอนเงินออม|ใช้เงินออม/;

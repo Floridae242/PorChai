@@ -5,7 +5,7 @@ import { categoryOf } from "@/lib/chat/parse";
 import { generate } from "@/lib/ai/gemini";
 import { listPlans } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
-import { numbersIn, onlyKnownNumbers, readQuestion, type Day, type Question } from "@/lib/advice/question";
+import { FORBIDDEN, numbersIn, onlyKnownNumbers, readQuestion, type Day, type Question } from "@/lib/advice/question";
 
 // Card 15: «พรุ่งนี้กินชาบู 300 บาทไหวไหม». The AI reads the question and words the answer; every number
 // comes from the one calculator (card 14 tries), and an answer with any other number is replaced by
@@ -214,8 +214,6 @@ function knownNumbers(f: Facts): number[] {
   }
   return n.filter((x): x is number => x !== null);
 }
-
-const FORBIDDEN = /ลดค่ากิน|ลดค่าอาหาร|ลดค่ารถ|ลดค่าเดินทาง|กินน้อยลง|อดข้าว|ถอนเงินออม|ใช้เงินออม/;
 
 // The AI words it; the answer is used only if it keeps to the given numbers, says the shortfall when
 // there is one, and never suggests cutting food or transport. Otherwise the template.

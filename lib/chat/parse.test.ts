@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseExpense } from "@/lib/chat/parse";
+import { amountOnly, parseExpense } from "@/lib/chat/parse";
 
 // Card 09: a short message such as «ข้าว 50» becomes a name and an amount; anything unclear is asked, never guessed.
 
@@ -66,5 +66,19 @@ describe("parseExpense — unclear messages are asked, never recorded", () => {
     const r = parseExpense(`${"ก".repeat(80)} 50`);
     expect(r).toMatchObject({ kind: "entry", amount: 5000 });
     expect((r as { title: string }).title.length).toBe(40);
+  });
+});
+
+describe("amountOnly: the answer to «กี่บาท?»", () => {
+  it("a bare amount, with or without บาท, Thai digits or a comma", () => {
+    expect(amountOnly("45")).toBe(4500);
+    expect(amountOnly(" 45 บาท ")).toBe(4500);
+    expect(amountOnly("๔๕")).toBe(4500);
+    expect(amountOnly("1,200฿")).toBe(120000);
+    expect(amountOnly("12.50")).toBe(1250);
+  });
+
+  it("anything else is not an answer", () => {
+    for (const text of ["ข้าว 45", "45 50", "ประมาณ 45", "0", "99999999", "Hey", ""]) expect(amountOnly(text)).toBeNull();
   });
 });

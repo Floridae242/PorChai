@@ -2,6 +2,7 @@ import type { Summary, SimulateResponse } from "@/lib/api-types";
 import type { Advice } from "@/lib/advice/advise";
 import type { AskReason } from "@/lib/chat/parse";
 import type { BudgetResult } from "@/lib/calc/budget";
+import type { ProposedItem } from "@/lib/db/chat-memory";
 import { appUrl } from "@/lib/liff/config";
 import { text, type QuickReplyAction, type TextMessage } from "@/lib/line/reply";
 
@@ -56,14 +57,34 @@ function budgetLine(b: BudgetResult, spentToday: number): string {
   return `วันนี้ใช้ได้อีก ${baht(b.todayRemaining)} บาท · ใช้ไปแล้ว ${baht(spentToday)} / ${baht(b.dailyBudget)}`;
 }
 
-// L2 / L6 after "ยืนยันจ่ายจริง". Once today is over budget, also how much tomorrow gets:
-// the overspend comes off the days that are left.
+// L2 / L6 after "ยืนยันจ่ายจริง"
 export function recordedMessage(d: Draft, s: Summary, tomorrow: BudgetResult): TextMessage {
-  const lines = [`จดแล้ว ✓ ${line(d)}`, budgetLine(s.budget, s.spentToday)];
-  if (s.budget.kind === "ok" && s.budget.todayRemaining < 0 && tomorrow.kind === "ok") {
-    lines.push(`พรุ่งนี้ใช้ได้ ${baht(tomorrow.dailyBudget)} บาท/วัน (เดิม ${baht(s.budget.dailyBudget)})`);
-  }
-  return text(lines.join("\n"), [app()]);
+  return text([`จดแล้ว ✓ ${line(d)}`, ...afterRecording(s, tomorrow)].join("\n"), [app()]);
+}
+
+// Several at once from [จดทั้งหมด]
+export function recordedManyMessage(items: ProposedItem[], s: Summary, tomorrow: BudgetResult): TextMessage {
+  return text([`จดแล้ว ✓ ${items.length} รายการ`, ...items.map((i) => `• ${line(i)}`), ...afterRecording(s, tomorrow)].join("\n"), [app()]);
+}
+
+function afterRecording(s: Summary, tomorrow: BudgetResult): string[] {
+  const b = s.budget;
+  const lines = [budgetLine(b, s.spentToday)];
+  // Once today is over budget, also how much tomorrow gets: the overspend comes off the days that are left
+  const over = b.kind === "ok" && b.todayRemaining < 0 && tomorrow.kind === "ok";
+  if (over) lines.push(`พรุ่งนี้ใช้ได้ ${baht(tomorrow.dailyBudget)} บาท/วัน (เดิม ${baht(b.dailyBudget)})`);
+  const tail = cheer(b, over);
+  if (tail) lines.push(tail);
+  return lines;
+}
+
+// A friendly last line (no AI, no numbers): how today is going
+function cheer(b: BudgetResult, overWithTomorrow: boolean): string | null {
+  if (b.kind !== "ok") return null;
+  if (b.todayRemaining < 0) return overWithTomorrow ? "ไม่เป็นไรนะ งบพรุ่งนี้ปรับให้แล้ว" : null;
+  if (b.todayRemaining === 0) return "พอดีงบวันนี้เป๊ะ";
+  if (b.todayRemaining * 2 >= b.dailyBudget) return "ยังเหลืออีกเยอะ ใช้ได้สบาย ๆ";
+  return "เหลือไม่มากแล้ว ค่อย ๆ ใช้นะ";
 }
 
 // L6: over what is left today — held until the user says it was really paid
@@ -116,6 +137,61 @@ export function keptMessage(d: Draft, s: Summary): TextMessage {
 // Someone adds the OA as a friend
 export const welcomeMessage = (): TextMessage =>
   text(
-    "สวัสดีครับ ยินดีต้อนรับสู่พอใช้ 🌱\nจดรายจ่าย พิมพ์ได้เลย เช่น «ข้าว 45»\nถามก่อนจ่าย เช่น «พรุ่งนี้กินชาบู 300 ไหวไหม»\nเริ่มจากตั้งรอบเงินในแอปก่อนนะ",
+    "สวัสดีครับ ยินดีต้อนรับสู่พอใช้\nจดรายจ่าย พิมพ์ได้เลย เช่น «ข้าว 45»\nถามก่อนจ่าย เช่น «พรุ่งนี้กินชาบู 300 ไหวไหม»\nเริ่มจากตั้งรอบเงินในแอปก่อนนะ",
     [app()],
   );
+
+// Chat with the AI (card 15). The AI's reply, guarded in lib/chat/converse.ts
+export const chatMessage = (reply: string): TextMessage => text(reply, [app()]);
+
+// AI off, failed or broke a guard: hello, what is left today, the 3 things the bot does
+export function chatFallbackMessage(s: Summary | null): TextMessage {
+  const today = s ? budgetLine(s.budget, s.spentToday) : "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าในแอปก่อนนะ";
+  return text(
+    [
+      "สวัสดี",
+      today,
+      "พอใช้ช่วยได้ 3 อย่าง",
+      "• จดรายจ่าย พิมพ์ชื่อกับยอด เช่น «ข้าว 45»",
+      "• ถามก่อนจ่าย เช่น «ชาบู 300 ไหวไหม»",
+      "• ดูสรุปและตั้งค่าในแอป",
+    ].join("\n"),
+    [app()],
+  );
+}
+
+// Not about money or the app: never the AI's words, always this
+export const offTopicMessage = (): TextMessage =>
+  text("เรื่องนี้พอใช้ช่วยไม่ได้นะ ถามเรื่องเงินได้เลย เช่น «วันนี้เหลือเท่าไร» หรือ «ชาบู 300 ไหวไหม»", [app()]);
+
+// «ข้าว» / «ข้าวร้อยกว่า»: asked how much; the answer «45» is recorded (lib/line/handle-event.ts)
+export const askAmountMessage = (title: string, approximate: boolean): TextMessage =>
+  text(`${approximate ? "ขอยอดที่จ่ายจริงนะ " : ""}${title} จ่ายไปกี่บาท? พิมพ์แค่ตัวเลขก็ได้ เช่น «45»`, [app("กรอกเองในแอป")]);
+
+// «45»: asked what for; the answer «ข้าว» is recorded
+export const askTitleMessage = (amount: number): TextMessage =>
+  text(`${baht(amount)} บาท ค่าอะไร? พิมพ์ชื่อได้เลย เช่น «ข้าว»`, [app("กรอกเองในแอป")]);
+
+// Postback data of the proposal buttons: only the key, the items stay in the chat memory
+export const choiceData = (action: "all" | "no", key: string) => JSON.stringify({ a: action, k: key });
+
+// Several spends split by the AI: nothing is recorded until the user taps
+export function proposalMessage(items: ProposedItem[], key: string, todayRemaining: number | null): TextMessage {
+  const total = items.reduce((sum, i) => sum + i.amount, 0);
+  const lines = [`เจอ ${items.length} รายการ จดให้เลยไหม?`, ...items.map((i) => `• ${line(i)}`), `รวม ${baht(total)} บาท`];
+  if (todayRemaining !== null && todayRemaining >= 0 && total > todayRemaining) {
+    lines.push(`เกินงบที่เหลือวันนี้ (${baht(todayRemaining)} บาท) อยู่ ${baht(total - todayRemaining)} บาท`);
+  }
+  const all = items.length > 1 ? "จดทั้งหมด" : "จดเลย";
+  return text(lines.join("\n"), [
+    { type: "postback", label: all, data: choiceData("all", key), displayText: all },
+    { type: "postback", label: "ไม่ใช่", data: choiceData("no", key), displayText: "ไม่ใช่" },
+    app("กรอกเองในแอป"),
+  ]);
+}
+
+export const declinedMessage = (): TextMessage => text("โอเค ไม่จดนะ ส่งทีละรายการได้เลย เช่น «ข้าว 45»", [app("กรอกเองในแอป")]);
+
+export const alreadyManyMessage = (): TextMessage => text("รายการชุดนี้จดไว้แล้ว ✓", [app()]);
+
+export const expiredMessage = (): TextMessage => text("รายการนี้หมดเวลาแล้ว พิมพ์ใหม่อีกครั้งนะ", [app()]);

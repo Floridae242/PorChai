@@ -163,6 +163,7 @@ describe("layer 0-1 schema", () => {
         expires_at: "2030-01-01T00:00:00Z",
       },
       balance_checks: checkRow(userId, cycleId),
+      chat_messages: { user_id: userId, role: "user", body: "ข้าว 45" },
     };
     for (const [table, row] of Object.entries(rows)) {
       expect((await db.from(table).insert(row)).error).toBeNull();
@@ -187,6 +188,7 @@ describe("layer 0-1 schema", () => {
       "line_events",
       "balance_checks",
       "history",
+      "chat_messages",
     ];
     for (const table of tables) {
       // Sanity: the service role sees data, so an empty anon result means blocked

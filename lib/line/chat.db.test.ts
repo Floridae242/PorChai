@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addDays, thaiDate } from "@/lib/calc/time";
 import { getDb } from "@/lib/db/client";
+import { generate } from "@/lib/ai/gemini";
 import type { VerifyResult } from "@/lib/line/id-token";
 import type { TextMessage } from "@/lib/line/reply";
 import { POST as webhook } from "@/app/api/line/webhook/route";
@@ -111,6 +112,7 @@ describe("card 09: expenses from the chat", () => {
     expect((await chat("ข้าว 45")).status).toBe(200);
     expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท (อาหาร)");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 75 บาท · ใช้ไปแล้ว 45 / 120");
+    expect(lastText()).toContain("ยังเหลืออีกเยอะ ใช้ได้สบาย ๆ"); // a friendly last line, no AI
 
     expect(await screenEntries()).toEqual([
       expect.objectContaining({ amount: 4500, category: "food", note: "ข้าว", source: "chat", spentOn: today() }),
@@ -125,19 +127,19 @@ describe("card 09: expenses from the chat", () => {
     expect(await screenEntries()).toHaveLength(1);
   });
 
-  it("09: unclear messages are asked back, with a button to fill the form; nothing is recorded", async () => {
+  it("09: unclear messages are asked back (AI off), with a button to the app; nothing is recorded", async () => {
     await figma();
-    const cases: [string, string][] = [
-      ["ข้าว", "พิมพ์ชื่อกับยอด"],
-      ["Hey", "พิมพ์ชื่อกับยอด"],
-      ["ข้าว 50 น้ำ 20", "ทีละรายการ"],
-      ["ข้าวร้อยกว่า", "ยอดที่จ่ายจริง"],
-      ["50", "ค่าอะไร"],
+    const cases: [string, string, string][] = [
+      ["ข้าว", "พิมพ์ชื่อกับยอด", "เปิดแอป"],
+      ["Hey", "พิมพ์ชื่อกับยอด", "เปิดแอป"],
+      ["ข้าว 50 น้ำ 20", "ทีละรายการ", "กรอกเองในแอป"],
+      ["ข้าวร้อยกว่า", "ยอดที่จ่ายจริง", "กรอกเองในแอป"],
+      ["50", "ค่าอะไร", "กรอกเองในแอป"],
     ];
-    for (const [text, says] of cases) {
+    for (const [text, says, label] of cases) {
       await chat(text);
       expect(lastText()).toContain(says);
-      expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "กรอกเองในแอป" }));
+      expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label }));
     }
     expect(await screenEntries()).toEqual([]);
   });
@@ -181,6 +183,7 @@ describe("card 09: expenses from the chat", () => {
     expect(lastText()).toContain("จดแล้ว ✓ ชาบู 350 บาท (อาหาร)");
     expect(lastText()).toContain("เกินงบวันนี้ 230 บาท");
     expect(lastText()).toContain("พรุ่งนี้ใช้ได้ 99 บาท/วัน (เดิม 120)");
+    expect(lastText()).toContain("ไม่เป็นไรนะ งบพรุ่งนี้ปรับให้แล้ว");
 
     await tap(data);
     expect(lastText()).toContain("จดไว้แล้ว");
@@ -203,6 +206,14 @@ describe("card 09: expenses from the chat", () => {
     await figma();
     await chat("ข้าว 45");
     expect(lastText()).not.toContain("พรุ่งนี้");
+  });
+
+  it("the friendly last line follows how much of today is left", async () => {
+    await figma();
+    await chat("ข้าว 80"); // 40 of 120 left
+    expect(lastText()).toContain("เหลือไม่มากแล้ว ค่อย ๆ ใช้นะ");
+    await chat("ข้าว 40"); // exactly 0 left
+    expect(lastText()).toContain("พอดีงบวันนี้เป๊ะ");
   });
 
   it("L6: ลองก่อนซื้อ shows the try and saves nothing", async () => {
@@ -295,9 +306,198 @@ describe("card 15: questions in the chat", () => {
     expect(await screenEntries()).toHaveLength(1);
   });
 
-  it("a question with no price asks for it", async () => {
+  it("a question with no price goes to the chat: the AI asks for the price (AI off: the template's example)", async () => {
     await figma();
+    vi.mocked(generate).mockResolvedValueOnce(JSON.stringify({ intent: "chat", topic: "money", item: null, reply: "ชาบูราคาเท่าไรเอ่ย?" }));
     await chat("ชาบูไหวไหม");
-    expect(lastText()).toContain("ราคาเท่าไร");
+    expect(lastText()).toBe("ชาบูราคาเท่าไรเอ่ย?");
+    await chat("ชาบูไหวไหม");
+    expect(lastText()).toContain("«ชาบู 300 ไหวไหม»");
+  });
+});
+
+describe("card 15: chatting with the AI (rules first, AI only when they cannot read it)", () => {
+  beforeEach(() => {
+    replies.length = 0;
+    vi.stubEnv("LINE_CHANNEL_SECRET", secret);
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-channel");
+    vi.mocked(generate).mockReset().mockResolvedValue(null);
+  });
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    await db.from("users").delete().eq("line_user_id", lineA);
+  });
+
+  const aiSays = (o: object) => vi.mocked(generate).mockResolvedValueOnce(JSON.stringify(o));
+  const button = (label: string) => lastButtons().find((b) => b.label === label) as { data: string };
+  async function memory() {
+    const { data: u } = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const { data } = await db.from("chat_messages").select("role, body").eq("user_id", u!.id).order("id");
+    return data!;
+  }
+
+  it("«Hey»: the AI's reply, and both sides are remembered", async () => {
+    await figma();
+    aiSays({ intent: "chat", topic: "money", item: null, reply: "สวัสดี! วันนี้ใช้ได้อีก 120 บาทนะ" });
+    await chat("Hey");
+    expect(lastText()).toBe("สวัสดี! วันนี้ใช้ได้อีก 120 บาทนะ");
+    expect(await memory()).toEqual([
+      { role: "user", body: "Hey" },
+      { role: "bot", body: "สวัสดี! วันนี้ใช้ได้อีก 120 บาทนะ" },
+    ]);
+  });
+
+  it("the AI is sent the chat and the numbers only — never the LINE id", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    await chat("เหลือเท่าไร");
+    const input = vi.mocked(generate).mock.calls.at(-1)![0].input;
+    expect(input).not.toContain(lineA);
+    expect(JSON.parse(input)).toMatchObject({
+      facts: { setUp: true, todayRemaining: 75, dailyBudget: 120 },
+      history: [{ role: "user", text: "ข้าว 45" }, { role: "bot" }],
+      message: "เหลือเท่าไร",
+    });
+  });
+
+  it("AI off or a reply with a made-up number → the template: hello, what is left today, 3 things it can do", async () => {
+    await figma();
+    await chat("Hey");
+    expect(lastText()).toContain("สวัสดี");
+    expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
+    expect(lastText()).toContain("«ข้าว 45»");
+    expect(lastText()).toContain("ไหวไหม");
+    aiSays({ intent: "chat", topic: "money", item: null, reply: "เหลือ 999 บาทจ้า" });
+    await chat("เหลือเท่าไร");
+    expect(lastText()).not.toContain("999");
+    expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
+  });
+
+  it("«เหลือกี่บาท?» is chat, not a try-before-you-buy question", async () => {
+    await figma();
+    await chat("เหลือกี่บาท?");
+    expect(lastText()).not.toContain("อยากซื้ออะไร");
+    expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
+  });
+
+  it("off topic: never the AI's words — a fixed reply bringing it back to money", async () => {
+    await figma();
+    aiSays({ intent: "chat", topic: "other", item: null, reply: "การบ้านข้อนี้ตอบ ข" });
+    await chat("ช่วยทำการบ้านหน่อย");
+    expect(lastText()).not.toContain("การบ้านข้อนี้");
+    expect(lastText()).toContain("ถามเรื่องเงิน");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("before setup the template says to set up first", async () => {
+    await chat("Hey");
+    expect(lastText()).toContain("ยังไม่ได้ตั้งรอบเงิน");
+  });
+
+  it("«ข้าว» → asked how much → «45» is recorded", async () => {
+    await figma();
+    aiSays({ intent: "spend", topic: "money", item: "ข้าว", reply: "" });
+    await chat("ข้าว");
+    expect(lastText()).toContain("ข้าว จ่ายไปกี่บาท");
+    await chat("45");
+    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท (อาหาร)");
+    expect(await screenEntries()).toEqual([expect.objectContaining({ amount: 4500, note: "ข้าว", source: "chat" })]);
+  });
+
+  it("«ข้าวร้อยกว่า» → asked for the real amount → «120» is recorded", async () => {
+    await figma();
+    aiSays({ intent: "spend", topic: "money", item: "ข้าว", reply: "" });
+    await chat("ข้าวร้อยกว่า");
+    expect(lastText()).toContain("ยอดที่จ่ายจริง");
+    await chat("120 บาท");
+    expect(await screenEntries()).toEqual([expect.objectContaining({ amount: 12000, note: "ข้าว" })]);
+  });
+
+  it("the remembered item counts only for the very next message", async () => {
+    await figma();
+    aiSays({ intent: "spend", topic: "money", item: "ข้าว", reply: "" });
+    await chat("ข้าว");
+    await chat("Hey");
+    await chat("45");
+    expect(lastText()).toContain("ค่าอะไร");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("over today's budget the follow-up is held like «ชาบู 350» (L6)", async () => {
+    await figma();
+    aiSays({ intent: "spend", topic: "money", item: "ชาบู", reply: "" });
+    await chat("ชาบู");
+    await chat("350");
+    expect(lastText()).toContain("350 บาท สูงกว่างบที่เหลือวันนี้ (120 บาท)");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("«45» → asked what for → «ข้าว» is recorded (no AI needed)", async () => {
+    await figma();
+    await chat("45");
+    expect(lastText()).toContain("45 บาท ค่าอะไร");
+    await chat("ข้าว");
+    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท (อาหาร)");
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+  });
+
+  it("«ข้าว 45» is still the rules' job: recorded without asking the AI", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+    expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท (อาหาร)");
+  });
+
+  it("several spends: the AI proposes, [จดทั้งหมด] records each once", async () => {
+    await figma();
+    aiSays({ items: [{ title: "ข้าว", amount_baht: 45 }, { title: "น้ำ", amount_baht: 20 }] });
+    await chat("ข้าว 45 น้ำ 20");
+    expect(lastText()).toContain("• ข้าว 45 บาท (อาหาร)");
+    expect(lastText()).toContain("• น้ำ 20 บาท (อาหาร)");
+    expect(lastText()).toContain("รวม 65 บาท");
+    expect(lastButtons().map((b) => b.label)).toEqual(["จดทั้งหมด", "ไม่ใช่", "กรอกเองในแอป"]);
+    expect(await screenEntries()).toEqual([]);
+
+    const all = button("จดทั้งหมด").data;
+    await tap(all);
+    expect(lastText()).toContain("จดแล้ว ✓ 2 รายการ");
+    expect(lastText()).toContain("วันนี้ใช้ได้อีก 55 บาท");
+    await tap(all);
+    expect(lastText()).toContain("จดไว้แล้ว");
+    expect((await screenEntries()).map((e: { amount: number }) => e.amount).sort()).toEqual([2000, 4500]);
+  });
+
+  it("[ไม่ใช่] records nothing", async () => {
+    await figma();
+    aiSays({ items: [{ title: "ข้าว", amount_baht: 45 }, { title: "น้ำ", amount_baht: 20 }] });
+    await chat("ข้าว 45 น้ำ 20");
+    await tap(button("ไม่ใช่").data);
+    expect(lastText()).toContain("ไม่จด");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("over today's budget: says so before the tap, and the tap records anyway", async () => {
+    await figma();
+    aiSays({ items: [{ title: "ชาบู", amount_baht: 300 }, { title: "น้ำ", amount_baht: 20 }] });
+    await chat("ชาบู 300 น้ำ 20");
+    expect(lastText()).toContain("เกินงบที่เหลือวันนี้ (120 บาท) อยู่ 200 บาท");
+    await tap(button("จดทั้งหมด").data);
+    expect(await screenEntries()).toHaveLength(2);
+  });
+
+  it("an AI split with an amount nobody typed is not offered — asked one at a time", async () => {
+    await figma();
+    aiSays({ items: [{ title: "ข้าว", amount_baht: 65 }] });
+    await chat("ข้าว 45 น้ำ 20");
+    expect(lastText()).toContain("ทีละรายการ");
+    expect(lastButtons().map((b) => b.label)).not.toContain("จดทั้งหมด");
+  });
+
+  it("a [จดทั้งหมด] for a proposal no longer remembered records nothing", async () => {
+    await figma();
+    await tap(JSON.stringify({ a: "all", k: "never-proposed" }));
+    expect(lastText()).toContain("หมดเวลา");
+    expect(await screenEntries()).toEqual([]);
   });
 });
