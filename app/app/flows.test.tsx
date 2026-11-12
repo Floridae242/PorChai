@@ -135,10 +135,11 @@ describe("Phase 2 Core Flows (G05–G12)", () => {
         </ToastProvider>
       </ApiContext.Provider>,
     );
-    const redeemBtn = await screen.findByRole("button", { name: "แลก 10 แต้ม" });
+    const redeemBtn = await screen.findByRole("button", { name: "10 แต้ม" });
     await user.click(redeemBtn);
-    expect(await screen.findByText("แลกของรางวัลสำเร็จ ✓")).toBeTruthy();
-    expect(screen.getByText(/แต้มคงเหลือ 1 แต้ม/)).toBeTruthy();
+    expect(await screen.findByText("แลกสำเร็จ")).toBeTruthy();
+    expect(screen.getByText("เหลือ")).toBeTruthy();
+    expect(screen.getByText("1 แต้ม")).toBeTruthy();
   });
 
   it("G10 & G11 & G12: renders Plan tabs (รายการ · รอจ่าย · ออม/เผื่อ), Notifications (R1), and Demo Menu (Z)", async () => {
@@ -167,8 +168,10 @@ describe("Phase 2 Core Flows (G05–G12)", () => {
         </ToastProvider>
       </ApiContext.Provider>,
     );
-    expect(screen.getByText("ข้าวเที่ยง ~50 บาท")).toBeTruthy();
-    expect(screen.getByText("ค่ารถ ~20 บาท")).toBeTruthy();
+    // Reminder rows come from the server only: the mock has no habits, so none are invented.
+    expect(await screen.findByRole("switch", { name: /เตือนรายการประจำ/ })).toBeTruthy();
+    expect(screen.queryByText(/ข้าวเที่ยง/)).toBeNull();
+    expect(screen.queryByText(/ค่ารถ/)).toBeNull();
     unmountR1();
   });
 });

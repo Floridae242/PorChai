@@ -2,6 +2,7 @@ import type { NewCycleRequest } from "@/lib/api-types";
 import { computeBudget, type BudgetResult } from "@/lib/calc/budget";
 import { reservedTotal, savingsFromPercent } from "@/lib/calc/inputs";
 import type { Satang } from "@/lib/calc/money";
+import { essentialsFromDaily } from "./essentials";
 
 export type BillStatus = "unpaid" | "paid" | "separate";
 
@@ -177,9 +178,7 @@ export function draftToNewCycleRequest(draft: SetupDraft): NewCycleRequest {
     req.savingsAmount = draft.savingsAmount;
   }
   if (draft.essentialPerDay !== null && draft.essentialPerDay > 0) {
-    // Backend gap #2 (DevLead/backend-gaps.md): the wire format only knows {food, transport}, but the
-    // user enters ONE daily total. Send it all as food and 0 transport. This is the only place that does it.
-    req.essentials = { food: draft.essentialPerDay, transport: 0 };
+    req.essentials = essentialsFromDaily(draft.essentialPerDay); // backend gap #2: see essentials.ts
   }
   return req;
 }

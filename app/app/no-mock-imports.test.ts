@@ -23,8 +23,8 @@ function walk(dir: string, out: string[] = []): string[] {
 // imports the mock dynamically and is gated by resolveApiMode (production is always live).
 const ALLOWED = new Set(["app/app/_providers/api-provider.tsx"]);
 
-// TODO(T4): still imports PROMO_FIXTURES (fake promos). T4 removes the import, then deletes this entry.
-const PENDING_T4 = ["app/app/perks/perks-views.tsx"];
+// Nothing is pending any more: every screen is clean. Do not add entries here.
+const PENDING_T4: string[] = [];
 
 describe("no mock code in screens", () => {
   it("no non-test file under app/app imports lib/client/mock or mock-fixtures", () => {

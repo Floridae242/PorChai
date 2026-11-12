@@ -30,6 +30,14 @@ function write(version: string): void {
   }
 }
 
+export function clearConsentFlag(): void {
+  try {
+    window.localStorage.removeItem(CONSENT_STORAGE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
 const isNotImplemented = (err: unknown) => err instanceof ApiError && err.code === "not_implemented";
 
 // TODO(backend): drop this once the server has a consent API; live consent() then works as is.
