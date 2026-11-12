@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db/client";
+import { userIdForLine } from "@/lib/db/users";
 import { HttpError } from "@/lib/http";
 import { verifyIdToken } from "@/lib/line/id-token";
 
@@ -31,12 +31,5 @@ export async function requireUser(
     throw UNAUTHORIZED();
   }
 
-  // Upsert is race-safe: concurrent first requests end with one row
-  const { data, error } = await getDb()
-    .from("users")
-    .upsert({ line_user_id: result.lineUserId }, { onConflict: "line_user_id" })
-    .select("id")
-    .single();
-  if (error) throw error;
-  return { userId: data.id as string, lineUserId: result.lineUserId };
+  return { userId: await userIdForLine(result.lineUserId), lineUserId: result.lineUserId };
 }

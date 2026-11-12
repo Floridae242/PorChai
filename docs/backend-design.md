@@ -197,6 +197,9 @@ Backend จึงมีหน้าที่หลักสองอย่าง
 1. ตรวจ `x-line-signature` (HMAC-SHA256 ของ body ดิบด้วย channel secret) ไม่ตรง → ตอบ 401 และไม่ทำอะไร
 2. ลายเซ็นตรง → เชื่อ `source.userId` ใน event ได้
 3. บันทึก `webhookEventId` ลง `line_events` ก่อน ถ้าซ้ำ → ข้าม (LINE อาจส่ง event เดิมซ้ำ)
+4. แชตแบบตัวต่อตัว (`source.type = "user"`) → หาหรือสร้างแถวใน `users` ด้วย `source.userId` **ฟังก์ชันเดียวกับ LIFF** (`userIdForLine`) · แชตกลุ่ม/ห้อง ไม่สร้างผู้ใช้
+
+**บัญชีเดียวกันทั้งสองทาง ✅ (เกณฑ์การ์ด 06 ข้อ 1):** channel แชต (Messaging API) กับ channel LIFF (LINE Login) อยู่ใต้ Provider "PorChai" เดียวกัน LINE จึงให้ user ID ตัวเดียวกัน → ทักแชตก่อนหรือเปิด LIFF ก่อนก็ได้ผู้ใช้แถวเดียว (เทสต์ `lib/line/handle-event.db.test.ts`) · ถ้าวันหนึ่งย้าย channel ไปคนละ Provider จะได้ user ID คนละตัว และระบบจะแยกเป็นสองคน
 
 ## 8. API ที่หน้าจอเรียก (ชั้น 0–1)
 
