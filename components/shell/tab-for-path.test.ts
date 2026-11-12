@@ -10,6 +10,8 @@ describe("tabForPath", () => {
     ["/app/plan/edit", "summary"],
     ["/app/plan/edit/review", "summary"],
     ["/app/plan/edit/done", "summary"],
+    ["/app/plan/edit/payday", "summary"],
+    ["/app/balance/done", "summary"],
     ["/app/balance/adjust", "summary"],
     ["/app/settings", "settings"],
     ["/app/settings/categories", "settings"],
@@ -44,6 +46,13 @@ describe("hideNav", () => {
   it.each(["/app/consent", "/app/setup", "/app/setup/income", "/app/setup/review", "/app/demo", "/app/demo/ui", "/app/loading", "/app/consent/", "/app/demo/ui/"])(
     "hides on %s",
     (p) => expect(hideNav(p)).toBe(true),
+  );
+  it.each(["/app/plan/edit", "/app/plan/edit/payday", "/app/plan/edit/review", "/app/balance/adjust", "/app/plan/edit/"])(
+    "plan-edit steps hide the tab bar on %s",
+    (p) => expect(hideNav(p)).toBe(true),
+  );
+  it.each(["/app/plan/edit/done", "/app/balance/done"])("result screens keep the tab bar on %s", (p) =>
+    expect(hideNav(p)).toBe(false),
   );
   it.each(["/app", "/app/plan", "/app/record/new", "/app/settings/bills", "/app/setupx", "/shop/verify"])("shows on %s", (p) =>
     expect(hideNav(p)).toBe(false),

@@ -26,6 +26,11 @@ export function tabForPath(pathname: string): TabKey | null {
 export function hideNav(pathname: string): boolean {
   const p = normalise(pathname);
   return (
+    // Plan-edit flow: back arrow only on the steps, tab bar again on the result (E3/E3b/E5)
+    p === "/app/plan/edit" ||
+    p === "/app/plan/edit/payday" ||
+    p === "/app/plan/edit/review" ||
+    p === "/app/balance/adjust" ||
     under(p, "/app/consent") ||
     under(p, "/app/setup") ||
     under(p, "/app/demo") ||

@@ -450,3 +450,47 @@ describe("TrySavedView (C4)", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/try"));
   });
 });
+
+describe("card 23: basis through the try flow", () => {
+  it("the result page keeps the simulate's basis in the draft", async () => {
+    const api = mk();
+    saveTryDraft(SHOES);
+    renderWith(api, <TryResultView />);
+    await screen.findByText(/ลองซื้อ/);
+    const basisNow = (await api.summary()).basis;
+    await waitFor(() => expect(loadTryDraft()?.basis).toBe(basisNow));
+  });
+
+  it("decide passes the basis to addPlan (keep and postpone); pay sends none", async () => {
+    const api = mk();
+    const addPlan = vi.spyOn(api, "addPlan");
+    saveTryDraft({ ...SHOES, basis: "b-try" });
+    renderWith(api, <TryDecideView />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
+    await waitFor(() => expect(addPlan).toHaveBeenCalledTimes(1));
+    expect(addPlan.mock.calls[0][0]).toMatchObject({ basis: "b-try" });
+  });
+
+  it("without a basis the plan is sent as before (no basis field)", async () => {
+    const api = mk();
+    const addPlan = vi.spyOn(api, "addPlan");
+    saveTryDraft(SHOES);
+    renderWith(api, <TryDecideView />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
+    await waitFor(() => expect(addPlan).toHaveBeenCalledTimes(1));
+    expect(addPlan.mock.calls[0][0]).not.toHaveProperty("basis");
+  });
+
+  it("409 stale: Thai message with a link back to /app/try/result, nothing saved, no navigation", async () => {
+    const api = mk();
+    saveTryDraft({ ...SHOES, basis: (await api.summary()).basis });
+    renderWith(api, <TryDecideView />);
+    await api.addEntry({ amount: 4500, category: "food" }, "elsewhere");
+    await userEvent.setup().click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("ข้อมูลเปลี่ยนไปแล้ว ลองดูผลใหม่");
+    expect(screen.getByRole("link", { name: "ลองดูผลใหม่" }).getAttribute("href")).toBe("/app/try/result");
+    expect((await api.plans()).plans.some((p) => p.title === "รองเท้า")).toBe(false);
+    expect(replace).not.toHaveBeenCalled();
+  });
+});

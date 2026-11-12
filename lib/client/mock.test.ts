@@ -330,3 +330,87 @@ describe("mock T1b surface (income, aggregates, quota, reminders, delete)", () =
     await expectApiError(api.deleteMyData(), 403, "no_consent");
   });
 });
+
+describe("mock card 23 (payday / basis / stale)", () => {
+  it("simulate({payday}) uses computeBudget: more days, same money, basis of the stored numbers", async () => {
+    const api = createMockApi();
+    const s = await api.summary();
+    const sim = await api.simulate({ payday: "2026-11-26" });
+    expect(sim.basis).toBe(s.basis);
+    expect(sim.before).toEqual(s.budget);
+    expect(sim.after).toMatchObject({ kind: "ok", daysLeft: 15 });
+    expect(sim.verdict).not.toBe("ask");
+    // nothing saved
+    expect((await api.summary()).payday).toBe("2026-11-23");
+  });
+
+  it("simulate({payday}) must be after today; simulate({balance}) changes only after", async () => {
+    const api = createMockApi();
+    await expectApiError(api.simulate({ payday: "2026-11-11" }), 422, "invalid_input");
+    const sim = await api.simulate({ balance: 300000 });
+    expect(sim.before).toEqual((await api.summary()).budget);
+    expect(sim.after).not.toEqual(sim.before);
+  });
+
+  it("changePayday requires basis, moves the payday and then summary.budget equals the simulate's after", async () => {
+    const api = createMockApi();
+    const sim = await api.simulate({ payday: "2026-11-26" });
+    await expectApiError(api.changePayday({ payday: "2026-11-26", basis: "" }), 422, "invalid_input");
+    const res = await api.changePayday({ payday: "2026-11-26", basis: sim.basis });
+    expect(res.summary.payday).toBe("2026-11-26");
+    expect(res.summary.budget).toEqual(sim.after);
+    expect(res.summary.balance).toBe(240000);
+  });
+
+  it("same payday again returns the same result (double tap)", async () => {
+    const api = createMockApi();
+    const sim = await api.simulate({ payday: "2026-11-26" });
+    const a = await api.changePayday({ payday: "2026-11-26", basis: sim.basis });
+    const b = await api.changePayday({ payday: "2026-11-26", basis: sim.basis });
+    expect(b.summary).toEqual(a.summary);
+  });
+
+  it("payday must be after the mock's today", async () => {
+    const api = createMockApi();
+    const { basis } = await api.summary();
+    await expectApiError(api.changePayday({ payday: "2026-11-11", basis }), 422, "invalid_input");
+  });
+
+  it("a new entry changes the basis: the old basis is stale (409) for payday, balance and plan", async () => {
+    const api = createMockApi();
+    const old = (await api.simulate({ payday: "2026-11-26" })).basis;
+    await api.addEntry(food, "k1");
+    const fresh = await api.summary();
+    expect(fresh.basis).not.toBe(old);
+    await expectApiError(api.changePayday({ payday: "2026-11-26", basis: old }), 409, "stale");
+    await expectApiError(api.adjustBalance({ balance: 100000, basis: old }), 409, "stale");
+    await expectApiError(api.addPlan({ title: "x", amount: 100, basis: old }, "kp"), 409, "stale");
+    // nothing changed by the refused calls
+    expect((await api.summary()).payday).toBe("2026-11-23");
+    // the new basis works
+    const ok = await api.changePayday({ payday: "2026-11-26", basis: fresh.basis });
+    expect(ok.summary.payday).toBe("2026-11-26");
+  });
+
+  it("basis also changes with a new plan, a balance adjustment and a moved payday", async () => {
+    const api = createMockApi();
+    const b0 = (await api.summary()).basis;
+    await api.addPlan({ title: "x", amount: 1000 }, "p1");
+    const b1 = (await api.summary()).basis;
+    await api.adjustBalance({ balance: 200000 });
+    const b2 = (await api.summary()).basis;
+    await api.changePayday({ payday: "2026-11-26", basis: b2 });
+    const b3 = (await api.summary()).basis;
+    expect(new Set([b0, b1, b2, b3]).size).toBe(4);
+  });
+
+  it("adjustBalance / addPlan without basis still work; with the current basis they work too", async () => {
+    const api = createMockApi();
+    await api.adjustBalance({ balance: 200000 });
+    const { basis } = await api.summary();
+    await api.adjustBalance({ balance: 210000, basis });
+    const { basis: b2 } = await api.summary();
+    const r = await api.addPlan({ title: "x", amount: 1000, basis: b2 }, "p9");
+    expect(r.plan.title).toBe("x");
+  });
+});

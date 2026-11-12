@@ -87,6 +87,7 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     cancelEntry: (id) => request({ method: "DELETE", path: `/api/entries/${seg(id)}` }),
     adjustBalance: (req) => request({ method: "POST", path: "/api/cycle/balance", body: req }),
     simulate: (req) => request({ method: "POST", path: "/api/simulate", body: req }),
+    changePayday: (req) => request({ method: "PUT", path: "/api/cycle/payday", body: req }),
     setEssentials: (req) => request({ method: "PUT", path: "/api/cycle/essentials", body: req }),
     plans: () => request({ method: "GET", path: "/api/plans" }),
     addPlan: (req, idempotencyKey) =>
