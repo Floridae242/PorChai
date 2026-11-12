@@ -23,7 +23,9 @@ export async function simulate(userId: string, trial: Trial, now = new Date()): 
   const tried = essentials ? { ...input, essentialPerDay: essentials.food + essentials.transport } : input;
   // Card 19 / 15: what if part of the buffer were used (or more set aside)
   const emergencyBuffer = trial.emergencyBuffer ?? input.emergencyBuffer;
-  if (!setAsideFits(input.balance, input.savings, emergencyBuffer)) throw invalid(SET_ASIDE_OVER);
+  if (trial.emergencyBuffer !== null && !setAsideFits(input.balance, input.savings, emergencyBuffer)) {
+    throw invalid(SET_ASIDE_OVER);
+  }
   const result = tryOut(tried, {
     buy: countsThisCycle ? trial.amount : 0,
     release: postponed.reduce((sum, p) => sum + p.amount, 0),
