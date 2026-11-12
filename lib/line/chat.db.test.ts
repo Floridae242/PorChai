@@ -222,7 +222,7 @@ describe("card 09: expenses from the chat", () => {
     const tryIt = lastButtons().find((b) => b.label === "ลองก่อนซื้อ") as { data: string };
     await tap(tryIt.data);
     expect(lastText()).toContain("ไม่ซื้อ → วันละ 120 บาท");
-    expect(lastText()).toContain("ซื้อ → เหลือวันละ 90 บาท"); // (1,440 − 350) ÷ 12
+    expect(lastText()).toContain("ซื้อ → เหลือวันละ 90.75 บาท"); // (1,440 − 350) ÷ 12 = 90.83 → 90.75 (R3-quarter)
     expect(lastText()).toContain("ค่ากินค่ารถยังพอทุกวัน");
     expect(lastButtons().map((b) => b.label)).toContain("ยืนยันจ่ายจริง");
     expect(await screenEntries()).toEqual([]);

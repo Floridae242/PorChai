@@ -153,11 +153,11 @@ describe("simulatePurchase — Figma demo numbers", () => {
     expect(simulatePurchase(figma(), baht(250))).toMatchObject({ kind: "ok", dailyBudget: baht(99) });
   });
 
-  it("W14: headphones 700 → 61 a day, 9 short of the 70 essentials", () => {
+  it("W14: headphones 700 → 61.50 a day, 8.50 short of the 70 essentials (R3-quarter)", () => {
     expect(simulatePurchase(figma(), baht(700))).toMatchObject({
       kind: "ok",
-      dailyBudget: baht(61),
-      essentialShortPerDay: baht(9),
+      dailyBudget: baht(61.5),
+      essentialShortPerDay: baht(8.5),
       maxPurchase: 0,
     });
   });
@@ -264,14 +264,14 @@ describe("computeBudget", () => {
     expect(r).toMatchObject({ kind: "shortfall", shortfall: baht(100) });
   });
 
-  it("floors to whole baht: 1,000 over 3 days is 333", () => {
+  it("R3-quarter: floors to 25 satang: 1,000 over 3 days is 333.25", () => {
     const r = computeBudget(input({ balance: baht(1000), days: 3 }));
-    expect(r).toMatchObject({ kind: "ok", dailyBudget: baht(333) });
+    expect(r).toMatchObject({ kind: "ok", dailyBudget: baht(333.25) });
   });
 
-  it("floors, never rounds up: 2,000 over 3 days is 666 (not 667)", () => {
+  it("floors, never rounds up: 2,000 over 3 days is 666.50 (not 666.75)", () => {
     const r = computeBudget(input({ balance: baht(2000), days: 3 }));
-    expect(r).toMatchObject({ kind: "ok", dailyBudget: baht(666) });
+    expect(r).toMatchObject({ kind: "ok", dailyBudget: baht(666.5) });
   });
 
   it("overspending today gives a negative todayRemaining", () => {
@@ -320,10 +320,10 @@ describe("tryOut — card 14 (try before paying; nothing is saved)", () => {
     expect(r.after).toMatchObject({ dailyBudget: baht(80), essentialShortPerDay: 0 });
   });
 
-  it("W14: headphones 700 → over the limit by 100, 61 a day, essentials short 9 a day", () => {
+  it("W14: headphones 700 → over the limit by 100, 61.50 a day, essentials short 8.50 a day", () => {
     const r = tryOut(figma(), { buy: baht(700), release: 0 });
     expect(r).toMatchObject({ verdict: "essentials_short", overLimitBy: baht(100) });
-    expect(r.after).toMatchObject({ dailyBudget: baht(61), essentialShortPerDay: baht(9) });
+    expect(r.after).toMatchObject({ dailyBudget: baht(61.5), essentialShortPerDay: baht(8.5) });
   });
 
   it("14: doing every plan leaves the central example 150 short", () => {

@@ -135,11 +135,11 @@ describe("card 14: POST /api/simulate", () => {
     });
   });
 
-  it("W14: headphones 700 → over the limit by 100, 61 a day, essentials short 9 a day", async () => {
+  it("W14: headphones 700 → over the limit by 100, 61.50 a day, essentials short 8.50 a day (R3-quarter)", async () => {
     await figma(lineA);
     const r = await tried(lineA, { amount: 70000 });
     expect(r).toMatchObject({ verdict: "essentials_short", overLimitBy: 10000 });
-    expect(r.after).toMatchObject({ dailyBudget: 6100, essentialShortPerDay: 900 });
+    expect(r.after).toMatchObject({ dailyBudget: 6150, essentialShortPerDay: 850 });
     expect(r.checks).toMatchObject({ billsCovered: true, essentialsCovered: false });
   });
 

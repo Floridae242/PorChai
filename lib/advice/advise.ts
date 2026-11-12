@@ -3,6 +3,7 @@ import type { BudgetResult, TrialVerdict } from "@/lib/calc/budget";
 import { addDays, thaiDate } from "@/lib/calc/time";
 import { categoryOf } from "@/lib/chat/parse";
 import { generate } from "@/lib/ai/gemini";
+import { formatBaht } from "@/lib/format/money";
 import { listPlans } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
 import { FORBIDDEN, numbersIn, onlyKnownNumbers, readQuestion, type Day, type Question } from "@/lib/advice/question";
@@ -46,7 +47,7 @@ const DAY_OFFSET: Record<Day, number> = { today: 0, tomorrow: 1, day_after_tomor
 const DAY_LABEL: Record<Day, string> = { today: "วันนี้", tomorrow: "พรุ่งนี้", day_after_tomorrow: "มะรืน" };
 
 const baht = (satang: number) => Math.round(satang) / 100;
-const fmt = (satang: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(satang / 100);
+const fmt = (satang: number) => formatBaht(Math.round(satang)); // same as the screens: 61.50
 
 // The AI reads the question (card 15), but only what is written counts: its amount is used only when it is
 // the one price written in the question, and the day comes from the words (วันนี้ / พรุ่งนี้ / มะรืน).

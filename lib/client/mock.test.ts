@@ -55,7 +55,7 @@ describe("mock default scenario (Figma reference numbers)", () => {
     const api = createMockApi({ separateBills: ["ค่าหอ"] });
     const s = await api.summary();
     expect(s.reserved).toBe(20000);
-    expect(s.budget).toMatchObject({ kind: "ok", dailyBudget: 15300 });
+    expect(s.budget).toMatchObject({ kind: "ok", dailyBudget: 15325 }); // R3-quarter: 1,840 / 12 = 153.33 → 153.25
   });
 
   it("addPlan raises reserved when held this cycle, not when due after payday", async () => {
@@ -86,7 +86,7 @@ describe("mock scenarios", () => {
       bills: [{ title: "ค่าหอ", amount: 40000 }],
       essentials: { food: 5000, transport: 2000 },
     });
-    expect(summary.budget).toMatchObject({ kind: "ok", dailyBudget: 13600 });
+    expect(summary.budget).toMatchObject({ kind: "ok", dailyBudget: 13650 }); // R3-quarter: 1,640 / 12 = 136.67 → 136.50
     expect((await api.me()).hasActiveCycle).toBe(true);
   });
 
@@ -151,7 +151,7 @@ describe("mock entries and plans", () => {
     const api = createMockApi();
     const bill = (await api.plans()).plans.find((p) => p.title === "ค่าหอ")!;
     const r = await api.simulate({ postponePlanIds: [bill.id] });
-    expect(r.after).toMatchObject({ kind: "ok", dailyBudget: 15300 });
+    expect(r.after).toMatchObject({ kind: "ok", dailyBudget: 15325 }); // R3-quarter
     await expectApiError(api.simulate({ postponePlanIds: ["nope"] }), 422, "invalid_input");
   });
 

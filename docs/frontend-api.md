@@ -177,10 +177,10 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 | ช่อง | ตัวอย่าง W12 รองเท้า 480 | W14 หูฟัง 700 |
 |---|---|---|
 | `before.dailyBudget` / `before.maxPurchase` | "ตอนนี้ 120 บาท/วัน · ซื้อได้ไม่เกิน 600" | เหมือนกัน |
-| `after.dailyBudget` | ซื้อทันที **80** บาท/วัน | **61** บาท/วัน |
+| `after.dailyBudget` | ซื้อทันที **80** บาท/วัน | **6150** → 61.50 บาท/วัน (Figma เขียน 61) |
 | ไม่ซื้อ / เลื่อน | ใช้ `before.dailyBudget` (120) | 120 |
 | `overLimitBy` | 0 | **10000** → "เกินวงเงิน 100" |
-| `after.essentialShortPerDay` | 0 | 900 → "ขาดวันละ 9" |
+| `after.essentialShortPerDay` | 0 | 850 → "ขาดวันละ 8.50" |
 | `checks.bills` + `billsCovered` | "บิล 600 ยังพอ" ✓ | ✓ |
 | `checks.essentialPerDay` + `essentialsCovered` | "ค่าจำเป็น 70/วัน ยังพอ" ✓ | ⚠ ไม่พอ |
 | `checks.savings` / `emergencyBuffer` | "เงินออม 240 · เงินเผื่อ 120 ไม่ถูกแตะ" | เหมือนกัน (ลองไม่เคยดึงมาใช้) |
@@ -262,6 +262,8 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 **ตัวอย่างกลาง 1,000 (เหลือเผื่อ 50) → เงินเข้าช้า 2 วัน:** `before.spare` = 5000 → `after.spare` = −9000 (ค่ากินค่ารถเพิ่ม 70 × 2 = 140 → ขาด 90) · `after.daysLeft` 10 → 12 · ยืนยันแล้ว `summary.budget` ตรงกับ `after` · เงินจริงไม่เปลี่ยน ระบบไม่เดาว่าเงินใหม่เข้าแล้ว
 - ค่าจำเป็นที่เพิ่ม = `essentialPerDay × (after.daysLeft − before.daysLeft)`
 - แผนที่ครบกำหนดระหว่างวันเงินเข้าเก่ากับใหม่ จะถูกนับเข้ารอบนี้ด้วย (ทั้งตอนลองและหลังยืนยัน)
+
+**งบต่อวันมีเศษสตางค์ได้ (R3-quarter, 13 พ.ย.):** `dailyBudget` ปัดลงทีละ 25 สตางค์ เช่น 23325 = 233.25 บาท ใช้ `formatBaht` แสดง (ได้ "233.25" · บาทเต็มไม่มีจุด) ห้ามปัดเองในหน้าจอ
 
 ## 4. `Summary` — แต่ละช่องไปอยู่ตรงไหนใน Figma
 

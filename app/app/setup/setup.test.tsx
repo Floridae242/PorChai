@@ -179,7 +179,7 @@ describe("setup flow with the Figma numbers entered through the UI", () => {
     expect(document.body.textContent).not.toContain("ใช้แผนนี้");
   });
 
-  it("marking ค่าหอ as จ่ายแยก changes the bills total and the daily budget to 153", async () => {
+  it("marking ค่าหอ as จ่ายแยก changes the bills total and the daily budget to 153.25", async () => {
     saveSetupDraft(figmaDraft());
     const user = userEvent.setup();
     renderPage(SetupBalancePage);
@@ -191,7 +191,7 @@ describe("setup flow with the Figma numbers entered through the UI", () => {
     await user.click(screen.getByRole("button", { name: "ถัดไป" }));
     cleanup();
     renderPage(SetupReviewPage);
-    expect(await screen.findByText("153")).toBeTruthy();
+    expect(await screen.findByText("153.25")).toBeTruthy(); // R3-quarter: 1,840 / 12
   });
 
   it("A5a: bills larger than the money shows the shortfall with แก้ตัวเลข / เลือกบิลที่เลื่อนได้", async () => {
@@ -221,7 +221,7 @@ describe("setup flow with the Figma numbers entered through the UI", () => {
     saveSetupDraft(figmaDraft({ balance: 70000, bills: [{ id: "1", title: "ค่าหอ", amount: 60000, status: "unpaid" }], savingsMode: "none", savingsPercent: null, emergencyBuffer: 0 }));
     renderPage(SetupReviewPage);
     expect(await screen.findByText("ตึงมาก: เหลือต่ำกว่า 50 บาทต่อวัน")).toBeTruthy();
-    expect(screen.getByText("8")).toBeTruthy();
+    expect(screen.getByText("8.25")).toBeTruthy(); // R3-quarter: 100 / 12 = 8.33 → 8.25
     expect(screen.getByRole("button", { name: "เริ่มใช้ต่อไป" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "แก้ตัวเลข" })).toBeTruthy();
   });

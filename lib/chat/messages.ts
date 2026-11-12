@@ -3,6 +3,7 @@ import type { Advice } from "@/lib/advice/advise";
 import type { AskReason } from "@/lib/chat/parse";
 import type { BudgetResult } from "@/lib/calc/budget";
 import type { ProposedItem } from "@/lib/db/chat-memory";
+import { formatBaht } from "@/lib/format/money";
 import { appUrl } from "@/lib/liff/config";
 import { text, type QuickReplyAction, type TextMessage } from "@/lib/line/reply";
 
@@ -13,8 +14,8 @@ const app = (label = "เปิดแอป"): QuickReplyAction => ({ type: "uri
 
 const CATEGORY = { food: "อาหาร", transport: "เดินทาง", supplies: "ของใช้", other: "อื่น ๆ", bills: "บิล" } as const;
 
-export const baht = (satang: number) =>
-  new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(satang / 100);
+// Same as the screens: 1,440 · 61.50 (two decimals only when there are satang, R3-quarter)
+export const baht = (satang: number) => formatBaht(Math.round(satang));
 
 export interface Draft {
   title: string;
