@@ -188,7 +188,7 @@ describe("card 09: expenses from the chat", () => {
     await figma();
     await chat("ชาบู 350");
     expect(lastText()).toContain("350 บาท สูงกว่างบที่เหลือวันนี้ (120 บาท)");
-    expect(lastButtons().map((b) => b.label)).toEqual(["ยืนยันจ่ายจริง", "ลองก่อนซื้อ"]);
+    expect(lastButtons().map((b) => b.label)).toEqual(["ยืนยันจ่ายจริง", "ลองก่อนซื้อ", "เปิดแอป"]);
     expect(await screenEntries()).toEqual([]);
   });
 
@@ -502,7 +502,7 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     expect(lastText()).toContain("• ข้าว 45 บาท (อาหาร)");
     expect(lastText()).toContain("• น้ำ 20 บาท (อาหาร)");
     expect(lastText()).toContain("รวม 65 บาท");
-    expect(lastButtons().map((b) => b.label)).toEqual(["จดทั้งหมด", "ไม่ใช่", "กรอกเองในแอป"]);
+    expect(lastButtons().map((b) => b.label)).toEqual(["จดทั้งหมด", "ไม่ใช่", "กรอกเองในแอป", "เปิดแอป"]);
     expect(await screenEntries()).toEqual([]);
 
     const all = button("จดทั้งหมด").data;
@@ -563,11 +563,11 @@ describe("card 10: the recorded card's buttons (โฟรวิว's Flex card, 
 
   const data = (label: string) => (lastButtons().find((b) => b.label === label) as { data: string }).data;
 
-  it("the card's buttons point at the saved entry: [แก้] [เปลี่ยนหมวด] [ลบ], then เปิดแผน / วันนี้ใช้ได้", async () => {
+  it("the card's buttons point at the saved entry: [แก้] [เปลี่ยนหมวด] [ลบ], then เปิดแผน / วันนี้ใช้ได้ / เปิดแอป", async () => {
     await figma();
     await chat("ข้าว 45");
     const [entry] = await screenEntries();
-    expect(lastButtons().map((b) => b.label)).toEqual(["แก้", "เปลี่ยนหมวด", "ลบ", "เปิดแผน", "วันนี้ใช้ได้"]);
+    expect(lastButtons().map((b) => b.label)).toEqual(["แก้", "เปลี่ยนหมวด", "ลบ", "เปิดแผน", "วันนี้ใช้ได้", "เปิดแอป"]);
     expect(data("ลบ")).toBe(`v1.entry_del.${entry.id}`);
   });
 
@@ -575,7 +575,7 @@ describe("card 10: the recorded card's buttons (โฟรวิว's Flex card, 
     await figma();
     await chat("ข้าว 45");
     await tap(data("เปลี่ยนหมวด"));
-    expect(lastButtons().map((b) => b.label)).toEqual(["อาหาร", "เดินทาง", "ของใช้", "อื่น ๆ"]);
+    expect(lastButtons().map((b) => b.label)).toEqual(["อาหาร", "เดินทาง", "ของใช้", "อื่น ๆ", "เปิดแอป"]);
     await tap(data("เดินทาง"));
     expect(lastText()).toContain("เปลี่ยนหมวดแล้วครับ ✓ ข้าว 45 บาท → เดินทาง");
     expect(await screenEntries()).toEqual([expect.objectContaining({ category: "transport" })]);
@@ -711,5 +711,38 @@ describe("rich menu (โฟรวิว's spec and image) and what the bot canno
       expect(lastText(), t).toContain("ย้อนหลัง");
     }
     expect(await screenEntries()).toEqual([]);
+  });
+});
+
+describe("every answer has [เปิดแอป] above the keyboard (phone 13 Nov: sometimes it was not there)", () => {
+  beforeEach(() => {
+    replies.length = 0;
+    vi.stubEnv("LINE_CHANNEL_SECRET", secret);
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-channel");
+    vi.mocked(generate).mockReset().mockResolvedValue(null);
+  });
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    await db.from("users").delete().eq("line_user_id", lineA);
+  });
+
+  const quick = () => last().quickReply?.items.map((i) => i.action.label) ?? [];
+
+  it("text, card and button answers alike — once, never twice", async () => {
+    await figma();
+    const answers: string[][] = [];
+    await chat("ข้าว 45"); // recorded card (its own quick replies: เปิดแผน / วันนี้ใช้ได้)
+    answers.push(quick());
+    const del = (lastButtons().find((b) => b.label === "ลบ") as { data: string }).data;
+    await tap(del); // ask to delete (only ลบเลย before)
+    answers.push(quick());
+    await tap("v1.ocr_save.abc"); // not wired yet (no buttons before)
+    answers.push(quick());
+    await chat("Hey"); // template (already had เปิดแอป)
+    answers.push(quick());
+    for (const labels of answers) {
+      expect(labels.filter((l) => l === "เปิดแอป")).toHaveLength(1);
+    }
   });
 });

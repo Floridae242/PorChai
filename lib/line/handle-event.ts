@@ -63,7 +63,7 @@ import { simulate } from "@/lib/db/simulate";
 import { userIdForLine } from "@/lib/db/users";
 import { HttpError } from "@/lib/http";
 import { decodePostback, type DecodedPostback } from "@/lib/line/flex/postback";
-import { reply, text, type ReplyMessage, type TextMessage } from "@/lib/line/reply";
+import { reply, text, withAppButton, type ReplyMessage, type TextMessage } from "@/lib/line/reply";
 
 interface LineEvent {
   type?: unknown;
@@ -116,7 +116,7 @@ export async function handleEvent(event: unknown): Promise<void> {
   }
   if (typeof e.replyToken === "string") {
     // The spend is already saved; a failed answer must not make LINE send the event again
-    await reply(e.replyToken, [answer.message]).catch((err) => console.error(err));
+    await reply(e.replyToken, [withAppButton(answer.message)]).catch((err) => console.error(err));
   }
 }
 

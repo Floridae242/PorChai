@@ -284,6 +284,8 @@ Backend จึงมีหน้าที่หลักสองอย่าง
 
 **ข้อความหายเมื่อจัดการไม่สำเร็จ (แก้แล้ว):** ถ้าจดไม่สำเร็จ webhook ลบ `webhookEventId` ออกจาก `line_events` แล้วตอบ 500 ให้ LINE ส่งซ้ำ จดซ้ำไม่ได้เพราะ key ผูกกับ event · ⚠️ ต้องเปิด **Webhook redelivery** ใน LINE Developers ด้วย
 
+**ปุ่ม [เปิดแอป] ทุกคำตอบ (13 พ.ย.):** `withAppButton` ใน `lib/line/reply.ts` เติมปุ่มด่วน "เปิดแอป" ให้ทุกข้อความที่ยังไม่มี ตรงจุดที่ส่งออก (ตอบแชต + push เตือน) · ปุ่มด่วนของ LINE หายเมื่อมีข้อความใหม่ ช่องที่อยู่ตลอดคือ rich menu
+
 ### Rich menu ✅ (สเปค `buildRichMenuSpec` + รูป `public/richmenu.png` ของโฟรวิว · ลงทะเบียน+ต่อปุ่มฝั่งพอ 13 พ.ย.)
 
 - ลงทะเบียน: `POST /api/admin/richmenu` (Bearer `CRON_SECRET` เพราะ token LINE อยู่แค่บน Vercel) → ลบเมนูชื่อเดิมของเรา → สร้างจากสเปค → อัปโหลดรูป → ตั้งเป็นค่าเริ่มต้นของทุกคน · เรียกครั้งเดียวหลัง deploy ที่เปลี่ยนเมนู · ตั้งใน LINE OA Manager ไม่ได้เพราะปุ่ม postback ต้องใช้ API
