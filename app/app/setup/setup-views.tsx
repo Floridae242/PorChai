@@ -4,13 +4,16 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { BillsCard } from "@/components/setup/bills-card";
 import { BufferCard, EssentialPicker, SavingsPicker } from "@/components/setup/savings-picker";
+import { MonthDayGrid } from "@/components/setup/month-day-grid";
+import { NextPaydayCard } from "@/components/setup/next-payday-card";
 import { SetupFrame } from "@/components/setup/setup-frame";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { InputField } from "@/components/ui/input-field";
 import { Mascot } from "@/components/ui/mascot";
-import { thaiDate } from "@/lib/calc/time";
+import { nextPayday, WEEKDAY_CHOICES, WEEKDAY_NAMES_TH, weekdayOf } from "@/lib/calc/payday";
+import { daysBetween, thaiDate } from "@/lib/calc/time";
 import { ApiError } from "@/lib/client/errors";
 import {
   clearSetupDraft,
@@ -37,8 +40,8 @@ const SOURCES: { key: NonNullable<SetupDraft["incomeSource"]>; label: string }[]
 ];
 
 const FREQUENCIES: { key: NonNullable<SetupDraft["incomeFrequency"]>; label: string; paydayLabel: string }[] = [
-  { key: "monthly", label: "รายเดือน", paydayLabel: "วันเงินเข้าครั้งถัดไป" },
-  { key: "weekly", label: "รายสัปดาห์", paydayLabel: "วันรับเงินรายสัปดาห์ถัดไป" },
+  { key: "monthly", label: "รายเดือน", paydayLabel: "เงินเข้าวันที่เท่าไหร่ของทุกเดือน" },
+  { key: "weekly", label: "รายสัปดาห์", paydayLabel: "เงินเข้าทุกวันอะไร" },
   { key: "irregular", label: "ไม่แน่นอน", paydayLabel: "กะว่าจะใช้ก้อนนี้ถึงวันที่เท่าไหร่" },
 ];
 
@@ -62,27 +65,87 @@ export function SetupIncomeView() {
   return <DraftGate>{(initial) => <IncomeForm initial={initial} />}</DraftGate>;
 }
 
+// The next payday that matches what the user picked; "" until they have picked enough.
+function paydayOf(draft: SetupDraft, today: string): string {
+  if (draft.incomeFrequency === "monthly" && draft.paydayDay !== null) {
+    return nextPayday({ kind: "monthly", day: draft.paydayDay }, today);
+  }
+  if (draft.incomeFrequency === "weekly" && draft.paydayWeekday !== null) {
+    return nextPayday({ kind: "weekly", weekday: draft.paydayWeekday }, today);
+  }
+  return draft.incomeFrequency === "irregular" ? draft.payday : "";
+}
+
 function IncomeForm({ initial }: { initial: SetupDraft }) {
   const router = useRouter();
   const [draft, setDraft] = useState<SetupDraft>(initial);
   const [error, setError] = useState<string | null>(null);
   const [today] = useState(() => thaiDate(new Date()));
 
-  const freqMeta = FREQUENCIES.find((f) => f.key === draft.incomeFrequency) ?? FREQUENCIES[0];
+  const freq = draft.incomeFrequency;
+  const freqMeta = FREQUENCIES.find((f) => f.key === freq) ?? FREQUENCIES[0];
 
   function handleNext() {
-    if (draft.incomeSource === null || draft.incomeFrequency === null) {
+    if (draft.incomeSource === null || freq === null) {
       setError("กรุณาเลือกแหล่งเงินและความถี่ที่เงินเข้า");
       return;
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.payday) || draft.payday <= today) {
+    if (freq === "monthly" && draft.paydayDay === null) {
+      setError("กรุณาเลือกวันที่เงินเข้า");
+      return;
+    }
+    if (freq === "weekly" && draft.paydayWeekday === null) {
+      setError("กรุณาเลือกวันที่เงินเข้า");
+      return;
+    }
+    // Worked out again now, so a draft left open overnight never keeps yesterday's date.
+    const payday = paydayOf(draft, today);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(payday) || payday <= today) {
       setError("กรุณาเลือกวันที่หลังวันนี้");
       return;
     }
-    saveSetupDraft(draft);
+    saveSetupDraft({ ...draft, payday });
     router.push("/app/setup/balance");
   }
 
+  function chooseFrequency(next: NonNullable<SetupDraft["incomeFrequency"]>) {
+    setError(null);
+    setDraft((d) => {
+      const moved = { ...d, incomeFrequency: next };
+      // A date typed under "irregular" is kept only while staying on it; weekly/monthly work theirs out.
+      const keepTyped = next === "irregular" && d.incomeFrequency === "irregular";
+      return { ...moved, payday: keepTyped ? d.payday : paydayOf(moved, today) };
+    });
+  }
+
+  function chooseWeekday(weekday: number) {
+    setError(null);
+    setDraft((d) => {
+      const next = { ...d, paydayWeekday: weekday };
+      return { ...next, payday: paydayOf(next, today) };
+    });
+  }
+
+  function chooseDay(day: number) {
+    setError(null);
+    setDraft((d) => {
+      const next = { ...d, paydayDay: day };
+      return { ...next, payday: paydayOf(next, today) };
+    });
+  }
+
+  // The worked-out next payday, shown as a card under the picker (weekly / monthly only).
+  let next: { dateText: string; daysLeft: number } | null = null;
+  if (draft.payday && (freq === "weekly" || freq === "monthly")) {
+    try {
+      next = {
+        dateText: `วัน${WEEKDAY_NAMES_TH[weekdayOf(draft.payday)]}ที่ ${formatThaiDate(draft.payday, "long")}`,
+        daysLeft: daysBetween(today, draft.payday),
+      };
+    } catch {
+      next = null;
+    }
+  }
   let formattedPayday = "";
   try {
     formattedPayday = draft.payday ? formatThaiDate(draft.payday, "long") : "";
@@ -120,36 +183,62 @@ function IncomeForm({ initial }: { initial: SetupDraft }) {
           <h2 className="text-base font-semibold text-primary">ความถี่ที่เงินเข้า</h2>
           <div className="flex flex-wrap gap-2">
             {FREQUENCIES.map((f) => (
-              <Chip
-                key={f.key}
-                selected={draft.incomeFrequency === f.key}
-                onClick={() => {
-                  setError(null);
-                  setDraft((d) => ({ ...d, incomeFrequency: f.key }));
-                }}
-              >
+              <Chip key={f.key} selected={freq === f.key} onClick={() => chooseFrequency(f.key)}>
                 {f.label}
               </Chip>
             ))}
           </div>
         </section>
 
-        <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
-          <InputField
-            label={freqMeta.paydayLabel}
-            type="date"
-            value={draft.payday}
-            onChange={(e) => {
-              setError(null);
-              setDraft((d) => ({ ...d, payday: e.target.value }));
-            }}
-            state={error ? "error" : draft.payday ? "filled" : "default"}
-            helper={
-              error ??
-              (formattedPayday ? `นับรวมวันนี้จนถึง ${formattedPayday}` : "เลือกวันที่เงินรอบถัดไปจะเข้า")
-            }
-          />
-        </section>
+        {freq === "weekly" ? (
+          <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
+            <h2 className="text-base font-semibold text-primary">{freqMeta.paydayLabel}</h2>
+            <div className="flex flex-wrap gap-2">
+              {WEEKDAY_CHOICES.map((w) => (
+                <Chip key={w} selected={draft.paydayWeekday === w} onClick={() => chooseWeekday(w)}>
+                  {WEEKDAY_NAMES_TH[w]}
+                </Chip>
+              ))}
+            </div>
+            {error ? <p className="text-xs text-danger">{error}</p> : null}
+            {next ? (
+              <NextPaydayCard {...next} />
+            ) : !error ? (
+              <p className="text-xs text-secondary">เลือกวันที่เงินเข้าทุกสัปดาห์</p>
+            ) : null}
+          </section>
+        ) : freq === "monthly" ? (
+          <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
+            <MonthDayGrid value={draft.paydayDay} onChange={chooseDay} label={freqMeta.paydayLabel} />
+            {error ? <p className="text-xs text-danger">{error}</p> : null}
+            {next ? (
+              <NextPaydayCard {...next} />
+            ) : !error ? (
+              <p className="text-xs text-secondary">แตะวันที่เงินเข้าทุกเดือน</p>
+            ) : null}
+          </section>
+        ) : (
+          <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
+            <InputField
+              label={freq === null ? "วันเงินเข้า" : freqMeta.paydayLabel}
+              type="date"
+              value={freq === "irregular" ? draft.payday : ""}
+              onChange={(e) => {
+                setError(null);
+                setDraft((d) => ({ ...d, payday: e.target.value }));
+              }}
+              state={error ? "error" : freq === "irregular" && draft.payday ? "filled" : "default"}
+              helper={
+                error ??
+                (freq === "irregular" && formattedPayday
+                  ? `นับรวมวันนี้จนถึง ${formattedPayday}`
+                  : freq === null
+                    ? "เลือกความถี่ที่เงินเข้าก่อน"
+                    : "เลือกวันที่เงินรอบถัดไปจะเข้า")
+              }
+            />
+          </section>
+        )}
 
         <Button variant="primary" block onClick={handleNext}>
           ถัดไป
