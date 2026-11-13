@@ -718,6 +718,23 @@ describe("rich menu (โฟรวิว's spec and image) and what the bot canno
     expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "ลองในแอป" }));
   });
 
+  // The menu made in LINE OA Manager (13 Nov) cannot send postbacks: its buttons send these texts
+  it("OA Manager menu: «วิธีจดรายการ» and «ลองก่อนจ่าย» answer like the old buttons, without the AI", async () => {
+    await figma();
+    vi.mocked(generate).mockClear();
+    await chat("วิธีจดรายการ");
+    expect(lastText()).toContain("«ข้าว 45»");
+    expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "กรอกในแอป" }));
+    await chat(" ลองก่อนจ่าย ");
+    expect(lastText()).toContain("ไหวไหม");
+    expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "ลองในแอป" }));
+    await chat("วันนี้ใช้ได้เท่าไหร่");
+    expect(last().type).toBe("flex");
+    expect(lastText()).toContain("120 บาท");
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+    expect(await screenEntries()).toEqual([]);
+  });
+
   it("วันนี้ใช้ได้ from the menu: today's card", async () => {
     await figma();
     await tap("v1.menu_today.richmenu");

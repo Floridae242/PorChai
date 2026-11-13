@@ -150,6 +150,12 @@ function record(userId: string, d: Draft) {
 }
 
 // Card 09 / Figma L2 + L6, card 15. The rules read first; the AI only when they cannot.
+// What the OA Manager menu's buttons send («วันนี้ใช้ได้เท่าไหร่» is already a balance question)
+const MENU_TEXTS: Record<string, () => ReplyMessage> = {
+  วิธีจดรายการ: howToRecordMessage,
+  ลองก่อนจ่าย: howToTryMessage,
+};
+
 async function onText(userId: string, body: string, eventId: string): Promise<Answer> {
   const history = await recentChat(userId);
   const last = history.at(-1);
@@ -165,6 +171,9 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     const demo = await demoReminder(userId);
     return say(demo ? reminderCard(demo.log, demo.time) : demoNoHabitMessage());
   }
+  // The rich menu made in LINE OA Manager sends texts, not postbacks (it has no postback buttons)
+  const menu = MENU_TEXTS[body.trim()];
+  if (menu) return say(menu());
   const amount = amountOnly(body);
   // Try card [ลองยอดอื่น] → «250»: try the new price (a new draft: paying it is a new spend)
   if (pending?.kind === "try" && pending.awaiting === "amount" && amount !== null) {
