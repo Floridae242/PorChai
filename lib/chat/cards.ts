@@ -3,6 +3,7 @@ import type { BudgetResult } from "@/lib/calc/budget";
 import { adviceMessage, baht, budgetLine, cheer, choiceData, draftData, recordedManyMessage, recordedMessage, tryMessage, type Draft } from "@/lib/chat/messages";
 import type { ProposedItem } from "@/lib/db/chat-memory";
 import type { Advice } from "@/lib/advice/advise";
+import type { PriceHint } from "@/lib/advice/price-hint";
 import { addDays } from "@/lib/calc/time";
 import type { OcrDraft, TryDraft } from "@/lib/db/chat-memory";
 import type { Entry } from "@/lib/api-types";
@@ -279,6 +280,19 @@ export function tryCard(d: TryDraft, r: SimulateResponse): ReplyMessage {
 
 export const tryAskAmountMessage = (d: TryDraft): TextMessage =>
   text(`พิมพ์ราคาใหม่ของ ${d.title} ได้เลยครับ (ตอนนี้ ${baht(d.amount)} บาท) เช่น «250»`);
+
+// «ถ้ากินตี๋น้อยจะเหลือเท่าไร» without a price: the team's usual price (price_hints), to try only.
+// The draft waits for a typed price too («250»), like [ลองยอดอื่น].
+export function priceHintMessage(h: PriceHint, d: TryDraft): TextMessage {
+  const checked = `${MONTHS[Number(h.checkedOn.slice(5, 7)) - 1]} ${(Number(h.checkedOn.slice(0, 4)) + 543) % 100}`;
+  return text(
+    `${h.name} ราคาประมาณ ${baht(h.price)} บาท${h.unit}\nราคาที่ทีมเช็คไว้เมื่อ ${checked} ร้านจริงอาจต่างตามสาขาหรือโปร\nกด «ใช้ราคานี้ลอง» หรือพิมพ์ราคาที่รู้ เช่น «250» (ยังไม่จดอะไร)`,
+    [
+      { type: "postback", label: "ใช้ราคานี้ลอง", data: encodePostback("try_hint", d.id), displayText: "ใช้ราคานี้ลอง" },
+      { type: "postback", label: "พิมพ์ราคาเอง", data: encodePostback("try_other", d.id), displayText: "พิมพ์ราคาเอง" },
+    ],
+  );
+}
 
 export const notBuyingMessage = (d: TryDraft): TextMessage => text(`โอเคครับ ไม่ซื้อ ${d.title} ไม่ได้จดอะไร`);
 

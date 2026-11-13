@@ -44,6 +44,8 @@ const VERDICT: Record<TrialVerdict, AdviceVerdict> = {
 };
 const RANK: Record<AdviceVerdict, number> = { short: 0, tight: 1, enough: 2, ask: -1 };
 const DAY_OFFSET: Record<Day, number> = { today: 0, tomorrow: 1, day_after_tomorrow: 2 };
+// A question about another day is tried (and kept) for that day; today's has no date
+export const dueOnOf = (day: Day, today: string): string | null => (day === "today" ? null : addDays(today, DAY_OFFSET[day]));
 const DAY_LABEL: Record<Day, string> = { today: "วันนี้", tomorrow: "พรุ่งนี้", day_after_tomorrow: "มะรืน" };
 
 const baht = (satang: number) => Math.round(satang) / 100;
@@ -103,7 +105,7 @@ export async function advise(userId: string, question: string, now = new Date())
     return { ...blank, verdict: "ask", needs: ["amount"], dueOn: null, countsThisCycle: true, explanation: ASK.amount, byAI: false };
   }
 
-  const dueOn = q.day === "today" ? null : addDays(thaiDate(now), DAY_OFFSET[q.day]);
+  const dueOn = dueOnOf(q.day, thaiDate(now));
   const base = await tryWith(userId, q.amount, dueOn);
   if (base.verdict === "ask") {
     const needs = base.needs as AdviceNeed[];

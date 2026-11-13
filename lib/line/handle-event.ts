@@ -1,7 +1,8 @@
 import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
 import { tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
-import { advise } from "@/lib/advice/advise";
+import { advise, dueOnOf } from "@/lib/advice/advise";
+import { findPriceHint } from "@/lib/advice/price-hint";
 import { isBalanceQuestion, isQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
@@ -31,6 +32,7 @@ import {
   notWiredMessage,
   notYetMessage,
   postponedMessage,
+  priceHintMessage,
   tryAskAmountMessage,
   tryCard,
   welcomeCard,
@@ -71,6 +73,7 @@ import { addEntry, cancelEntry, editEntry, entryExists, entryForChat, sameAmount
 import { messageImage } from "@/lib/line/content";
 import { readSlip } from "@/lib/ocr/slip";
 import { addIncome } from "@/lib/db/income";
+import { activePriceHints } from "@/lib/db/price-hints";
 import { actOnPlan, addPlan, planIdByKey } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
 import { userIdForLine } from "@/lib/db/users";
@@ -196,6 +199,13 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // reaches a path that records (bug 13 Nov: a what-if was saved as a spend).
   if (isQuestion(body)) {
     if (readQuestion(body).amount !== null) return adviceAnswer(userId, body, eventId);
+    // «ถ้ากินตี๋น้อยจะเหลือเท่าไร»: a shop in the team's price table → its usual price, to try only
+    const hint = findPriceHint(body, await activePriceHints());
+    if (hint) {
+      const dueOn = dueOnOf(readQuestion(body).day, thaiDate(new Date()));
+      const draft: TryDraft = { id: crypto.randomUUID(), title: hint.name, amount: hint.price, category: hint.category, key: eventId, dueOn };
+      return say(priceHintMessage(hint, draft), { kind: "try", draft, awaiting: "amount" });
+    }
     return converse(userId, body, history, { approximate: false, question: true });
   }
   // «รับ 500»: income, saved once under this message (a redelivery adds nothing)
@@ -359,11 +369,14 @@ async function onTryButton(userId: string, p: DecodedPostback): Promise<Answer> 
   const draft: Draft = { title: d.title, amount: d.amount, category: d.category, key: d.key, dueOn: d.dueOn };
   if (p.action === "try_cancel") return say(notBuyingMessage(d), { kind: "try", draft: d, closed: true });
   if (p.action === "try_other") return say(tryAskAmountMessage(d), { kind: "try", draft: d, awaiting: "amount" });
+  if (p.action === "try_hint") return tryAnswer(userId, d);
   if (p.action === "keep_plan") return say(await keepDraft(userId, draft));
   if (p.action === "postpone_next") {
     const answer = await keepDraft(userId, { ...draft, dueOn: null }, "postponed");
     return say(answer.type === "text" && answer.text.startsWith("เก็บไว้ในแผนแล้ว") ? postponedMessage(d) : answer);
   }
+  // Only [ยืนยันจ่ายจริง] pays: a button added here but not wired must never record money (R01)
+  if (p.action !== "pay_real") return say(notWiredMessage());
   // pay_real: another day's item is kept, not paid, until that day
   if (d.dueOn && d.dueOn > thaiDate(new Date())) return say(notYetMessage(d));
   return say(await payDraft(userId, draft));
@@ -385,6 +398,7 @@ const FLEX_LABEL: Partial<Record<DecodedPostback["action"], string>> = {
   keep_plan: "เก็บไว้ในแผน",
   pay_real: "ยืนยันจ่ายจริง",
   try_other: "ลองยอดอื่น",
+  try_hint: "ใช้ราคานี้ลอง",
   try_cancel: "ไม่ซื้อ",
   postpone_next: "เลื่อนไปรอบหน้า",
   ocr_save: "บันทึก",
@@ -413,7 +427,7 @@ async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer>
   if (p.action === "menu_try") return say(howToTryMessage());
   if (p.action.startsWith("rem_")) return onReminderButton(userId, p);
   if (p.action.startsWith("ocr_")) return onOcrButton(userId, p);
-  if (["keep_plan", "pay_real", "try_other", "try_cancel", "postpone_next"].includes(p.action)) return onTryButton(userId, p);
+  if (["keep_plan", "pay_real", "try_other", "try_hint", "try_cancel", "postpone_next"].includes(p.action)) return onTryButton(userId, p);
   if (!["entry_edit", "entry_cat", "entry_cat_set", "entry_del", "entry_del_ok"].includes(p.action)) return say(notWiredMessage());
   try {
     const { entry, cancelled } = await entryForChat(userId, p.id);
