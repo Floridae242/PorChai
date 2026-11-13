@@ -43,10 +43,10 @@ const AMOUNT_MESSAGES: Record<AmountFailure, string> = {
 
 export function TryInputView() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  const [title, setTitle] = useState(() => searchParams?.get("title") ?? "");
-  const [amountText, setAmountText] = useState(() => searchParams?.get("amount") ?? "");
+  // Typed values stay in component state: the URL carries nothing (Clarity records URLs).
+  const [title, setTitle] = useState("");
+  const [amountText, setAmountText] = useState("");
   const [dueOn, setDueOn] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -122,8 +122,8 @@ export function TryResultView() {
   const api = useApi();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const qAmount = searchParams?.get("amount") ?? null;
-  const qTitle = searchParams?.get("title") ?? null;
+  // Only an id travels in the URL; title and price come from the server.
+  const promoId = searchParams?.get("promo") ?? null;
 
   const [item, setItem] = useState<TryItemDraft | null>(null);
   const [sim, setSim] = useState<SimulateResponse | null>(null);
@@ -138,29 +138,34 @@ export function TryResultView() {
   const [essentialsError, setEssentialsError] = useState<string | null>(null);
   const remember = useSubmit<void>();
 
-  // Read the draft (or the link's ?title=&amount=) after mount so server and client markup match.
+  // Read the draft (or the promo from ?promo=<id>) after mount so server and client markup match.
   useEffect(() => {
     let cancelled = false;
-    void Promise.resolve().then(() => {
+    void (async () => {
+      await Promise.resolve();
       if (cancelled) return;
-      if (qAmount) {
-        const parsed = parseBahtInput(qAmount);
-        if (parsed.ok) {
-          const d: TryItemDraft = { title: qTitle?.trim() || DEFAULT_TITLE, amount: parsed.satang, dueOn: null };
+      if (promoId) {
+        try {
+          const p = await api.promo(promoId);
+          if (cancelled) return;
+          const d: TryItemDraft = { title: p.title.trim() || DEFAULT_TITLE, amount: p.price, dueOn: null };
           saveTryDraft(d);
           setItem(d);
           return;
+        } catch {
+          if (cancelled) return;
+          // promo unavailable: fall back to the saved draft below
         }
       }
       const d = loadTryDraft();
       if (d) setItem(d);
       else router.replace("/app/try");
-    });
+    })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qAmount, qTitle]);
+  }, [promoId]);
 
   useEffect(() => {
     if (!item) return;

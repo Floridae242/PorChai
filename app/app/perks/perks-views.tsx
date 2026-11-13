@@ -15,7 +15,7 @@ import type { Promo, Reward } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
 import { formatThaiDate, formatThaiTime } from "@/lib/format/date";
-import { formatBaht, satangToInputString } from "@/lib/format/money";
+import { formatBaht } from "@/lib/format/money";
 
 const noopSubscribe = () => () => {};
 const MSG_NOT_READY = "ยังไม่พร้อมใช้งาน";
@@ -315,7 +315,7 @@ export function PerkDetailView() {
           รับรหัส
         </Button>
         <Link
-          href={`/app/try/result?title=${encodeURIComponent(p.title)}&amount=${encodeURIComponent(satangToInputString(p.price))}`}
+          href={`/app/try/result?promo=${encodeURIComponent(p.id)}`}
           className={buttonClass("secondary", true)}
         >
           ลองก่อนจ่ายด้วยราคานี้
