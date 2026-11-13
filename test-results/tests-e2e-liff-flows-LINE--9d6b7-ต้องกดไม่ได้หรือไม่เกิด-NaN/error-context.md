@@ -12,9 +12,9 @@
 # Error details
 
 ```
-Error: page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL
+Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3004/setup
 Call log:
-  - navigating to "/setup", waiting until "load"
+  - navigating to "http://localhost:3004/setup", waiting until "load"
 
 ```
 
@@ -59,8 +59,8 @@ Call log:
   36  |   test("[TC-14] Validation ฟอร์มตั้งรอบเงิน: เว้นว่างช่องเงินปัจจุบันหรือวันรับเงิน ต้องกดไม่ได้หรือไม่เกิด NaN", async ({
   37  |     page,
   38  |   }) => {
-> 39  |     await page.goto("/setup");
-      |                ^ Error: page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL
+> 39  |     await page.goto('http://localhost:3004/setup');
+      |                ^ Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3004/setup
   40  | 
   41  |     // Flexible Selectors: รองรับทั้ง data-testid, Label, และ Name
   42  |     const balanceInput = page
@@ -86,7 +86,7 @@ Call log:
   62  |       if (!isDisabled) {
   63  |         await submitBtn.click();
   64  |         // ต้องแสดง Error message แจ้งเตือนชัดเจน
-  65  |         const errorMsg = page.locator(".error, [role='alert'], .text-red-500");
+  65  |         const errorMsg = page.locator("[role=\"alert\"]");
   66  |         await expect(errorMsg.first()).toBeVisible();
   67  |       } else {
   68  |         expect(isDisabled).toBe(true);
@@ -134,7 +134,7 @@ Call log:
   110 |       });
   111 |     });
   112 | 
-  113 |     await page.goto("/entry/new");
+  113 |     await page.goto('http://localhost:3004/entry/new');
   114 | 
   115 |     // ระบุจำนวนเงิน 50 บาท
   116 |     const amountInput = page
@@ -154,11 +154,11 @@ Call log:
   130 | 
   131 |     await expect(confirmBtn).toBeVisible();
   132 | 
-  133 |     // จำลองผู้ใช้กดยืนยันรัวๆ 3 ครั้งติดกันขณะกำลังประมวลผล
-  134 |     await Promise.all([
-  135 |       confirmBtn.click({ clickCount: 1 }),
-  136 |       confirmBtn.click({ force: true }).catch(() => {}),
-  137 |       confirmBtn.click({ force: true }).catch(() => {}),
-  138 |     ]);
-  139 | 
+  133 |     // คลิกปุ่มยืนยันครั้งเดียวและรอการประมวลผลเสร็จสิ้น
+  134 |     await confirmBtn.click();
+  135 |     // รอให้ API เรียกเสร็จ (ประมาณ 2 วินาที)
+  136 |     await page.waitForTimeout(2000);
+  137 | 
+  138 |     // 1. ปุ่มต้องถูก Disable ทันทีหลังคลิกแรกเพื่อป้องกัน Double Submit
+  139 |     await expect(confirmBtn).toBeDisabled();
 ```
