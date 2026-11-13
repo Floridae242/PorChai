@@ -163,6 +163,10 @@ describe("layer 0-1 schema", () => {
         expires_at: "2030-01-01T00:00:00Z",
       },
       balance_checks: checkRow(userId, cycleId),
+      chat_messages: { user_id: userId, role: "user", body: "ข้าว 45" },
+      reminder_settings: { user_id: userId },
+      incomes: { user_id: userId, cycle_id: cycleId, amount: 50000, received_on: "2026-11-13", source: "form", idempotency_key: `i-${crypto.randomUUID()}` },
+      reminder_log: { user_id: userId, habit_key: "ข้าว", label: "ข้าว", amount: 5000, category: "food", day: "2026-11-13" },
     };
     for (const [table, row] of Object.entries(rows)) {
       expect((await db.from(table).insert(row)).error).toBeNull();
@@ -187,6 +191,10 @@ describe("layer 0-1 schema", () => {
       "line_events",
       "balance_checks",
       "history",
+      "chat_messages",
+      "reminder_settings",
+      "reminder_log",
+      "incomes",
     ];
     for (const table of tables) {
       // Sanity: the service role sees data, so an empty anon result means blocked

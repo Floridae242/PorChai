@@ -1,7 +1,7 @@
 import type { Plan, UserCategory } from "@/lib/api-types";
 import { heldThisCycle } from "@/lib/calc/inputs";
 import { getDb } from "@/lib/db/client";
-import { requireActiveCycle, type ActiveCycle } from "@/lib/db/budget";
+import { loadBudget, requireActiveCycle, requireBasis, type ActiveCycle } from "@/lib/db/budget";
 import { HttpError } from "@/lib/http";
 import type { PlanRequest } from "@/lib/validate";
 
@@ -68,6 +68,13 @@ export async function addPlan(
 ): Promise<{ plan: Plan; created: boolean }> {
   const db = getDb();
   const cycle = await requireActiveCycle(userId);
+  if (input.basis) {
+    // A double tap first: the same key is the same plan, even though the numbers have moved since
+    const seen = await db.from("plans").select(COLUMNS).eq("user_id", userId).eq("idempotency_key", idempotencyKey).maybeSingle();
+    if (seen.error) throw seen.error;
+    if (seen.data) return { plan: toPlan(seen.data as Row, cycle.payday), created: false };
+    requireBasis(await loadBudget(userId), input.basis); // card 23: decided on numbers that changed → recalculate
+  }
   const { data, error } = await db
     .from("plans")
     .insert({
@@ -128,4 +135,16 @@ async function ownPlan(cycle: ActiveCycle, id: string): Promise<Plan> {
   const { data, error } = await getDb().from("plans").select(COLUMNS).eq("id", id).eq("cycle_id", cycle.id).single();
   if (error) throw error;
   return toPlan(data as Row, cycle.payday);
+}
+
+// A plan kept from the chat, found by the key of the message it came from
+export async function planIdByKey(userId: string, idempotencyKey: string): Promise<string | null> {
+  const { data, error } = await getDb()
+    .from("plans")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.id as string | undefined) ?? null;
 }

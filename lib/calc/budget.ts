@@ -1,5 +1,5 @@
 import { addDays, daysBetween } from "@/lib/calc/time";
-import { floorToBaht, type Satang } from "@/lib/calc/money";
+import { floorToBaht, floorToQuarter, type Satang } from "@/lib/calc/money";
 
 export interface BudgetInput {
   balance: Satang; // money on hand now (see balanceNow in lib/calc/inputs)
@@ -38,7 +38,8 @@ export function computeBudget(input: BudgetInput): BudgetResult {
 
   // Today's spending is added back so the daily budget and purchase limit stay stable as the day goes on.
   const usableAtDayStart = usable + input.spentToday;
-  const dailyBudget = floorToBaht(usableAtDayStart / daysLeft);
+  // Rounded down to 25 satang (QA rule R3-quarter), so it never promises money that is not there.
+  const dailyBudget = floorToQuarter(usableAtDayStart / daysLeft);
   const essential = input.essentialPerDay;
   const spare = essential === null ? null : floorToBaht(usableAtDayStart - essential * daysLeft);
   return {
@@ -79,15 +80,33 @@ export interface TrialResult {
   overLimitBy: Satang | null; // how far past the purchase limit (W14 "เกินวงเงิน"); null if short or asking
 }
 
-// Try buying `buy` (held this cycle) and postponing held plans worth `release`, without saving anything.
-export function tryOut(input: BudgetInput, change: { buy: Satang; release: Satang }): TrialResult {
+// Try buying `buy` (held this cycle), postponing held plans worth `release`, a new emergency buffer
+// (card 19), a later payday or a corrected balance (card 23), without saving anything.
+// Only `after` sees the change.
+export function tryOut(
+  input: BudgetInput,
+  change: {
+    buy: Satang;
+    release: Satang;
+    emergencyBuffer?: Satang;
+    payday?: string;
+    balance?: Satang;
+    reserved?: Satang; // held plans re-counted for a moved payday (default: input.reserved)
+  },
+): TrialResult {
   const needs: Missing[] = [];
   if (input.essentialPerDay === null) needs.push("essentials");
   if (daysBetween(input.today, input.payday) <= 0) needs.push("payday");
   if (needs.length > 0) return { verdict: "ask", needs, before: null, after: null, overLimitBy: null };
 
   const before = computeBudget(input);
-  const after = computeBudget({ ...input, reserved: input.reserved + change.buy - change.release });
+  const after = computeBudget({
+    ...input,
+    reserved: (change.reserved ?? input.reserved) + change.buy - change.release,
+    emergencyBuffer: change.emergencyBuffer ?? input.emergencyBuffer,
+    payday: change.payday ?? input.payday, // card 23: more days to cover with the same money
+    balance: change.balance ?? input.balance,
+  });
   if (after.kind !== "ok") return { verdict: "shortfall", needs, before, after, overLimitBy: null };
   // Both are known here: essentials were checked above
   const spare = after.spare!;

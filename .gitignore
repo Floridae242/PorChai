@@ -42,3 +42,4 @@ next-env.d.ts
 
 # allow the template that lists variable names only
 !.env.example
+scripts/chat-eval-report.md

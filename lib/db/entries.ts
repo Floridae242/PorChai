@@ -90,6 +90,12 @@ async function ownEntry(userId: string, id: string): Promise<Row> {
 
 const CANCELLED = () => new HttpError(409, "entry_cancelled", "รายการนี้ถูกยกเลิกแล้ว");
 
+// The chat card's buttons (card 10): the owner's entry and whether it was cancelled; 404 for anyone else
+export async function entryForChat(userId: string, id: string): Promise<{ entry: Entry; cancelled: boolean }> {
+  const row = await ownEntry(userId, id);
+  return { entry: toEntry(row), cancelled: row.cancelled_at !== null };
+}
+
 // Paying a plan made this entry: its amount and date are the plan's, and undoing it belongs to the
 // plan (unpay), or the plan would stay "paid". Only a purchase's category may change (L9).
 function checkPlanEntryEdit(row: Row, patch: EntryPatch): void {
@@ -136,4 +142,28 @@ export async function cancelEntry(userId: string, id: string): Promise<Entry> {
   // 23514: a concurrent cancel won; the entry is cancelled either way
   if (error && error.code !== "23514") throw error;
   return toEntry(row);
+}
+
+// OCR: an entry with the same amount on that day — the slip may already be recorded
+export async function sameAmountOn(userId: string, day: string, amount: number): Promise<Entry | null> {
+  const { data, error } = await getDb()
+    .from("entries")
+    .select(COLUMNS)
+    .eq("user_id", userId)
+    .eq("spent_on", day)
+    .eq("amount", amount)
+    .is("cancelled_at", null)
+    .limit(1);
+  if (error) throw error;
+  return data[0] ? toEntry(data[0] as Row) : null;
+}
+
+export async function entryExists(userId: string, idempotencyKey: string): Promise<boolean> {
+  const { count, error } = await getDb()
+    .from("entries")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("idempotency_key", idempotencyKey);
+  if (error) throw error;
+  return (count ?? 0) > 0;
 }

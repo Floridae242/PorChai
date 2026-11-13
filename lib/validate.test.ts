@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { HttpError } from "@/lib/http";
 import {
   parseBalanceCheck,
+  parseBufferChange,
   parseEntryPatch,
   parseNewCycle,
   parseNewEntry,
   parseNewPlan,
+  parsePaydayChange,
   parseEssentials,
   parsePayPlan,
   parseTrial,
@@ -222,6 +224,7 @@ describe("parseNewPlan", () => {
       dueOn: null,
       category: null,
       status: "reserved",
+      basis: null,
     });
   });
 
@@ -271,7 +274,15 @@ describe("parseTrial", () => {
   const id = "11111111-1111-4111-8111-111111111111";
 
   it("W11: an item to try, nothing else", () => {
-    expect(parseTrial({ amount: 48000 })).toEqual({ amount: 48000, dueOn: null, postponePlanIds: [], essentials: null });
+    expect(parseTrial({ amount: 48000 })).toEqual({
+      amount: 48000,
+      dueOn: null,
+      postponePlanIds: [],
+      essentials: null,
+      emergencyBuffer: null,
+      payday: null,
+      balance: null,
+    });
   });
 
   it("14: postponing held plans, with or without an item; duplicates once", () => {
@@ -299,5 +310,46 @@ describe("parseEssentials", () => {
     expect(parseEssentials({ food: 5000, transport: 0 })).toEqual({ food: 5000, transport: 0 });
     rejects(() => parseEssentials({ food: 5000 }), "ทั้งคู่");
     rejects(() => parseEssentials({ food: -1, transport: 0 }), "ค่ากิน");
+  });
+});
+
+describe("parseBufferChange", () => {
+  it("the new amount and the one the screen showed", () => {
+    expect(parseBufferChange({ amount: 0, previous: 12000 })).toEqual({ amount: 0, previous: 12000 });
+  });
+
+  it("rejects a missing or negative amount or previous", () => {
+    rejects(() => parseBufferChange({ amount: -1, previous: 0 }), "เงินเผื่อ");
+    rejects(() => parseBufferChange({ amount: 100 }), "ค่าเดิม");
+  });
+});
+
+describe("parseTrial — card 19 buffer", () => {
+  it("a try may change only the buffer", () => {
+    expect(parseTrial({ emergencyBuffer: 0 })).toMatchObject({ amount: 0, emergencyBuffer: 0 });
+    expect(parseTrial({ amount: 100 }).emergencyBuffer).toBeNull();
+    rejects(() => parseTrial({ emergencyBuffer: -1 }), "เงินเผื่อ");
+  });
+});
+
+describe("card 23 inputs", () => {
+  it("a try may move payday (after today) or correct the balance", () => {
+    expect(parseTrial({ payday: "2026-11-25" }, TODAY)).toMatchObject({ payday: "2026-11-25", amount: 0 });
+    expect(parseTrial({ balance: 90000 }, TODAY)).toMatchObject({ balance: 90000 });
+    rejects(() => parseTrial({ payday: TODAY }, TODAY), "วันเงินเข้า");
+    rejects(() => parseTrial({ balance: -1 }, TODAY), "ยอดเงิน");
+  });
+
+  it("PUT payday needs a date after today and the basis the screen was shown", () => {
+    expect(parsePaydayChange({ payday: "2026-11-25", basis: "abc" }, TODAY)).toEqual({ payday: "2026-11-25", basis: "abc" });
+    rejects(() => parsePaydayChange({ payday: TODAY, basis: "abc" }, TODAY), "วันเงินเข้า");
+    rejects(() => parsePaydayChange({ payday: "2026-11-25" }, TODAY), "ผลคำนวณ");
+  });
+
+  it("a plan or a balance check may carry the basis it was confirmed on", () => {
+    expect(parseNewPlan({ title: "x", amount: 100, basis: "abc" }).basis).toBe("abc");
+    expect(parseNewPlan({ title: "x", amount: 100 }).basis).toBeNull();
+    expect(parseBalanceCheck({ balance: 100, basis: "abc" }, NOW).basis).toBe("abc");
+    rejects(() => parseNewPlan({ title: "x", amount: 100, basis: 5 }), "ผลคำนวณ");
   });
 });

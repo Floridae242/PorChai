@@ -7,6 +7,7 @@ import { GET as getSummary } from "../summary/route";
 import { POST as createCycle } from "../cycle/route";
 import { PUT as setEssentials } from "../cycle/essentials/route";
 import { POST as addPlan } from "../plans/route";
+import { POST as addEntry } from "../entries/route";
 
 // Card 14: try before paying — before / after, asks when something is missing, and never saves (57 criterion 1).
 
@@ -103,6 +104,20 @@ describe("card 14: POST /api/simulate", () => {
     expect(res.status).toBe(401);
   });
 
+  it("still explains a shortfall after spending consumes the existing protected amounts", async () => {
+    await figma(lineA);
+    const spent = await addEntry(req("/api/entries", lineA, {
+      method: "POST", key: crypto.randomUUID(),
+      body: { amount: 230000, category: "other" },
+    }));
+    expect(spent.status).toBe(201);
+    const res = await tryIt(lineA, { amount: 100 });
+    expect(res.status).toBe(200);
+    expect((await res.json()).verdict).toBe("shortfall");
+    // Explicitly requesting an unaffordable buffer still receives validation.
+    expect((await tryIt(lineA, { emergencyBuffer: 12000 })).status).toBe(422);
+  });
+
   it("W12: shoes 480 → 120 a day becomes 80; bill, essentials, savings and buffer all checked", async () => {
     await figma(lineA);
     const r = await tried(lineA, { amount: 48000 });
@@ -120,11 +135,11 @@ describe("card 14: POST /api/simulate", () => {
     });
   });
 
-  it("W14: headphones 700 → over the limit by 100, 61 a day, essentials short 9 a day", async () => {
+  it("W14: headphones 700 → over the limit by 100, 61.50 a day, essentials short 8.50 a day", async () => {
     await figma(lineA);
     const r = await tried(lineA, { amount: 70000 });
     expect(r).toMatchObject({ verdict: "essentials_short", overLimitBy: 10000 });
-    expect(r.after).toMatchObject({ dailyBudget: 6100, essentialShortPerDay: 900 });
+    expect(r.after).toMatchObject({ dailyBudget: 6150, essentialShortPerDay: 850 }); // (1,440 − 700) ÷ 12 = 61.666… → 61.50; 70 − 61.50 = 8.50
     expect(r.checks).toMatchObject({ billsCovered: true, essentialsCovered: false });
   });
 

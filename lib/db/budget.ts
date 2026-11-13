@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Summary } from "@/lib/api-types";
 import { computeBudget, type BudgetInput } from "@/lib/calc/budget";
 import {
@@ -66,12 +67,14 @@ export interface LoadedBudget {
 export async function loadBudget(userId: string, now = new Date()): Promise<LoadedBudget> {
   const db = getDb();
   const cycle = await requireActiveCycle(userId);
-  const [anchor, entries, plans] = await Promise.all([
+  const [anchor, entries, plans, incomes] = await Promise.all([
     currentAnchor(cycle),
     db.from("entries").select("amount, spent_on, created_at, source").eq("cycle_id", cycle.id).is("cancelled_at", null),
     db.from("plans").select("id, kind, amount, status, due_on").eq("cycle_id", cycle.id),
+    db.from("incomes").select("amount, received_on, created_at").eq("cycle_id", cycle.id).is("cancelled_at", null),
   ]);
   if (entries.error) throw entries.error;
+  if (incomes.error) throw incomes.error;
   if (plans.error) throw plans.error;
 
   const today = thaiDate(now);
@@ -83,7 +86,11 @@ export async function loadBudget(userId: string, now = new Date()): Promise<Load
   }));
   const planRows = plans.data as PlanRow[];
   const input: BudgetInput = {
-    balance: balanceNow(anchor, rows),
+    balance: balanceNow(
+      anchor,
+      rows,
+      incomes.data.map((i) => ({ amount: i.amount as number, receivedOn: i.received_on as string, createdAt: new Date(i.created_at as string) })),
+    ),
     spentToday: spentOnDay(rows, today),
     emergencyBuffer: cycle.emergency_buffer,
     savings: cycle.savings_amount,
@@ -103,7 +110,23 @@ export async function loadBudget(userId: string, now = new Date()): Promise<Load
 }
 
 export async function loadSummary(userId: string, now = new Date()): Promise<Summary> {
-  const { anchor, input } = await loadBudget(userId, now);
+  return summaryOf(await loadBudget(userId, now));
+}
+
+// Card 23: a fingerprint of every number the calculator used. A screen sends back the basis it showed;
+// if anything changed since (a spend, a plan, ปรับยอด, a setting, a new day) the confirm is refused.
+// Derived, not stored, so no table needs a version column kept in step.
+export function basisOf(input: BudgetInput): string {
+  return createHash("sha256").update(JSON.stringify(input)).digest("base64url").slice(0, 16);
+}
+
+export function requireBasis(loaded: LoadedBudget, seen: string): void {
+  if (basisOf(loaded.input) !== seen) {
+    throw new HttpError(409, "stale", "ข้อมูลเปลี่ยนไปแล้ว ดูผลคำนวณใหม่ก่อนยืนยัน");
+  }
+}
+
+export function summaryOf({ anchor, input }: LoadedBudget): Summary {
   return {
     today: input.today,
     payday: input.payday,
@@ -115,5 +138,6 @@ export async function loadSummary(userId: string, now = new Date()): Promise<Sum
     reserved: input.reserved,
     essentialPerDay: input.essentialPerDay,
     budget: computeBudget(input),
+    basis: basisOf(input),
   };
 }

@@ -11,3 +11,9 @@ export async function recordEvent(webhookEventId: string): Promise<boolean> {
   if (error.code === UNIQUE_VIOLATION) return false;
   throw error;
 }
+
+// Undo recordEvent when handling failed, so LINE's redelivery of the event is handled, not skipped as a duplicate
+export async function forgetEvent(webhookEventId: string): Promise<void> {
+  const { error } = await getDb().from("line_events").delete().eq("webhook_event_id", webhookEventId);
+  if (error) throw error;
+}

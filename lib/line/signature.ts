@@ -1,15 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-// Check LINE's x-line-signature: base64 HMAC-SHA256 of the raw body.
+// Accept raw bytes in the webhook and raw strings for existing backend callers.
 export function verifySignature(
-  rawBody: string,
+  body: string | Uint8Array,
   signature: string | null,
   secret: string,
 ): boolean {
-  if (!signature) return false;
-  const expected = Buffer.from(createHmac("sha256", secret).update(rawBody).digest("base64"));
-  const actual = Buffer.from(signature);
-  // timingSafeEqual throws on unequal lengths
-  if (actual.length !== expected.length) return false;
-  return timingSafeEqual(actual, expected);
+  if (!signature || !/^[A-Za-z0-9+/]{43}=$/.test(signature)) return false;
+  const expected = createHmac("sha256", secret).update(body).digest("base64");
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }

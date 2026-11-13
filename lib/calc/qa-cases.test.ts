@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { baht } from "@/lib/calc/money";
-import { computeBudget, simulatePurchase, tomorrowBudget, type BudgetInput } from "@/lib/calc/budget";
+import { computeBudget, simulatePurchase, type BudgetInput } from "@/lib/calc/budget";
 import {
   balanceNow,
   reservedTotal,
@@ -94,10 +94,8 @@ describe("TC-01, TC-02, TC-03: ตัวอย่างกลาง 1,000 บ. �
 describe("TC-04: [R3-quarter] 700 บาท 3 วัน ลอง 300 (แยกข้อมูลต่างหาก)", () => {
   const base = input({ balance: baht(700), reserved: 0, days: 3 });
 
-  // เมื่อ dev แก้ budget.ts (R3-quarter) ให้เปลี่ยนกลับเป็น it
-  it.fails("TC-04: [R3-quarter] ก่อนลอง 700 บ. 3 วัน ได้งบ 233.25 บ./วัน (โค้ดปัจจุบันปัดเป็น 233 บ.)", () => {
+  it("TC-04: [R3-quarter] ก่อนลอง 700 บ. 3 วัน ได้งบ 233.25 บ./วัน", () => {
     // 700 / 3 = 233.333... ปัดลงขั้น 25 สตางค์ = 233.25 บ. (23,325 สตางค์)
-    // หมายเหตุ: โค้ดปัจจุบันใช้ floorToBaht จะได้ 233.00 บ. (23,300 สตางค์)
     const r = computeBudget(base);
     expect(base.balance).toBe(baht(700));
     expect(r).toMatchObject({
@@ -107,10 +105,8 @@ describe("TC-04: [R3-quarter] 700 บาท 3 วัน ลอง 300 (แยก
     });
   });
 
-  // เมื่อ dev แก้ budget.ts (R3-quarter) ให้เปลี่ยนกลับเป็น it
-  it.fails("TC-04: [R3-quarter] หลังลอง 300 บ. ได้งบ 133.25 บ./วัน (โค้ดปัจจุบันปัดเป็น 133 บ.)", () => {
+  it("TC-04: [R3-quarter] หลังลอง 300 บ. ได้งบ 133.25 บ./วัน", () => {
     // (700 - 300) / 3 = 400 / 3 = 133.333... ปัดลงขั้น 25 สตางค์ = 133.25 บ. (13,325 สตางค์)
-    // หมายเหตุ: โค้ดปัจจุบันใช้ floorToBaht จะได้ 133.00 บ. (13,300 สตางค์)
     const tried = simulatePurchase(base, baht(300));
     expect(base.balance).toBe(baht(700)); // เงินจริงไม่เปลี่ยน
     expect(tried).toMatchObject({
@@ -144,12 +140,10 @@ describe("TC-08: เลื่อนวันรับเงินออกไป
 });
 
 describe("TC-09: [R3-quarter] บิลถึงกำหนดก่อนเงินเข้า", () => {
-  // เมื่อ dev แก้ budget.ts (R3-quarter) ให้เปลี่ยนกลับเป็น it
-  it.fails(
-    "TC-09: [R3-quarter] เงิน 1,500 บ., บิล 200 บ. ถึงกำหนดในรอบ, 15 วัน ได้งบ 86.50 บ./วัน (โค้ดปัจจุบันปัดเป็น 86 บ.)",
+  it(
+    "TC-09: [R3-quarter] เงิน 1,500 บ., บิล 200 บ. ถึงกำหนดในรอบ, 15 วัน ได้งบ 86.50 บ./วัน",
     () => {
       // 1300 / 15 = 86.666... ปัดลงขั้น 25 สตางค์ = 86.50 บ. (8,650 สตางค์)
-      // หมายเหตุ: โค้ดปัจจุบันใช้ floorToBaht จะได้ 86.00 บ. (8,600 สตางค์)
       const r = computeBudget(input({ balance: baht(1500), reserved: baht(200), days: 15 }));
       expect(r).toMatchObject({
         kind: "ok",
@@ -179,12 +173,10 @@ describe("TC-10: บิลกำหนดจ่ายหลังวันเง
 });
 
 describe("TC-13: [R3-quarter] ผู้ใช้กดปรับยอดเงินปัจจุบัน", () => {
-  // เมื่อ dev แก้ budget.ts (R3-quarter) ให้เปลี่ยนกลับเป็น it
-  it.fails(
-    "TC-13: [R3-quarter] ยอดในกระเป๋าจริงเป็น 850 บ. บิล 300 บ. 7 วัน ได้งบ 78.50 บ./วัน (โค้ดปัจจุบันปัดเป็น 78 บ.)",
+  it(
+    "TC-13: [R3-quarter] ยอดในกระเป๋าจริงเป็น 850 บ. บิล 300 บ. 7 วัน ได้งบ 78.50 บ./วัน",
     () => {
       // 550 / 7 = 78.5714... ปัดลงขั้น 25 สตางค์ = 78.50 บ. (7,850 สตางค์)
-      // หมายเหตุ: โค้ดปัจจุบันใช้ floorToBaht จะได้ 78.00 บ. (7,800 สตางค์)
       const r = computeBudget(input({ balance: baht(850), reserved: baht(300), days: 7 }));
       expect(r).toMatchObject({
         kind: "ok",
@@ -237,10 +229,8 @@ describe("TC-22: ลองหลายครั้ง ค่าที่ลอ�
     expect(reset).toMatchObject({ kind: "ok", usable: baht(700), dailyBudget: baht(100) });
   });
 
-  // เมื่อ dev แก้ budget.ts (R3-quarter) ให้เปลี่ยนกลับเป็น it
-  it.fails("TC-22(ข): [R3-quarter] ลอง 250 ได้งบ 64.25 บ./วัน (โค้ดปัจจุบันปัดเป็น 64 บ.)", () => {
+  it("TC-22(ข): [R3-quarter] ลอง 250 ได้งบ 64.25 บ./วัน", () => {
     // 450 / 7 = 64.2857... ปัดลงขั้น 25 สตางค์ = 64.25 บ. (6,425 สตางค์)
-    // หมายเหตุ: โค้ดปัจจุบันใช้ floorToBaht จะได้ 64.00 บ. (6,400 สตางค์)
     const try250 = simulatePurchase(base, baht(250));
     expect(try250).toMatchObject({ kind: "ok", usable: baht(450), dailyBudget: 6425 });
   });
@@ -324,7 +314,7 @@ describe("กรณีเพิ่มเติมจากโค้ดจริ�
     expect(savings).toBe(baht(100));
 
     // usable = 1000 - 300 - 100 = 600 บ.
-    // dailyBudget = floorToBaht(600 / 7) = floorToBaht(85.714...) = 85 บ.
+    // dailyBudget = floorToQuarter(600 / 7) = floorToQuarter(85.714...) = 85.50 บ.
     const r = computeBudget(
       input({
         balance: baht(1000),
@@ -336,13 +326,13 @@ describe("กรณีเพิ่มเติมจากโค้ดจริ�
     expect(r).toMatchObject({
       kind: "ok",
       usable: baht(600),
-      dailyBudget: baht(85),
+      dailyBudget: 8550,
     });
   });
 
   it("ข้อ 5(ข): emergencyBuffer 50: 1,000 บิล 300 7 วัน ได้ยังไม่จัดสรร 650 และงบ 92", () => {
     // usable = 1000 - 300 - 50 = 650 บ.
-    // dailyBudget = floorToBaht(650 / 7) = floorToBaht(92.857...) = 92 บ.
+    // dailyBudget = floorToQuarter(650 / 7) = floorToQuarter(92.857...) = 92.75 บ.
     const r = computeBudget(
       input({
         balance: baht(1000),
@@ -354,7 +344,7 @@ describe("กรณีเพิ่มเติมจากโค้ดจริ�
     expect(r).toMatchObject({
       kind: "ok",
       usable: baht(650),
-      dailyBudget: baht(92),
+      dailyBudget: 9275,
     });
   });
 });
