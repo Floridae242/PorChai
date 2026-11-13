@@ -407,13 +407,13 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
   it("the AI is sent the chat and the numbers only — never the LINE id", async () => {
     await figma();
     await chat("ข้าว 45");
-    await chat("เหลือเท่าไร");
+    await chat("สัปดาห์นี้ใช้ไปเท่าไร");
     const input = vi.mocked(generate).mock.calls.at(-1)![0].input;
     expect(input).not.toContain(lineA);
     expect(JSON.parse(input)).toMatchObject({
       facts: { setUp: true, todayRemaining: 75, dailyBudget: 120 },
       history: [{ role: "user", text: "ข้าว 45" }, { role: "bot" }],
-      message: "เหลือเท่าไร",
+      message: "สัปดาห์นี้ใช้ไปเท่าไร",
     });
   });
 
@@ -425,16 +425,43 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     expect(lastText()).toContain("ผมชื่อพอใช้ ผู้ช่วยเรื่องเงินของคุณ");
     expect(lastText()).not.toContain("3 อย่าง");
     aiSays({ intent: "chat", topic: "money", item: null, reply: "เหลือ 999 บาทจ้า" });
-    await chat("เหลือเท่าไร");
+    await chat("สัปดาห์นี้ใช้ไปเท่าไร");
     expect(lastText()).not.toContain("999");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
   });
 
-  it("«เหลือกี่บาท?» is chat, not a try-before-you-buy question", async () => {
+  it("«เหลือกี่บาท?» is the budget card, not a try-before-you-buy question", async () => {
     await figma();
     await chat("เหลือกี่บาท?");
+    expect(last().type).toBe("flex");
     expect(lastText()).not.toContain("อยากซื้ออะไร");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
+  });
+
+  it("«เหลือเท่าไร» / «เหลือเงินทั้งหมดเท่าไร»: the budget card from the calculator — the AI is never asked, nothing is saved", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    for (const ask of ["เหลือเท่าไร", "เหลือเงินทั้งหมดเท่าไร", "งบเหลือป่ะ", "วันนี้ใช้ไปเท่าไร"]) {
+      await chat(ask);
+      expect(last().type, ask).toBe("flex");
+      expect(lastText(), ask).toContain("วันนี้ใช้ได้อีก 75 บาท");
+      expect(lastText(), ask).toContain("ใช้ไปแล้ว 45 จาก 120 บาท");
+      expect(lastText(), ask).toContain("เงินทั้งหมดตอนนี้ 2,355 บาท"); // 2,400 − 45
+    }
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+    expect(await screenEntries()).toHaveLength(1);
+  });
+
+  it("a span or an item still goes to the AI: «สัปดาห์นี้ใช้ไปเท่าไร», «ถ้ากินชาบูจะเหลือเท่าไร»", async () => {
+    await figma();
+    await chat("สัปดาห์นี้ใช้ไปเท่าไร");
+    await chat("ถ้ากินชาบูจะเหลือเท่าไร");
+    expect(vi.mocked(generate)).toHaveBeenCalledTimes(2);
+  });
+
+  it("«เหลือเท่าไร» before setting up: set up first", async () => {
+    await chat("เหลือเท่าไร");
+    expect(lastText()).toContain("ยังไม่ได้ตั้งรอบเงิน");
   });
 
   it("off topic: never the AI's words — a fixed reply bringing it back to money", async () => {

@@ -2,7 +2,7 @@ import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
 import { tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
 import { advise } from "@/lib/advice/advise";
-import { isQuestion, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
   adviceCard,
@@ -187,6 +187,9 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   if (pending?.kind === "title" && parsed.kind === "ask" && parsed.reason === "no_amount" && !isQuestion(body) && title.length <= MAX_TITLE) {
     return spend(userId, { title, amount: pending.amount, category: categoryOf(title), key: eventId });
   }
+
+  // «เหลือเท่าไร», «งบเหลือป่ะ»: the budget card, its numbers from the calculator (the AI is never asked)
+  if (isBalanceQuestion(body)) return say(todayCard(await loadSummary(userId)));
 
   // Card 15: «พรุ่งนี้กินชาบู 300 ไหวไหม» is a question, not a spend — answer it, save nothing.
   // Without one clear price («เหลือกี่บาท?», «ชาบู 150 หรือ 200 ดี») it is chat. A question never

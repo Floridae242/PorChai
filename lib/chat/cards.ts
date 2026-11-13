@@ -124,6 +124,7 @@ export function todayCard(s: Summary): ReplyMessage {
     daysRemaining: b.daysLeft,
     savingsReserved: s.savings,
     bufferReserved: s.emergencyBuffer,
+    balance: s.balance,
   });
 }
 

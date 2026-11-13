@@ -6,6 +6,7 @@ import {
   buildPointsLinkMessage,
   buildPromoLinkMessage,
   buildRecordedCard,
+  buildTodayBudgetCard,
   buildTryBeforeBuyCard,
 } from "../index";
 
@@ -42,6 +43,23 @@ describe("Flex Card Wording & Content Contract", () => {
     const json = JSON.stringify(msg);
     expect(json).toContain("เกินงบ 230 บาท");
     expect(json).toContain("พรุ่งนี้ใช้ได้ 120 → 99 บาท/วัน");
+  });
+
+  it("C-5 Today Budget Card also shows all the money on hand now («เหลือเงินทั้งหมดเท่าไร»)", () => {
+    const msg = buildTodayBudgetCard({
+      todayRemaining: 7500,
+      spentToday: 4500,
+      dailyBudget: 12000,
+      disposablePool: 144000,
+      daysRemaining: 12,
+      savingsReserved: 24000,
+      bufferReserved: 12000,
+      balance: 235500,
+    });
+    const json = JSON.stringify(msg);
+    expect(json).toContain("วันนี้ใช้ได้อีก");
+    expect(json).toContain("75 บาท");
+    expect(json).toContain("เงินทั้งหมดตอนนี้ 2,355 บาท");
   });
 
   it("C-16 Habit Reminder Card uses exact 3 buttons [ใช่ จดเลย] [แก้ยอด] [วันนี้ไม่ได้ซื้อ]", () => {

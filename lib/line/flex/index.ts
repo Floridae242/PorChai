@@ -323,6 +323,7 @@ export function buildDemoScenarios(appOrigin?: string): FlexDemoScenario[] {
         daysRemaining: 12,
         savingsReserved: 24000,
         bufferReserved: 12000,
+        balance: 235500,
         appOrigin,
       }),
       nextOnAction: {
