@@ -429,23 +429,36 @@ describe("income step: payday asked the way the money arrives", () => {
     renderPage(SetupIncomePage);
     await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
     await user.click(screen.getByRole("button", { name: "รายเดือน" }));
-    await user.type(screen.getByLabelText("เงินเข้าวันที่เท่าไหร่ของทุกเดือน"), "5");
+    await user.click(screen.getByRole("button", { name: "วันที่ 5" }));
     expect(screen.getByText(/เงินเข้าครั้งถัดไป:/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "ถัดไป" }));
     expect(loadSetupDraft().payday).toBe(nextPayday({ kind: "monthly", day: 5 }, today()));
     expect(loadSetupDraft().paydayDay).toBe(5);
   });
 
-  it.each(["", "0", "32", "abc", "1.5"])("monthly: day %j is rejected", async (text) => {
+  it("monthly: no day chosen -> asks for one and does not move on", async () => {
     const user = userEvent.setup();
     renderPage(SetupIncomePage);
     await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
     await user.click(screen.getByRole("button", { name: "รายเดือน" }));
-    const field = screen.getByLabelText("เงินเข้าวันที่เท่าไหร่ของทุกเดือน");
-    if (text) await user.type(field, text);
     await user.click(screen.getByRole("button", { name: "ถัดไป" }));
-    expect(screen.getByText("กรุณาใส่วันที่ 1–31")).toBeTruthy();
+    expect(screen.getByText("กรุณาเลือกวันที่เงินเข้า")).toBeTruthy();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("monthly: a grid of 1-31 (not a text field), days 29-31 explained as last-day-of-month", async () => {
+    const user = userEvent.setup();
+    renderPage(SetupIncomePage);
+    await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
+    await user.click(screen.getByRole("button", { name: "รายเดือน" }));
+    const grid = screen.getByRole("group", { name: "เงินเข้าวันที่เท่าไหร่ของทุกเดือน" });
+    expect(within(grid).getAllByRole("button")).toHaveLength(31);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByText(/วันที่ 29–31: เดือนไหนไม่มีวันนี้/)).toBeTruthy();
+    await user.click(within(grid).getByRole("button", { name: "วันที่ 31" }));
+    expect(within(grid).getByRole("button", { name: "วันที่ 31" }).getAttribute("aria-pressed")).toBe("true");
+    await user.click(screen.getByRole("button", { name: "ถัดไป" }));
+    expect(loadSetupDraft().payday).toBe(nextPayday({ kind: "monthly", day: 31 }, today()));
   });
 
   it("irregular keeps the free date field and still rejects today", async () => {
@@ -465,6 +478,6 @@ describe("income step: payday asked the way the money arrives", () => {
       JSON.stringify({ incomeSource: "family", incomeFrequency: "monthly", payday: addDays(today(), 3) }),
     );
     renderPage(SetupIncomePage);
-    expect(await screen.findByLabelText("เงินเข้าวันที่เท่าไหร่ของทุกเดือน")).toBeTruthy();
+    expect(await screen.findByRole("group", { name: "เงินเข้าวันที่เท่าไหร่ของทุกเดือน" })).toBeTruthy();
   });
 });

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { BillsCard } from "@/components/setup/bills-card";
 import { BufferCard, EssentialPicker, SavingsPicker } from "@/components/setup/savings-picker";
+import { MonthDayGrid } from "@/components/setup/month-day-grid";
 import { SetupFrame } from "@/components/setup/setup-frame";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -77,7 +78,6 @@ function paydayOf(draft: SetupDraft, today: string): string {
 function IncomeForm({ initial }: { initial: SetupDraft }) {
   const router = useRouter();
   const [draft, setDraft] = useState<SetupDraft>(initial);
-  const [dayText, setDayText] = useState(initial.paydayDay !== null ? String(initial.paydayDay) : "");
   const [error, setError] = useState<string | null>(null);
   const [today] = useState(() => thaiDate(new Date()));
 
@@ -90,7 +90,7 @@ function IncomeForm({ initial }: { initial: SetupDraft }) {
       return;
     }
     if (freq === "monthly" && draft.paydayDay === null) {
-      setError("กรุณาใส่วันที่ 1–31");
+      setError("กรุณาเลือกวันที่เงินเข้า");
       return;
     }
     if (freq === "weekly" && draft.paydayWeekday === null) {
@@ -125,11 +125,8 @@ function IncomeForm({ initial }: { initial: SetupDraft }) {
     });
   }
 
-  function changeDay(text: string) {
+  function chooseDay(day: number) {
     setError(null);
-    setDayText(text);
-    const n = /^\d{1,2}$/.test(text.trim()) ? Number(text.trim()) : null;
-    const day = n !== null && n >= 1 && n <= 31 ? n : null;
     setDraft((d) => {
       const next = { ...d, paydayDay: day };
       return { ...next, payday: paydayOf(next, today) };
@@ -205,15 +202,10 @@ function IncomeForm({ initial }: { initial: SetupDraft }) {
           </section>
         ) : freq === "monthly" ? (
           <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
-            <InputField
-              label={freqMeta.paydayLabel}
-              inputMode="numeric"
-              placeholder="เช่น 25"
-              value={dayText}
-              onChange={(e) => changeDay(e.target.value)}
-              state={error ? "error" : draft.paydayDay !== null ? "filled" : "default"}
-              helper={error ?? (preview || "ใส่วันที่ 1–31 ถ้าเดือนไหนไม่มีวันนั้น จะใช้วันสุดท้ายของเดือน")}
-            />
+            <MonthDayGrid value={draft.paydayDay} onChange={chooseDay} label={freqMeta.paydayLabel} />
+            <p className={`text-xs ${error ? "text-danger" : "text-secondary"}`}>
+              {error ?? (preview || "แตะวันที่เงินเข้าทุกเดือน")}
+            </p>
           </section>
         ) : (
           <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
