@@ -407,7 +407,7 @@ describe("income step: payday asked the way the money arrives", () => {
     const names = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
     await user.click(screen.getByRole("button", { name: names[todayWeekday] })); // today's weekday -> a week later
     const expected = addDays(today(), 7);
-    expect(screen.getByText(new RegExp(`อีก 7 วัน`))).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("อีก 7 วัน");
     await user.click(screen.getByRole("button", { name: "ถัดไป" }));
     expect(loadSetupDraft().payday).toBe(expected);
     expect(loadSetupDraft().paydayWeekday).toBe(todayWeekday);
@@ -430,7 +430,7 @@ describe("income step: payday asked the way the money arrives", () => {
     await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
     await user.click(screen.getByRole("button", { name: "รายเดือน" }));
     await user.click(screen.getByRole("button", { name: "วันที่ 5" }));
-    expect(screen.getByText(/เงินเข้าครั้งถัดไป:/)).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toMatch(/เงินเข้าครั้งถัดไป.*อีก \d+ วัน/);
     await user.click(screen.getByRole("button", { name: "ถัดไป" }));
     expect(loadSetupDraft().payday).toBe(nextPayday({ kind: "monthly", day: 5 }, today()));
     expect(loadSetupDraft().paydayDay).toBe(5);

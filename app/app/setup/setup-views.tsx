@@ -5,6 +5,7 @@ import { type ReactNode, useState } from "react";
 import { BillsCard } from "@/components/setup/bills-card";
 import { BufferCard, EssentialPicker, SavingsPicker } from "@/components/setup/savings-picker";
 import { MonthDayGrid } from "@/components/setup/month-day-grid";
+import { NextPaydayCard } from "@/components/setup/next-payday-card";
 import { SetupFrame } from "@/components/setup/setup-frame";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -133,13 +134,16 @@ function IncomeForm({ initial }: { initial: SetupDraft }) {
     });
   }
 
-  let preview = "";
+  // The worked-out next payday, shown as a card under the picker (weekly / monthly only).
+  let next: { dateText: string; daysLeft: number } | null = null;
   if (draft.payday && (freq === "weekly" || freq === "monthly")) {
     try {
-      const days = daysBetween(today, draft.payday);
-      preview = `เงินเข้าครั้งถัดไป: วัน${WEEKDAY_NAMES_TH[weekdayOf(draft.payday)]}ที่ ${formatThaiDate(draft.payday, "long")} (อีก ${days} วัน)`;
+      next = {
+        dateText: `วัน${WEEKDAY_NAMES_TH[weekdayOf(draft.payday)]}ที่ ${formatThaiDate(draft.payday, "long")}`,
+        daysLeft: daysBetween(today, draft.payday),
+      };
     } catch {
-      preview = "";
+      next = null;
     }
   }
   let formattedPayday = "";
@@ -196,16 +200,22 @@ function IncomeForm({ initial }: { initial: SetupDraft }) {
                 </Chip>
               ))}
             </div>
-            <p className={`text-xs ${error ? "text-danger" : "text-secondary"}`}>
-              {error ?? (preview || "เลือกวันที่เงินเข้าทุกสัปดาห์")}
-            </p>
+            {error ? <p className="text-xs text-danger">{error}</p> : null}
+            {next ? (
+              <NextPaydayCard {...next} />
+            ) : !error ? (
+              <p className="text-xs text-secondary">เลือกวันที่เงินเข้าทุกสัปดาห์</p>
+            ) : null}
           </section>
         ) : freq === "monthly" ? (
           <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
             <MonthDayGrid value={draft.paydayDay} onChange={chooseDay} label={freqMeta.paydayLabel} />
-            <p className={`text-xs ${error ? "text-danger" : "text-secondary"}`}>
-              {error ?? (preview || "แตะวันที่เงินเข้าทุกเดือน")}
-            </p>
+            {error ? <p className="text-xs text-danger">{error}</p> : null}
+            {next ? (
+              <NextPaydayCard {...next} />
+            ) : !error ? (
+              <p className="text-xs text-secondary">แตะวันที่เงินเข้าทุกเดือน</p>
+            ) : null}
           </section>
         ) : (
           <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
