@@ -6,6 +6,7 @@ import type { SimulateResponse, Summary } from "@/lib/api-types";
 import type { BudgetResult } from "@/lib/calc/budget";
 import { ApiError } from "@/lib/client/errors";
 import { createMockApi } from "@/lib/client/mock";
+import { clearPaydayDraft, getPaydayDraft, setPaydayDraft } from "@/lib/client/payday-draft";
 import type { PorchaiApi } from "@/lib/client/types";
 import { ApiContext } from "@/lib/client/use-api";
 import { formatThaiDate } from "@/lib/format/date";
@@ -59,6 +60,7 @@ beforeEach(() => {
   push.mockClear();
   replace.mockClear();
   currentSearch = "";
+  clearPaydayDraft();
 });
 afterEach(cleanup);
 
@@ -88,7 +90,8 @@ describe("PaydayInputView (E1a)", () => {
     await user.type(await screen.findByLabelText("วันเงินเข้าใหม่"), "15");
     expect(screen.getByText(`ตรงกับวันที่ ${formatThaiDate("2026-11-26", "long")}`)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "ดูสรุปแผนใหม่" }));
-    expect(push).toHaveBeenCalledWith("/app/plan/edit/review?payday=2026-11-26");
+    expect(push).toHaveBeenCalledWith("/app/plan/edit/review"); // the URL carries no date
+    expect(getPaydayDraft()).toBe("2026-11-26");
   });
 
   it.each(["", "0", "abc", "1.5", "-3", "367", "1000"])("invalid days %j: Thai error, no navigation", async (text) => {
@@ -113,7 +116,7 @@ describe("PaydayInputView (E1a)", () => {
 
 describe("PaydayReviewView (E2)", () => {
   beforeEach(() => {
-    currentSearch = "payday=2026-11-26";
+    setPaydayDraft("2026-11-26");
   });
 
   it("calls simulate({payday}) fresh and renders the server's before/after only", async () => {
@@ -257,7 +260,7 @@ describe("PaydayReviewView (E2)", () => {
     expect(await screen.findByText("ก่อน")).toBeTruthy();
     first.unmount();
 
-    currentSearch = "payday=2026-02-31";
+    setPaydayDraft("2026-02-31");
     renderWith(mk(), <PaydayReviewView />);
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/plan/edit/payday"));
   });
@@ -310,7 +313,7 @@ describe("E3 / E5 done views", () => {
 
 describe("E2 extras", () => {
   beforeEach(() => {
-    currentSearch = "payday=2026-11-26";
+    setPaydayDraft("2026-11-26");
   });
 
   it.each(["shortfall", "essentials_short"] as const)("%s: neutral note above confirm, confirm stays enabled", async (verdict) => {

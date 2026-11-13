@@ -494,3 +494,19 @@ describe("card 23: basis through the try flow", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 });
+
+describe("TryResultView ?promo=<id> (the URL carries only an id)", () => {
+  it("takes title and price from the server promo and saves them as the draft", async () => {
+    const api = mk();
+    const [promo] = await api.promos();
+    currentSearch = `promo=${promo.id}`;
+    renderWith(api, <TryResultView />);
+    await waitFor(() => expect(loadTryDraft()).toMatchObject({ title: promo.title, amount: promo.price, dueOn: null }));
+  });
+
+  it("unknown promo id falls back to the saved draft, else back to the input page", async () => {
+    currentSearch = "promo=nope";
+    renderWith(mk(), <TryResultView />);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/try"));
+  });
+});

@@ -4,7 +4,7 @@
 // Screens show only the numbers the server returns. The one thing computed here is a calendar date
 // (today + N days), through lib/calc/time.
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
 import { Banner } from "@/components/ui/banner";
@@ -17,6 +17,7 @@ import type { Satang } from "@/lib/calc/money";
 import { addDays } from "@/lib/calc/time";
 import { ApiError } from "@/lib/client/errors";
 import { essentialsFromDaily, parseEssentialsInput } from "@/lib/client/essentials";
+import { getPaydayDraft, setPaydayDraft } from "@/lib/client/payday-draft";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
 import { formatThaiDate } from "@/lib/format/date";
@@ -136,7 +137,8 @@ export function PaydayInputView() {
       return;
     }
     setError(null);
-    router.push(`/app/plan/edit/review?payday=${addDays(summary.today, n)}`);
+    setPaydayDraft(addDays(summary.today, n));
+    router.push("/app/plan/edit/review");
   }
 
   return (
@@ -206,9 +208,21 @@ function essentialsShortText(sim: SimulateResponse): string {
 export function PaydayReviewView() {
   const api = useApi();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const paydayParam = searchParams?.get("payday") ?? null;
-  const payday = paydayParam !== null && isRealDate(paydayParam) ? paydayParam : null;
+  // The payday comes from memory (set in E1a), not the URL. Read after mount so server and client markup match.
+  const [payday, setPayday] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      const d = getPaydayDraft();
+      if (d !== null && isRealDate(d)) setPayday(d);
+      else router.replace("/app/plan/edit/payday");
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [sim, setSim] = useState<SimulateResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -224,10 +238,7 @@ export function PaydayReviewView() {
   const [essentialsError, setEssentialsError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!payday) {
-      router.replace("/app/plan/edit/payday");
-      return;
-    }
+    if (!payday) return;
     let cancelled = false;
     api
       .simulate({
