@@ -13,7 +13,7 @@ import {
   tryMessage,
   welcomeMessage,
   type Draft,
-} from "@/lib/chat/messages";
+} from "@/lib/chat/branded-messages";
 import type { LineMessage } from "./reply";
 import type { FlexMessage } from "./branded-flex";
 

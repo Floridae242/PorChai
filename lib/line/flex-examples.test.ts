@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flexExamples } from "./flex-examples";
-import type { FlexComponent } from "./flex";
+import type { FlexComponent } from "./branded-flex";
 
 afterEach(() => {
   vi.unstubAllEnvs();
