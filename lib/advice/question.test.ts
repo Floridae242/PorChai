@@ -1,8 +1,62 @@
 import { describe, expect, it } from "vitest";
-import { isQuestion, numbersIn, onlyKnownNumbers, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isQuestion, numbersIn, onlyKnownNumbers, readQuestion } from "@/lib/advice/question";
 
 // Card 15: which chat messages are questions, the rule reading used when the AI is not available,
 // and the guard that keeps the AI from inventing numbers.
+
+// «เหลือเท่าไร»: asking what is left is answered with the budget card from the calculator, never the AI.
+// Only the plain ask: an item, a price or another time span («สัปดาห์นี้») still goes the old way.
+describe("isBalanceQuestion", () => {
+  it("asking what is left or spent today, however it is asked", () => {
+    const asks = [
+      "เหลือเท่าไร",
+      "เหลือเท่าไหร่",
+      "เหลือกี่บาท?",
+      "เหลือเงินเท่าไร",
+      "ตอนนี้เหลือเงินเท่าไร",
+      "วันนี้เหลือเท่าไร",
+      "เหลือเงินทั้งหมดเท่าไร",
+      "เงินเหลือเท่าไหร่ครับ",
+      "ยังเหลืออีกเท่าไหร่",
+      "งบเหลือป่ะ",
+      "งบเหลือไหม",
+      "วันนี้ใช้ไปเท่าไร",
+      "วันนี้ใช้ไปแล้วเท่าไหร่คะ",
+      "วันนี้ใช้ได้เท่าไหร่",
+      "ใช้ได้อีกเท่าไรนะ",
+      "เหลือวันละเท่าไร",
+      "เช็คยอด",
+      "เช็คยอดเงิน",
+      "ดูยอดหน่อย",
+      "ยอดเงิน",
+      "งบวันนี้",
+      "เหลือเท่าไร ?",
+    ];
+    for (const t of asks) expect(isBalanceQuestion(t), t).toBe(true);
+  });
+
+  it("an item, a price, another day or another span is not this ask", () => {
+    const others = [
+      "สัปดาห์นี้ใช้ไปเท่าไร", // the AI answers spans (agreed 13 Nov)
+      "เดือนนี้ใช้ไปเท่าไร",
+      "เมื่อวานใช้ไปเท่าไร",
+      "ถ้ากินชาบูจะเหลือเท่าไร", // an item: the AI asks its price
+      "กินตี๋น้อยเหลือเท่าไร",
+      "ซื้อรองเท้าแล้วเหลือเท่าไร",
+      "ชาบู 150 จะเหลือเท่าไร", // a price: try before you buy
+      "เหลือ 200",
+      "ข้าว 45",
+      "ทำไมเหลือน้อยจัง",
+      "เหลือ",
+      "วันนี้",
+      "ดูหน่อย", // asks to see, but not what is left
+      "ไหม",
+      "สวัสดี",
+      "",
+    ];
+    for (const t of others) expect(isBalanceQuestion(t), t).toBe(false);
+  });
+});
 
 describe("isQuestion", () => {
   it("asking whether something is affordable", () => {

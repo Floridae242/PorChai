@@ -38,6 +38,20 @@ export function isQuestion(text: string): boolean {
   return QUESTION_WORDS.test(t) || QUESTION_START.test(bare) || QUESTION_END.test(bare);
 }
 
+// «เหลือเท่าไร», «งบเหลือป่ะ», «วันนี้ใช้ไปเท่าไร», «เช็คยอด»: the whole message is made of these words
+// and nothing else — an item («ชาบู»), a number or another span («สัปดาห์นี้») is not this ask.
+const BALANCE_WORDS =
+  /เช็ค|เช็ก|ดู|ตอนนี้|วันนี้|ยัง|อีก|ทั้งหมด|เงิน|เหลือ|ใช้ไป|ใช้ได้|ใช้|แล้ว|งบ|ยอด|วันละ|กี่บาท|เท่าไหร่|เท่าไหร|เท่าไร|เท่าใด|หรือเปล่า|รึเปล่า|ไหม|มั้ย|มั๊ย|ป่ะ|ปะ|ป่าว|บ้าง|หน่อย|ครับ|คับ|ค่ะ|คะ|นะ|จ้า|อะ|อ่ะ|ฉัน|เรา|ผม|หนู|[?？]|\s/g;
+const BALANCE_TOPIC = /เหลือ|ใช้|งบ|ยอด/;
+// A bare «เหลือ» or «ใช้» says nothing: it needs a question word, or a word asking to see (เช็ค/ดู/ยอด/งบ)
+const BALANCE_ASK = /เท่า|กี่|ไหม|มั้ย|มั๊ย|ป่ะ|ปะ|ป่าว|เปล่า|บ้าง|[?？]|เช็ค|เช็ก|ดู|ยอด|งบ/;
+
+export function isBalanceQuestion(raw: string): boolean {
+  const text = normalize(raw);
+  if (!BALANCE_TOPIC.test(text) || !BALANCE_ASK.test(text)) return false;
+  return text.replace(BALANCE_WORDS, "") === "";
+}
+
 export function dayOf(text: string): Day {
   if (/มะรืน/.test(text)) return "day_after_tomorrow";
   if (/พรุ่งนี้/.test(text)) return "tomorrow";
