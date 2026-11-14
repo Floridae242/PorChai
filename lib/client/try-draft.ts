@@ -9,6 +9,7 @@ export interface TryItemDraft {
   title: string;
   amount: Satang;
   dueOn: string | null; // YYYY-MM-DD
+  basis?: string; // card 23: basis of the simulate that showed the result; sent when saving the plan
 }
 
 export function saveTryDraft(item: TryItemDraft): void {
@@ -34,7 +35,12 @@ export function loadTryDraft(): TryItemDraft | null {
     ) {
       return null;
     }
-    return { title: d.title, amount: d.amount, dueOn: d.dueOn };
+    return {
+      title: d.title,
+      amount: d.amount,
+      dueOn: d.dueOn,
+      ...(typeof d.basis === "string" && d.basis ? { basis: d.basis } : {}),
+    };
   } catch {
     return null;
   }

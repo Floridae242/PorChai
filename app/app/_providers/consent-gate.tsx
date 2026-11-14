@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useApi } from "@/lib/client/use-api";
+import { ClarityLoader } from "./clarity-loader";
 
 const CONSENT_PATH = "/app/consent";
 
@@ -34,7 +35,14 @@ export function ConsentGate({ children }: { children: ReactNode }) {
     };
   }, [api, router, onConsentPage, accepted, attempt]);
 
-  if (onConsentPage || accepted) return <>{children}</>;
+  if (onConsentPage || accepted) {
+    return (
+      <>
+        {accepted && !onConsentPage ? <ClarityLoader /> : null}
+        {children}
+      </>
+    );
+  }
 
   if (failed) {
     return (

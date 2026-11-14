@@ -87,12 +87,17 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     cancelEntry: (id) => request({ method: "DELETE", path: `/api/entries/${seg(id)}` }),
     adjustBalance: (req) => request({ method: "POST", path: "/api/cycle/balance", body: req }),
     simulate: (req) => request({ method: "POST", path: "/api/simulate", body: req }),
+    changePayday: (req) => request({ method: "PUT", path: "/api/cycle/payday", body: req }),
     setEssentials: (req) => request({ method: "PUT", path: "/api/cycle/essentials", body: req }),
     plans: () => request({ method: "GET", path: "/api/plans" }),
     addPlan: (req, idempotencyKey) =>
       request({ method: "POST", path: "/api/plans", body: req, idempotencyKey }),
     planAction: (id, action, body) =>
       request({ method: "POST", path: `/api/plans/${seg(id)}/${action}`, body }),
+    addIncome: (req, idempotencyKey) => request({ method: "POST", path: "/api/income", body: req, idempotencyKey }),
+    // Card 58: แอป › ตั้งค่า › การเตือน
+    reminderSettings: () => request({ method: "GET", path: "/api/reminders" }),
+    saveReminderSettings: (req) => request({ method: "PUT", path: "/api/reminders", body: req }),
 
     // --- NOT ON THE SERVER YET (backend-gaps 13-20): wire each to its route when it ships ---
     consent: notImplemented,
@@ -105,12 +110,8 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     rewards: notImplemented,
     redeemReward: notImplemented,
     shopRedeem: notImplemented,
-    addIncome: notImplemented,
     dailySpend: notImplemented,
     categoryTotals: notImplemented,
-    planQuota: notImplemented,
-    reminderSettings: notImplemented,
-    saveReminderSettings: notImplemented,
     deleteMyData: notImplemented,
     // --- end not-implemented block ---
   };

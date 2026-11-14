@@ -3,7 +3,7 @@
 import { useState, type CSSProperties } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import type { FlexBubble, FlexComponent, FlexMessage } from "@/lib/line/flex";
+import type { FlexBubble, FlexComponent, FlexMessage } from "@/lib/line/branded-flex";
 import type { FlexExample } from "@/lib/line/flex-examples";
 import type { QuickReplyAction } from "@/lib/line/reply";
 import styles from "./preview.module.css";

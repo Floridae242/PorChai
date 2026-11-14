@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseExpense } from "@/lib/chat/parse";
+import { amountOnly, parseExpense } from "@/lib/chat/parse";
 
 // Card 09: a short message such as «ข้าว 50» becomes a name and an amount; anything unclear is asked, never guessed.
 
@@ -52,6 +52,28 @@ describe("parseExpense — unclear messages are asked, never recorded", () => {
     }
   });
 
+  it("money in is income, never a spend: «รับ 500» (โฟรวิว's how-to card)", () => {
+    expect(parseExpense("รับ 500")).toEqual({ kind: "income", amount: 50000, note: null });
+    expect(parseExpense("รับเงิน 1,200 จากแม่")).toEqual({ kind: "income", amount: 120000, note: "จากแม่" });
+    for (const t of ["เงินเข้า 1000", "ได้เงิน 300", "รายรับ 200", "เงินเดือน 5000"]) expect(parseExpense(t).kind, t).toBe("income");
+  });
+
+  it("income that is not clear is asked, like a spend", () => {
+    expect(parseExpense("รับ")).toEqual({ kind: "ask", reason: "income" });
+    expect(parseExpense("รับ 500 และ 300")).toEqual({ kind: "ask", reason: "many_amounts" });
+    expect(parseExpense("ได้เงินประมาณ 500")).toEqual({ kind: "ask", reason: "approximate" });
+  });
+
+  it("another day is asked back, never recorded as today (income too)", () => {
+    for (const t of ["เมื่อวาน ข้าว 45", "ข้าว 45 เมื่อวาน", "เมื่อคืน ชาบู 300", "วานนี้ กาแฟ 40", "รับ 500 เมื่อวาน"]) {
+      expect(parseExpense(t), t).toEqual({ kind: "ask", reason: "backdated" });
+    }
+  });
+
+  it("names that only contain those words are still spends", () => {
+    for (const t of ["ค่ารับส่ง 50", "ข้าวมื้อเย็น 60", "ของขวัญวันเกิด 300"]) expect(parseExpense(t).kind, t).toBe("entry");
+  });
+
   it("an amount with no name", () => {
     expect(parseExpense("50")).toEqual({ kind: "ask", reason: "no_title" });
     expect(parseExpense("50 บาท")).toEqual({ kind: "ask", reason: "no_title" });
@@ -66,5 +88,19 @@ describe("parseExpense — unclear messages are asked, never recorded", () => {
     const r = parseExpense(`${"ก".repeat(80)} 50`);
     expect(r).toMatchObject({ kind: "entry", amount: 5000 });
     expect((r as { title: string }).title.length).toBe(40);
+  });
+});
+
+describe("amountOnly: the answer to «กี่บาท?»", () => {
+  it("a bare amount, with or without บาท, Thai digits or a comma", () => {
+    expect(amountOnly("45")).toBe(4500);
+    expect(amountOnly(" 45 บาท ")).toBe(4500);
+    expect(amountOnly("๔๕")).toBe(4500);
+    expect(amountOnly("1,200฿")).toBe(120000);
+    expect(amountOnly("12.50")).toBe(1250);
+  });
+
+  it("anything else is not an answer", () => {
+    for (const text of ["ข้าว 45", "45 50", "ประมาณ 45", "0", "99999999", "Hey", ""]) expect(amountOnly(text)).toBeNull();
   });
 });

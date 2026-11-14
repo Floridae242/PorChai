@@ -27,6 +27,31 @@ describe("latestAnchor", () => {
   });
 });
 
+describe("balanceNow with income (รับ 500)", () => {
+  it("money received after the balance was read raises it", () => {
+    const incomes = [{ amount: baht(500), receivedOn: "2026-11-02", createdAt: at("2026-11-02T03:00:00Z") }];
+    expect(balanceNow(START, [], incomes)).toBe(baht(2900));
+  });
+
+  it("spends and income together", () => {
+    const entries = [{ amount: baht(45), spentOn: "2026-11-02", createdAt: at("2026-11-02T05:00:00Z") }];
+    const incomes = [{ amount: baht(500), receivedOn: "2026-11-02", createdAt: at("2026-11-02T03:00:00Z") }];
+    expect(balanceNow(START, entries, incomes)).toBe(baht(2855));
+  });
+
+  it("income logged before the user read their balance (ปรับยอด) is already in it — never counted twice", () => {
+    const check = { amount: baht(3000), asOf: at("2026-11-05T05:00:00Z") };
+    const incomes = [{ amount: baht(500), receivedOn: "2026-11-02", createdAt: at("2026-11-02T03:00:00Z") }];
+    expect(balanceNow(check, [], incomes)).toBe(baht(3000));
+  });
+
+  it("income for a day before the balance was read, logged after, is also in it already", () => {
+    const check = { amount: baht(3000), asOf: at("2026-11-05T05:00:00Z") };
+    const incomes = [{ amount: baht(500), receivedOn: "2026-11-04", createdAt: at("2026-11-06T03:00:00Z") }];
+    expect(balanceNow(check, [], incomes)).toBe(baht(3000));
+  });
+});
+
 describe("balanceNow", () => {
   it("W10: 2,400 minus rice 45 logged after the start is 2,355", () => {
     const entries = [{ amount: baht(45), spentOn: "2026-11-01", createdAt: at("2026-11-01T05:00:00Z") }];

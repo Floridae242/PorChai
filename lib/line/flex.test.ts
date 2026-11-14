@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { flexPrompt, flexReceipt, flexWelcome } from "./flex";
+import { flexPrompt, flexReceipt, flexWelcome } from "./branded-flex";
 import { reply, text } from "./reply";
 import { appUrl } from "@/lib/liff/config";
 

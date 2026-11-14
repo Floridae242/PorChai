@@ -3,18 +3,23 @@ import type { UserCategory } from "@/lib/api-types";
 // Card 09: read a short chat message such as «ข้าว 50». Pure, so every rule is a unit test.
 // Anything unclear is asked back, never guessed (no number words, no AI: "ไม่ขยายรองรับภาษาทุกแบบ").
 
-export type AskReason = "no_amount" | "many_amounts" | "approximate" | "no_title" | "too_large";
+export type AskReason = "no_amount" | "many_amounts" | "approximate" | "no_title" | "too_large" | "income" | "backdated";
 
 export type ParsedExpense =
   | { kind: "entry"; title: string; amount: number; category: UserCategory }
+  | { kind: "income"; amount: number; note: string | null } // «รับ 500»
   | { kind: "ask"; reason: AskReason };
 
-const MAX_AMOUNT = 10_000_000; // 100,000 baht: above this a typo is likelier than a spend
-const MAX_TITLE = 40; // fits a LINE postback with room to spare
+export const MAX_AMOUNT = 10_000_000; // 100,000 baht: above this a typo is likelier than a spend
+export const MAX_TITLE = 40; // fits a LINE postback with room to spare
 
 const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
 // «ร้อยกว่า», «ประมาณ 50», «~50», «40-50»: the user does not know the exact amount yet
 const APPROXIMATE = /กว่า|ประมาณ|ราว|เกือบ|~|\d\s*-\s*\d/;
+// Money in («รับ 500», โฟรวิว's how-to card): income, never a spend
+const INCOME = /^(รับเงิน|รับ|เงินเข้า|ได้เงิน|รายรับ|เงินเดือน)/;
+// Another day: the chat records today only, so «เมื่อวาน ข้าว 45» is asked back (the app picks the date)
+const BACKDATED = /เมื่อวาน|วานนี้|เมื่อคืน/;
 const NUMBER = /\d+(?:\.\d{1,2})?/g;
 const CURRENCY = /บาท|฿|\.-/g;
 
@@ -41,22 +46,40 @@ export function categoryOf(title: string): UserCategory {
   return KEYWORDS.find(([, words]) => words.some((w) => t.includes(w)))?.[0] ?? "other";
 }
 
-export function parseExpense(raw: string): ParsedExpense {
-  const text = raw
+function clean(raw: string): string {
+  return raw
     .replace(/[๐-๙]/g, (d) => String(THAI_DIGITS.indexOf(d)))
     .replace(/(\d),(?=\d{3}(?!\d))/g, "$1") // 1,200 → 1200
     .replace(/^[\s/\\]+/, "")
     .replace(/\s+/g, " ")
     .trim();
+}
 
+// The answer to «ข้าว กี่บาท?»: only a bare amount («45», «45 บาท»), else null
+export function amountOnly(raw: string): number | null {
+  const text = clean(raw).replace(CURRENCY, "").trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(text)) return null;
+  const amount = Math.round(Number(text) * 100);
+  return amount > 0 && amount <= MAX_AMOUNT ? amount : null;
+}
+
+export function parseExpense(raw: string): ParsedExpense {
+  const text = clean(raw);
+
+  if (BACKDATED.test(text)) return { kind: "ask", reason: "backdated" };
   if (APPROXIMATE.test(text)) return { kind: "ask", reason: "approximate" };
+  const income = INCOME.test(text);
   const numbers = text.match(NUMBER) ?? [];
-  if (numbers.length === 0) return { kind: "ask", reason: "no_amount" };
+  if (numbers.length === 0) return { kind: "ask", reason: income ? "income" : "no_amount" };
   if (numbers.length > 1) return { kind: "ask", reason: "many_amounts" };
 
   const amount = Math.round(Number(numbers[0]) * 100);
-  if (amount <= 0) return { kind: "ask", reason: "no_amount" };
+  if (amount <= 0) return { kind: "ask", reason: income ? "income" : "no_amount" };
   if (amount > MAX_AMOUNT) return { kind: "ask", reason: "too_large" };
+  if (income) {
+    const note = text.replace(INCOME, " ").replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim();
+    return { kind: "income", amount, note: note.slice(0, MAX_TITLE) || null };
+  }
 
   const title = text.replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TITLE);
   if (!title) return { kind: "ask", reason: "no_title" };

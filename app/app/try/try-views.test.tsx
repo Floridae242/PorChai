@@ -328,26 +328,14 @@ describe("TryDecideView (C3)", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/try"));
   });
 
-  it("planQuota not_implemented: no quota banner at all", async () => {
+  it("allows keeping in plan and confirming real payment without any quota banner", async () => {
     const api = mk();
-    vi.spyOn(api, "planQuota").mockRejectedValue(new ApiError(501, "not_implemented", "ยังไม่พร้อมใช้งาน"));
-    renderWith(api, <TryDecideView />);
-    await screen.findByRole("button", { name: "เก็บไว้ในแผน" });
-    expect(screen.queryByText(/ใช้สิทธิ์แผนฟรี/)).toBeNull();
-    expect(screen.queryByRole("link", { name: /Plus/ })).toBeNull();
-  });
-
-  it("quota_full: C3b banner with the planQuota numbers, keep disabled, pay and postpone still work", async () => {
-    const api = mk();
-    vi.spyOn(api, "planQuota").mockResolvedValue({ used: 3, limit: 3 });
-    vi.spyOn(api, "addPlan").mockRejectedValue(new ApiError(409, "quota_full", "ใช้สิทธิ์ครบแล้ว"));
     const addEntry = vi.spyOn(api, "addEntry");
     renderWith(api, <TryDecideView />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
-    expect(await screen.findByText("ใช้สิทธิ์แผนฟรีครบแล้ว (3/3) แผนเพิ่มต้องใช้ Plus")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "ดู Plus ›" }).getAttribute("href")).toBe("/app/plus");
-    expect((screen.getByRole("radio", { name: /^เก็บไว้ในแผน/ }) as HTMLInputElement).disabled).toBe(true);
+    await screen.findByRole("button", { name: "เก็บไว้ในแผน" });
+    expect(screen.queryByText(/ใช้สิทธิ์แผนฟรี/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Plus/ })).toBeNull();
 
     // stacked, ยกเลิก right under the confirm button
     const buttons = screen.getAllByRole("button").map((b) => b.textContent);
@@ -358,18 +346,6 @@ describe("TryDecideView (C3)", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/record/done?mode=normal"));
     expect(addEntry).toHaveBeenCalledTimes(1);
     expect(addEntry.mock.calls[0][0]).toEqual({ amount: 48000, category: "other", note: "รองเท้า" });
-  });
-
-  it("quota_full without usable quota numbers: server message in an alert, no invented count", async () => {
-    const api = mk();
-    vi.spyOn(api, "planQuota").mockRejectedValue(new ApiError(501, "not_implemented", "ยังไม่พร้อมใช้งาน"));
-    vi.spyOn(api, "addPlan").mockRejectedValue(new ApiError(409, "quota_full", "ใช้สิทธิ์ครบแล้ว"));
-    renderWith(api, <TryDecideView />);
-    await userEvent.setup().click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
-    const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("ใช้สิทธิ์ครบแล้ว");
-    expect(screen.queryByText(/\d\/\d/)).toBeNull();
-    expect((screen.getByRole("radio", { name: /^เก็บไว้ในแผน/ }) as HTMLInputElement).disabled).toBe(true);
   });
 
   it.each([
@@ -471,6 +447,66 @@ describe("TrySavedView (C4)", () => {
 
   it("no plan param: redirects to /app/try", async () => {
     renderWith(mk(), <TrySavedView />);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/try"));
+  });
+});
+
+describe("card 23: basis through the try flow", () => {
+  it("the result page keeps the simulate's basis in the draft", async () => {
+    const api = mk();
+    saveTryDraft(SHOES);
+    renderWith(api, <TryResultView />);
+    await screen.findByText(/ลองซื้อ/);
+    const basisNow = (await api.summary()).basis;
+    await waitFor(() => expect(loadTryDraft()?.basis).toBe(basisNow));
+  });
+
+  it("decide passes the basis to addPlan (keep and postpone); pay sends none", async () => {
+    const api = mk();
+    const addPlan = vi.spyOn(api, "addPlan");
+    saveTryDraft({ ...SHOES, basis: "b-try" });
+    renderWith(api, <TryDecideView />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
+    await waitFor(() => expect(addPlan).toHaveBeenCalledTimes(1));
+    expect(addPlan.mock.calls[0][0]).toMatchObject({ basis: "b-try" });
+  });
+
+  it("without a basis the plan is sent as before (no basis field)", async () => {
+    const api = mk();
+    const addPlan = vi.spyOn(api, "addPlan");
+    saveTryDraft(SHOES);
+    renderWith(api, <TryDecideView />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
+    await waitFor(() => expect(addPlan).toHaveBeenCalledTimes(1));
+    expect(addPlan.mock.calls[0][0]).not.toHaveProperty("basis");
+  });
+
+  it("409 stale: Thai message with a link back to /app/try/result, nothing saved, no navigation", async () => {
+    const api = mk();
+    saveTryDraft({ ...SHOES, basis: (await api.summary()).basis });
+    renderWith(api, <TryDecideView />);
+    await api.addEntry({ amount: 4500, category: "food" }, "elsewhere");
+    await userEvent.setup().click(await screen.findByRole("button", { name: "เก็บไว้ในแผน" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("ข้อมูลเปลี่ยนไปแล้ว ลองดูผลใหม่");
+    expect(screen.getByRole("link", { name: "ลองดูผลใหม่" }).getAttribute("href")).toBe("/app/try/result");
+    expect((await api.plans()).plans.some((p) => p.title === "รองเท้า")).toBe(false);
+    expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("TryResultView ?promo=<id> (the URL carries only an id)", () => {
+  it("takes title and price from the server promo and saves them as the draft", async () => {
+    const api = mk();
+    const [promo] = await api.promos();
+    currentSearch = `promo=${promo.id}`;
+    renderWith(api, <TryResultView />);
+    await waitFor(() => expect(loadTryDraft()).toMatchObject({ title: promo.title, amount: promo.price, dueOn: null }));
+  });
+
+  it("unknown promo id falls back to the saved draft, else back to the input page", async () => {
+    currentSearch = "promo=nope";
+    renderWith(mk(), <TryResultView />);
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/try"));
   });
 });

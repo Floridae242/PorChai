@@ -8,18 +8,18 @@ import { Banner } from "@/components/ui/banner";
 import { Button, buttonClass } from "@/components/ui/button";
 import { InputField } from "@/components/ui/input-field";
 import { Mascot } from "@/components/ui/mascot";
-import type { PlanQuota } from "@/lib/client/types";
 import type { SimulateResponse, Summary } from "@/lib/api-types";
 import type { Satang } from "@/lib/calc/money";
 import { ApiError } from "@/lib/client/errors";
 import { clearTryDraft, loadTryDraft, saveTryDraft, type TryItemDraft } from "@/lib/client/try-draft";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
-import { essentialsFromDaily } from "@/lib/client/essentials";
+import { essentialsFromDaily, parseEssentialsInput } from "@/lib/client/essentials";
 import { formatBaht, parseBahtInput, type ParseBahtResult } from "@/lib/format/money";
 
 // Shown when the user leaves the name empty. A label, not data.
 const DEFAULT_TITLE = "ของที่อยากซื้อ";
+const MSG_STALE_TRY = "ข้อมูลเปลี่ยนไปแล้ว ลองดูผลใหม่";
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
@@ -39,27 +39,14 @@ const AMOUNT_MESSAGES: Record<AmountFailure, string> = {
   too_large: "ราคาสูงเกินไป ตรวจตัวเลขอีกครั้ง",
 };
 
-// "No daily essentials at all" is a real answer (docs 5: set 0), but parseBahtInput rejects zero.
-const ZERO_TEXT = /^[0๐]+(\.[0๐]*)?$/;
-const MSG_ESSENTIALS_EMPTY = "ใส่ค่าจำเป็นต่อวันก่อน (ถ้าไม่มีเลยให้ใส่ 0)";
-
-function parseEssentialsInput(text: string): { ok: true; satang: Satang } | { ok: false; message: string } {
-  const trimmed = text.trim();
-  if (trimmed === "") return { ok: false, message: MSG_ESSENTIALS_EMPTY };
-  if (ZERO_TEXT.test(trimmed)) return { ok: true, satang: 0 };
-  const parsed = parseBahtInput(trimmed);
-  if (parsed.ok) return { ok: true, satang: parsed.satang };
-  return { ok: false, message: AMOUNT_MESSAGES[parsed.reason].replace("ราคา", "ค่าจำเป็น") };
-}
-
 // ---------------------------------------------------------------- C1
 
 export function TryInputView() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  const [title, setTitle] = useState(() => searchParams?.get("title") ?? "");
-  const [amountText, setAmountText] = useState(() => searchParams?.get("amount") ?? "");
+  // Typed values stay in component state: the URL carries nothing (Clarity records URLs).
+  const [title, setTitle] = useState("");
+  const [amountText, setAmountText] = useState("");
   const [dueOn, setDueOn] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -135,8 +122,8 @@ export function TryResultView() {
   const api = useApi();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const qAmount = searchParams?.get("amount") ?? null;
-  const qTitle = searchParams?.get("title") ?? null;
+  // Only an id travels in the URL; title and price come from the server.
+  const promoId = searchParams?.get("promo") ?? null;
 
   const [item, setItem] = useState<TryItemDraft | null>(null);
   const [sim, setSim] = useState<SimulateResponse | null>(null);
@@ -151,29 +138,34 @@ export function TryResultView() {
   const [essentialsError, setEssentialsError] = useState<string | null>(null);
   const remember = useSubmit<void>();
 
-  // Read the draft (or the link's ?title=&amount=) after mount so server and client markup match.
+  // Read the draft (or the promo from ?promo=<id>) after mount so server and client markup match.
   useEffect(() => {
     let cancelled = false;
-    void Promise.resolve().then(() => {
+    void (async () => {
+      await Promise.resolve();
       if (cancelled) return;
-      if (qAmount) {
-        const parsed = parseBahtInput(qAmount);
-        if (parsed.ok) {
-          const d: TryItemDraft = { title: qTitle?.trim() || DEFAULT_TITLE, amount: parsed.satang, dueOn: null };
+      if (promoId) {
+        try {
+          const p = await api.promo(promoId);
+          if (cancelled) return;
+          const d: TryItemDraft = { title: p.title.trim() || DEFAULT_TITLE, amount: p.price, dueOn: null };
           saveTryDraft(d);
           setItem(d);
           return;
+        } catch {
+          if (cancelled) return;
+          // promo unavailable: fall back to the saved draft below
         }
       }
       const d = loadTryDraft();
       if (d) setItem(d);
       else router.replace("/app/try");
-    });
+    })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qAmount, qTitle]);
+  }, [promoId]);
 
   useEffect(() => {
     if (!item) return;
@@ -188,6 +180,8 @@ export function TryResultView() {
         if (cancelled) return;
         setSim(res);
         setLoading(false);
+        // card 23: the decide page confirms with the basis of the try it came from
+        saveTryDraft({ ...item, basis: res.basis });
       })
       .catch((err) => {
         if (cancelled) return;
@@ -494,9 +488,8 @@ export function TryDecideView() {
 
   const [item, setItem] = useState<TryItemDraft | null>(null);
   const [decision, setDecision] = useState<Decision | null>("keep");
-  const [quota, setQuota] = useState<PlanQuota | null>(null); // null = unknown: no banner, no count
-  const [limitHit, setLimitHit] = useState(false); // the server said quota_full
   const [error, setError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
   // One guard for all three actions: one lock, key follows {action, item}.
   const { submit, busy } = useSubmit<string | null>();
 
@@ -514,27 +507,10 @@ export function TryDecideView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .planQuota()
-      .then((q) => {
-        if (!cancelled) setQuota(q);
-      })
-      .catch(() => {
-        // not implemented / failed: show no quota at all
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
-
-  const quotaFull = limitHit || (quota !== null && quota.used >= quota.limit);
-
   async function handleConfirm() {
     if (!item || !decision) return;
-    if (decision === "keep" && quotaFull) return;
     setError(null);
+    setStale(false);
     const payload = { action: decision, title: item.title, amount: item.amount, dueOn: item.dueOn };
     const result = await submit(payload, async (key) => {
       if (decision === "pay") {
@@ -549,6 +525,8 @@ export function TryDecideView() {
           kind: "purchase",
           status: decision === "keep" ? "reserved" : "postponed",
           dueOn: item.dueOn,
+          // card 23: confirm against the numbers the result page showed; changed since → 409 stale
+          ...(item.basis ? { basis: item.basis } : {}),
         },
         key,
       );
@@ -565,19 +543,13 @@ export function TryDecideView() {
     }
     if ("skipped" in result) return;
 
-    const err = result.error;
-    if (decision === "keep" && isCode(err, "quota_full")) {
-      setLimitHit(true);
-      setDecision(null); // nothing is chosen for the user: paying is not reversible
-      try {
-        setQuota(await api.planQuota());
-      } catch {
-        // no numbers available: the banner below shows the server's message instead
-        setError(errorText(err, "ใช้สิทธิ์แผนฟรีครบแล้ว"));
-      }
+    if (isCode(result.error, "stale")) {
+      setStale(true);
+      setError(MSG_STALE_TRY);
       return;
     }
-    setError(errorText(err, "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง"));
+    setStale(false);
+    setError(errorText(result.error, "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง"));
   }
 
   function handleCancel() {
@@ -597,14 +569,6 @@ export function TryDecideView() {
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="เลือกทำอะไรต่อ" back="/app/try/result" tone="default" />
 
-      {quotaFull && quota ? (
-        <Banner
-          kind="info"
-          text={`ใช้สิทธิ์แผนฟรีครบแล้ว (${quota.used}/${quota.limit}) แผนเพิ่มต้องใช้ Plus`}
-          action={{ label: "ดู Plus ›", href: "/app/plus" }}
-        />
-      ) : null}
-
       <section className="flex items-center justify-between rounded-md border border-line bg-card p-4 text-sm">
         <span className="font-semibold text-primary">{item.title}</span>
         <span className="font-bold tabular-nums text-primary">{formatBaht(item.amount)} บาท</span>
@@ -612,7 +576,7 @@ export function TryDecideView() {
 
       <div role="radiogroup" aria-label="เลือกทำอะไรต่อ" className="flex flex-col gap-2.5 rounded-md border border-line bg-card p-4">
         {OPTIONS.map((opt) => {
-          const disabled = busy || (opt.key === "keep" && quotaFull);
+          const disabled = busy;
           return (
             <label
               key={opt.key}
@@ -641,7 +605,7 @@ export function TryDecideView() {
         <Banner
           kind="error"
           text={error}
-          action={quotaFull && !quota ? { label: "ดู Plus ›", href: "/app/plus" } : undefined}
+          action={stale ? { label: "ลองดูผลใหม่", href: "/app/try/result" } : undefined}
         />
       ) : null}
 
@@ -650,7 +614,7 @@ export function TryDecideView() {
           variant="primary"
           block
           busy={busy}
-          disabled={!decision || (decision === "keep" && quotaFull)}
+          disabled={!decision}
           onClick={handleConfirm}
         >
           {decision ? BUTTON_LABEL[decision] : "เลือกทำอะไรต่อ"}
@@ -678,7 +642,6 @@ export function TrySavedView() {
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [quota, setQuota] = useState<PlanQuota | null>(null);
 
   useEffect(() => {
     if (!planId) {
@@ -702,12 +665,6 @@ export function TrySavedView() {
       .summary()
       .then((s) => {
         if (!cancelled) setSummary(s);
-      })
-      .catch(() => {});
-    api
-      .planQuota()
-      .then((q) => {
-        if (!cancelled) setQuota(q);
       })
       .catch(() => {});
     return () => {
@@ -762,16 +719,6 @@ export function TrySavedView() {
           กัน{plan.title}ไว้ในแผนแล้ว · {formatBaht(plan.amount)} บาท
         </p>
       </div>
-
-      {quota && quota.used >= quota.limit ? (
-        <div className="w-full">
-          <Banner
-            kind="info"
-            text={`ใช้สิทธิ์แผนฟรีแล้ว ${quota.used}/${quota.limit} ในรอบนี้ ต้องการแผนเพิ่ม?`}
-            action={{ label: "ดู Plus ›", href: "/app/plus" }}
-          />
-        </div>
-      ) : null}
 
       {summary && summary.budget.kind === "ok" ? (
         <section className="flex w-full flex-col gap-2 rounded-md border border-line-strong bg-card p-5">

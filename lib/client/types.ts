@@ -10,6 +10,7 @@ import type {
   NewEntryRequest,
   NewPlanRequest,
   PayPlanRequest,
+  PaydayRequest,
   PlanResponse,
   PlansResponse,
   SimulateRequest,
@@ -64,11 +65,6 @@ export interface CategoryTotals {
   items: CategoryTotal[]; // sorted by amount desc
 }
 
-export interface PlanQuota {
-  used: number;
-  limit: number;
-}
-
 export interface ReminderHabit {
   id: string;
   label: string;
@@ -99,6 +95,8 @@ export interface PorchaiApi {
   cancelEntry(id: string): Promise<EntryResponse>;
   adjustBalance(req: BalanceCheckRequest): Promise<{ summary: Summary }>;
   simulate(req: SimulateRequest): Promise<SimulateResponse>;
+  // Card 23: confirm a moved payday with the basis of the simulate that showed it; 409 'stale' if it changed
+  changePayday(req: PaydayRequest): Promise<{ summary: Summary }>;
   setEssentials(req: EssentialsRequest): Promise<{ summary: Summary }>;
   plans(): Promise<PlansResponse>;
   addPlan(req: NewPlanRequest, idempotencyKey: string): Promise<PlanResponse>;
@@ -116,7 +114,6 @@ export interface PorchaiApi {
   addIncome(req: NewIncomeRequest, idempotencyKey: string): Promise<{ summary: Summary }>;
   dailySpend(): Promise<DailySpend>;
   categoryTotals(): Promise<CategoryTotals>;
-  planQuota(): Promise<PlanQuota>;
   reminderSettings(): Promise<ReminderSettings>;
   saveReminderSettings(req: SaveReminderSettings): Promise<ReminderSettings>;
   deleteMyData(): Promise<void>;

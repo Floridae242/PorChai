@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { nextPayday, weekdayOf } from "@/lib/calc/payday";
 import { addDays, thaiDate } from "@/lib/calc/time";
 import { ApiError } from "@/lib/client/errors";
 import { createMockApi } from "@/lib/client/mock";
@@ -94,7 +95,7 @@ describe("new user starts empty (no fake defaults)", () => {
     renderPage(SetupIncomePage);
     await screen.findByText("แหล่งเงินหลัก");
     expect(screen.queryAllByRole("button", { pressed: true })).toHaveLength(0);
-    expect((screen.getByLabelText("วันเงินเข้าครั้งถัดไป") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("วันเงินเข้า") as HTMLInputElement).value).toBe("");
   });
 
   it("review (A4) lists what is missing instead of numbers", async () => {
@@ -129,8 +130,8 @@ describe("setup flow with the Figma numbers entered through the UI", () => {
     // 1 income
     renderPage(SetupIncomePage);
     await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
-    await user.click(screen.getByRole("button", { name: "รายเดือน" }));
-    fireEvent.change(screen.getByLabelText("วันเงินเข้าครั้งถัดไป"), { target: { value: payday() } });
+    await user.click(screen.getByRole("button", { name: "ไม่แน่นอน" }));
+    fireEvent.change(screen.getByLabelText("กะว่าจะใช้ก้อนนี้ถึงวันที่เท่าไหร่"), { target: { value: payday() } });
     await user.click(screen.getByRole("button", { name: "ถัดไป" }));
     expect(push).toHaveBeenLastCalledWith("/app/setup/balance");
     cleanup();
@@ -179,7 +180,7 @@ describe("setup flow with the Figma numbers entered through the UI", () => {
     expect(document.body.textContent).not.toContain("ใช้แผนนี้");
   });
 
-  it("marking ค่าหอ as จ่ายแยก changes the bills total and the daily budget to 153", async () => {
+  it("marking ค่าหอ as จ่ายแยก changes the bills total and the daily budget to 153.25", async () => {
     saveSetupDraft(figmaDraft());
     const user = userEvent.setup();
     renderPage(SetupBalancePage);
@@ -191,7 +192,7 @@ describe("setup flow with the Figma numbers entered through the UI", () => {
     await user.click(screen.getByRole("button", { name: "ถัดไป" }));
     cleanup();
     renderPage(SetupReviewPage);
-    expect(await screen.findByText("153")).toBeTruthy();
+    expect(await screen.findByText("153.25")).toBeTruthy();
   });
 
   it("A5a: bills larger than the money shows the shortfall with แก้ตัวเลข / เลือกบิลที่เลื่อนได้", async () => {
@@ -221,7 +222,8 @@ describe("setup flow with the Figma numbers entered through the UI", () => {
     saveSetupDraft(figmaDraft({ balance: 70000, bills: [{ id: "1", title: "ค่าหอ", amount: 60000, status: "unpaid" }], savingsMode: "none", savingsPercent: null, emergencyBuffer: 0 }));
     renderPage(SetupReviewPage);
     expect(await screen.findByText("ตึงมาก: เหลือต่ำกว่า 50 บาทต่อวัน")).toBeTruthy();
-    expect(screen.getByText("8")).toBeTruthy();
+    // (700 − 600) ÷ 12 = 8.333… → 8.25 (25-satang step)
+    expect(screen.getByText("8.25")).toBeTruthy();
     expect(screen.getByRole("button", { name: "เริ่มใช้ต่อไป" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "แก้ตัวเลข" })).toBeTruthy();
   });
@@ -389,5 +391,93 @@ describe("createCycle (A4 submit)", () => {
     await user.click(await screen.findByRole("button", { name: "ออกก่อน" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "เก็บร่างแล้วออก" }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app"));
+  });
+});
+
+describe("income step: payday asked the way the money arrives", () => {
+  const today = () => thaiDate(new Date());
+
+  it("weekly: pick a weekday, see the next date, saved payday = that date (never today)", async () => {
+    const user = userEvent.setup();
+    renderPage(SetupIncomePage);
+    await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
+    await user.click(screen.getByRole("button", { name: "รายสัปดาห์" }));
+    expect(screen.queryByLabelText("กะว่าจะใช้ก้อนนี้ถึงวันที่เท่าไหร่")).toBeNull(); // no free date field
+    const todayWeekday = weekdayOf(today());
+    const names = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+    await user.click(screen.getByRole("button", { name: names[todayWeekday] })); // today's weekday -> a week later
+    const expected = addDays(today(), 7);
+    expect(screen.getByRole("status").textContent).toContain("อีก 7 วัน");
+    await user.click(screen.getByRole("button", { name: "ถัดไป" }));
+    expect(loadSetupDraft().payday).toBe(expected);
+    expect(loadSetupDraft().paydayWeekday).toBe(todayWeekday);
+    expect(push).toHaveBeenLastCalledWith("/app/setup/balance");
+  });
+
+  it("weekly: no weekday chosen -> asks for one and does not move on", async () => {
+    const user = userEvent.setup();
+    renderPage(SetupIncomePage);
+    await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
+    await user.click(screen.getByRole("button", { name: "รายสัปดาห์" }));
+    await user.click(screen.getByRole("button", { name: "ถัดไป" }));
+    expect(screen.getByText("กรุณาเลือกวันที่เงินเข้า")).toBeTruthy();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("monthly: type a day of the month, saved payday = the next such day", async () => {
+    const user = userEvent.setup();
+    renderPage(SetupIncomePage);
+    await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
+    await user.click(screen.getByRole("button", { name: "รายเดือน" }));
+    await user.click(screen.getByRole("button", { name: "วันที่ 5" }));
+    expect(screen.getByRole("status").textContent).toMatch(/เงินเข้าครั้งถัดไป.*อีก \d+ วัน/);
+    await user.click(screen.getByRole("button", { name: "ถัดไป" }));
+    expect(loadSetupDraft().payday).toBe(nextPayday({ kind: "monthly", day: 5 }, today()));
+    expect(loadSetupDraft().paydayDay).toBe(5);
+  });
+
+  it("monthly: no day chosen -> asks for one and does not move on", async () => {
+    const user = userEvent.setup();
+    renderPage(SetupIncomePage);
+    await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
+    await user.click(screen.getByRole("button", { name: "รายเดือน" }));
+    await user.click(screen.getByRole("button", { name: "ถัดไป" }));
+    expect(screen.getByText("กรุณาเลือกวันที่เงินเข้า")).toBeTruthy();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("monthly: a grid of 1-31 (not a text field), days 29-31 explained as last-day-of-month", async () => {
+    const user = userEvent.setup();
+    renderPage(SetupIncomePage);
+    await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
+    await user.click(screen.getByRole("button", { name: "รายเดือน" }));
+    const grid = screen.getByRole("group", { name: "เงินเข้าวันที่เท่าไหร่ของทุกเดือน" });
+    expect(within(grid).getAllByRole("button")).toHaveLength(31);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByText(/วันที่ 29–31: เดือนไหนไม่มีวันนี้/)).toBeTruthy();
+    await user.click(within(grid).getByRole("button", { name: "วันที่ 31" }));
+    expect(within(grid).getByRole("button", { name: "วันที่ 31" }).getAttribute("aria-pressed")).toBe("true");
+    await user.click(screen.getByRole("button", { name: "ถัดไป" }));
+    expect(loadSetupDraft().payday).toBe(nextPayday({ kind: "monthly", day: 31 }, today()));
+  });
+
+  it("irregular keeps the free date field and still rejects today", async () => {
+    const user = userEvent.setup();
+    renderPage(SetupIncomePage);
+    await user.click(await screen.findByRole("button", { name: "ทางบ้านส่งให้" }));
+    await user.click(screen.getByRole("button", { name: "ไม่แน่นอน" }));
+    fireEvent.change(screen.getByLabelText("กะว่าจะใช้ก้อนนี้ถึงวันที่เท่าไหร่"), { target: { value: today() } });
+    await user.click(screen.getByRole("button", { name: "ถัดไป" }));
+    expect(screen.getByText("กรุณาเลือกวันที่หลังวันนี้")).toBeTruthy();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("an old saved draft without the new fields still opens", async () => {
+    window.localStorage.setItem(
+      SETUP_DRAFT_KEY,
+      JSON.stringify({ incomeSource: "family", incomeFrequency: "monthly", payday: addDays(today(), 3) }),
+    );
+    renderPage(SetupIncomePage);
+    expect(await screen.findByRole("group", { name: "เงินเข้าวันที่เท่าไหร่ของทุกเดือน" })).toBeTruthy();
   });
 });

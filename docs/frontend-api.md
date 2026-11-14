@@ -97,7 +97,7 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 | `essentials` | W7 | ไม่ต้อง | ใส่ `food` + `transport` คู่กัน · **ไม่ใส่ = ยังไม่รู้** (ซื้อได้ไม่เกินจะเป็น `null` ข้อ 5) |
 | `flexibleItems[]` | W8 | ไม่ต้อง | ไม่เกิน 20 · ถ้า `dueOn` หลังวันเงินเข้า = รอบหน้า ไม่หักรอบนี้ |
 
-- ส่ง Figma ชุดข้างบน (ไม่มี `flexibleItems`) → `summary.budget.dailyBudget` = 12000 (120/วัน) · `maxPurchase` = 60000 (600)
+- ส่ง Figma ชุดข้างบน (ไม่มี `flexibleItems`) → `summary.budget.dailyBudget` = 12000 (120/วัน) · `maxPurchase` = 60000 (600) · `dailyBudget` ปัดลงเป็นขั้น 25 สตางค์ (233.33 → 233.25)
 - ตั้งรอบได้ทีละรอบ: มีรอบที่ยังไม่ถึงวันเงินเข้าอยู่แล้ว → 409 `cycle_exists` · ถึงวันเงินเข้าแล้วตั้งใหม่ได้ (รอบเก่าปิด บิล/รายการที่ยังไม่จ่ายย้ายมารอบใหม่)
 - ส่งซ้ำ (กดสองที) ได้รอบเดียว ครั้งที่สองได้ 409 `cycle_exists` → ไปหน้าหลักได้เลย
 
@@ -177,10 +177,10 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 | ช่อง | ตัวอย่าง W12 รองเท้า 480 | W14 หูฟัง 700 |
 |---|---|---|
 | `before.dailyBudget` / `before.maxPurchase` | "ตอนนี้ 120 บาท/วัน · ซื้อได้ไม่เกิน 600" | เหมือนกัน |
-| `after.dailyBudget` | ซื้อทันที **80** บาท/วัน | **61** บาท/วัน |
+| `after.dailyBudget` | ซื้อทันที **80** บาท/วัน | **6150** → 61.50 บาท/วัน (Figma เขียน 61) |
 | ไม่ซื้อ / เลื่อน | ใช้ `before.dailyBudget` (120) | 120 |
 | `overLimitBy` | 0 | **10000** → "เกินวงเงิน 100" |
-| `after.essentialShortPerDay` | 0 | 900 → "ขาดวันละ 9" |
+| `after.essentialShortPerDay` | 0 | 850 → "ขาดวันละ 8.50" |
 | `checks.bills` + `billsCovered` | "บิล 600 ยังพอ" ✓ | ✓ |
 | `checks.essentialPerDay` + `essentialsCovered` | "ค่าจำเป็น 70/วัน ยังพอ" ✓ | ⚠ ไม่พอ |
 | `checks.savings` / `emergencyBuffer` | "เงินออม 240 · เงินเผื่อ 120 ไม่ถูกแตะ" | เหมือนกัน (ลองไม่เคยดึงมาใช้) |
@@ -237,6 +237,12 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 ยืนยันหลังดูผล: จ่ายเลย → `POST /api/entries` · เก็บไว้ในแผน → `POST /api/plans { title: item, amount, dueOn, category, basis }` · ไม่ทำอะไร = ยกเลิก
 ในแชต พิมพ์คำถามแบบเดียวกัน (มี ไหวไหม / พอไหม / ได้ไหม / ?) บอทตอบพร้อมปุ่ม ยืนยันจ่ายจริง / เก็บไว้ในแผน
 
+**แชตคุยกับ AI (ฝั่งแชตอย่างเดียว ไม่มี API ใหม่ให้หน้าจอ):** ทักทาย / «เหลือกี่บาท?» / «ข้าว» แล้วตอบยอด / «45» แล้วตอบชื่อ / หลายยอดในข้อความเดียว → ปุ่ม จดทั้งหมด / ไม่ใช่ · รายการที่จดจากแชตยังเป็น `source: "chat"` เหมือนเดิม · ⚠️ หน้ายินยอม W1–W3 ควรเพิ่ม: ข้อความแชตเก็บ 30 นาที และส่งให้ Google (Gemini) ประมวลผล
+
+### 3.7 การเตือนรายการประจำ (`/api/reminders`) — แอป › ตั้งค่า › การเตือน (การ์ด 58)
+
+`GET /api/reminders` → `{ enabled, time: "12:30", pausedUntil: "YYYY-MM-DD" | null, habits: [{ id, label, amount, time }] }` · `PUT /api/reminders { enabled, time: "HH:mm", pausedUntil }` → ค่าใหม่ (422 ถ้าเวลา/วันที่ผิด) · ค่าเริ่มต้นปิด · `habits` = รายการที่ระบบตรวจพบ (ชื่อเดียวกัน ≥ 3 วันใน 7 วัน) · ต่อใน `lib/client/live.ts` แล้ว · รายการที่จดจากปุ่มเตือนมี `source: "reminder"`
+
 ### รายจ่ายที่มาจากการจ่ายแผน (`source: "plan"`)
 
 - **เปลี่ยนหมวดได้** ด้วย `PATCH /api/entries/:id` `{ category }` (L9) ยกเว้นรายจ่ายบิล (`bills`)
@@ -260,6 +266,8 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 **ตัวอย่างกลาง 1,000 (เหลือเผื่อ 50) → เงินเข้าช้า 2 วัน:** `before.spare` = 5000 → `after.spare` = −9000 (ค่ากินค่ารถเพิ่ม 70 × 2 = 140 → ขาด 90) · `after.daysLeft` 10 → 12 · ยืนยันแล้ว `summary.budget` ตรงกับ `after` · เงินจริงไม่เปลี่ยน ระบบไม่เดาว่าเงินใหม่เข้าแล้ว
 - ค่าจำเป็นที่เพิ่ม = `essentialPerDay × (after.daysLeft − before.daysLeft)`
 - แผนที่ครบกำหนดระหว่างวันเงินเข้าเก่ากับใหม่ จะถูกนับเข้ารอบนี้ด้วย (ทั้งตอนลองและหลังยืนยัน)
+
+**งบต่อวันมีเศษสตางค์ได้ (R3-quarter, 13 พ.ย.):** `dailyBudget` ปัดลงทีละ 25 สตางค์ เช่น 23325 = 233.25 บาท ใช้ `formatBaht` แสดง (ได้ "233.25" · บาทเต็มไม่มีจุด) ห้ามปัดเองในหน้าจอ
 
 ## 4. `Summary` — แต่ละช่องไปอยู่ตรงไหนใน Figma
 

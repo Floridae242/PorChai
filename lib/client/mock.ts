@@ -2,7 +2,14 @@
 // Every number goes through lib/calc (computeBudget / tryOut); state transitions mirror lib/db.
 import type { Entry, NewCycleRequest, Plan, Summary, UserCategory } from "@/lib/api-types";
 import { computeBudget, tryOut, type BudgetInput } from "@/lib/calc/budget";
-import { balanceNow, heldThisCycle, reservedTotal, savingsFromPercent, spentOnDay } from "@/lib/calc/inputs";
+import {
+  balanceNow,
+  heldThisCycle,
+  reservedTotal,
+  savingsFromPercent,
+  setAsideFits,
+  spentOnDay,
+} from "@/lib/calc/inputs";
 import { addDays } from "@/lib/calc/time";
 import { ApiError } from "./errors";
 import {
@@ -20,6 +27,15 @@ import type { CategoryTotal, PlanActionName, PorchaiApi, Promo, ReminderSettings
 
 // Card 23: the server sends a fingerprint of the numbers; the mock only needs it to change when they do
 const mockBasis = (input: object) => JSON.stringify(input);
+const MSG_STALE = "ข้อมูลเปลี่ยนไปแล้ว ดูผลคำนวณใหม่ก่อนยืนยัน";
+const MSG_PAYDAY_AFTER_TODAY = "วันเงินเข้าต้องเป็นวันหลังวันนี้";
+const MSG_BAD_DATE = "วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD";
+const MSG_BAD_BALANCE = "ยอดเงินต้องเป็นจำนวนสตางค์ ไม่ติดลบ";
+// Same rules as lib/validate: a real calendar date, a non-negative whole number of satang
+const isoDateOk = (v: unknown): boolean =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(v).toISOString().slice(0, 10) === v;
+const satangOk = (v: unknown): boolean => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
+const MSG_SET_ASIDE_OVER = "เงินออมรวมเงินเผื่อเกินเงินที่มี";
 
 export type MockScenario = "fresh" | "default" | "midCycle" | "shortfall" | "tight" | "paydayPassed";
 
@@ -46,7 +62,6 @@ interface StoredEntry extends Entry {
 type StoredPlan = Omit<Plan, "heldThisCycle">;
 
 const MSG_NO_CONSENT = "ต้องยินยอมก่อนใช้งาน";
-const PLAN_QUOTA_LIMIT = 3; // TODO(team): real server limit undecided (3 vs 5); the mock follows 3
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MSG_NO_CYCLE = "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าก่อนเริ่มใช้";
 
@@ -186,6 +201,11 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
     };
   }
 
+  // Card 23: a confirm sent with the basis of an older try is refused, like the server
+  function requireBasis(c: Cycle, seen: string | undefined): void {
+    if (seen !== undefined && seen !== mockBasis(inputOf(c))) throw new ApiError(409, "stale", MSG_STALE);
+  }
+
   const publicEntry = (e: StoredEntry): Entry => ({
     id: e.id,
     amount: e.amount,
@@ -243,8 +263,6 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
     if (!f) throw new ApiError(404, "not_found", "ไม่พบโปรนี้");
     return f;
   }
-  const quotaUsed = () =>
-    plans.filter((p) => p.kind === "purchase" && (p.status === "reserved" || p.status === "paid")).length;
   const rewardOf = (r: (typeof REWARD_FIXTURES)[number]): Reward => ({ ...r, stock: stock.get(r.id) ?? 0 });
 
   return {
@@ -332,8 +350,21 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       return { entry: publicEntry(e), summary: summaryOf(c) };
     },
 
+    async changePayday(req) {
+      const c = requireCycle();
+      if (!isoDateOk(req.payday)) throw new ApiError(422, "invalid_input", MSG_BAD_DATE);
+      if (req.payday <= today) throw new ApiError(422, "invalid_input", MSG_PAYDAY_AFTER_TODAY);
+      if (!req.basis) throw new ApiError(422, "invalid_input", "ต้องส่งรหัสผลคำนวณ (basis) ที่หน้าจอแสดงอยู่");
+      if (c.payday === req.payday) return { summary: summaryOf(c) }; // the other tap of a double tap
+      requireBasis(c, req.basis);
+      c.payday = req.payday;
+      return { summary: summaryOf(c) };
+    },
+
     async adjustBalance(req) {
       const c = requireCycle();
+      if (!satangOk(req.balance)) throw new ApiError(422, "invalid_input", MSG_BAD_BALANCE);
+      requireBasis(c, req.basis || undefined);
       c.anchor = { amount: req.balance, asOf: req.asOf ? new Date(req.asOf) : now() };
       return { summary: summaryOf(c) };
     },
@@ -341,7 +372,14 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
     async simulate(req) {
       const c = requireCycle();
       const input = inputOf(c);
-      const held = plans.filter((p) => heldThisCycle({ status: p.status, dueOn: p.dueOn }, c.payday));
+      if (req.payday != null && !isoDateOk(req.payday)) throw new ApiError(422, "invalid_input", MSG_BAD_DATE);
+      if (req.balance != null && !satangOk(req.balance)) throw new ApiError(422, "invalid_input", MSG_BAD_BALANCE);
+      if (req.payday != null && req.payday <= today) {
+        throw new ApiError(422, "invalid_input", MSG_PAYDAY_AFTER_TODAY);
+      }
+      // Card 23: with payday moved, plans due before the new payday are this cycle's
+      const payday = req.payday ?? c.payday;
+      const held = plans.filter((p) => heldThisCycle({ status: p.status, dueOn: p.dueOn }, payday));
       const postponed = (req.postponePlanIds ?? []).map((id) => {
         const p = held.find((x) => x.id === id);
         if (!p) throw new ApiError(422, "invalid_input", "แผนที่จะลองเลื่อนไม่ได้กันเงินอยู่ในรอบนี้");
@@ -349,13 +387,21 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       });
       const kept = held.filter((p) => !postponed.includes(p));
       const dueOn = req.dueOn ?? null;
-      const countsThisCycle = dueOn === null || dueOn <= c.payday;
+      const countsThisCycle = dueOn === null || dueOn <= payday;
       const tried = req.essentials
         ? { ...input, essentialPerDay: req.essentials.food + req.essentials.transport }
         : input;
+      const emergencyBuffer = req.emergencyBuffer ?? input.emergencyBuffer;
+      const balance = req.balance ?? input.balance;
+      if (req.emergencyBuffer != null && !setAsideFits(balance, input.savings, emergencyBuffer)) {
+        throw new ApiError(422, "invalid_input", MSG_SET_ASIDE_OVER);
+      }
       const result = tryOut(tried, {
         buy: countsThisCycle ? (req.amount ?? 0) : 0,
         release: postponed.reduce((s, p) => s + p.amount, 0),
+        emergencyBuffer,
+        balance,
+        ...(req.payday != null && { payday, reserved: reservedTotal(plans, payday) }),
       });
       const sum = (kind: "bill" | "purchase") => kept.filter((p) => p.kind === kind).reduce((s, p) => s + p.amount, 0);
       const after = result.after;
@@ -372,7 +418,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
                 essentialPerDay: tried.essentialPerDay!,
                 essentialsCovered: after.kind === "ok" && after.essentialShortPerDay === 0,
                 savings: tried.savings,
-                emergencyBuffer: tried.emergencyBuffer,
+                emergencyBuffer,
                 otherPlans: sum("purchase"),
               },
       };
@@ -393,11 +439,9 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       const c = requireCycle();
       const known = planKeys.get(key);
       if (known) return planOut(c, findPlan(known));
+      requireBasis(c, req.basis || undefined);
       const kind = req.kind ?? "purchase";
       const status = req.status ?? "reserved";
-      if (kind === "purchase" && status === "reserved" && quotaUsed() >= PLAN_QUOTA_LIMIT) {
-        throw new ApiError(409, "quota_full", "ใช้สิทธิ์เก็บไว้ในแผนครบ 3 รายการแล้ว");
-      }
       const p = pushPlan({
         kind,
         title: req.title,
@@ -535,11 +579,6 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
         by.set(e.category, t);
       }
       return { items: [...by.values()].sort((a, b) => b.amount - a.amount) };
-    },
-
-    async planQuota() {
-      if (!consented) throw new ApiError(403, "no_consent", MSG_NO_CONSENT);
-      return { used: quotaUsed(), limit: PLAN_QUOTA_LIMIT };
     },
 
     async reminderSettings() {

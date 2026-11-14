@@ -356,3 +356,33 @@ export function parseQuestion(body: unknown): string {
   if (typeof q !== "string" || !q.trim() || q.trim().length > 300) throw invalid("คำถามต้องมี 1–300 ตัวอักษร");
   return q.trim();
 }
+
+// Card 58: แอป › ตั้งค่า › การเตือน (PUT /api/reminders)
+export interface ReminderSettingsChange {
+  enabled: boolean;
+  time: string; // HH:mm Thai time
+  pausedUntil: string | null;
+}
+
+export function parseReminderSettings(body: unknown): ReminderSettingsChange {
+  const b = asObject(body);
+  if (typeof b.enabled !== "boolean") throw invalid("ต้องบอกว่าเปิดหรือปิดการเตือน");
+  if (typeof b.time !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(b.time)) throw invalid("เวลาไม่ถูกต้อง");
+  return { enabled: b.enabled, time: b.time, pausedUntil: b.pausedUntil == null ? null : isoDate(b.pausedUntil) };
+}
+
+// รายรับ (POST /api/income, โฟรวิว's NewIncomeRequest): never a future day — money not yet in is not money to use
+export interface NewIncome {
+  amount: number;
+  note: string | null;
+  receivedOn: string;
+}
+
+export function parseNewIncome(body: unknown, today: string): NewIncome {
+  const b = asObject(body);
+  return {
+    amount: amount(b.amount),
+    note: note(b.note),
+    receivedOn: b.receivedOn === undefined ? today : spentOn(b.receivedOn, today),
+  };
+}

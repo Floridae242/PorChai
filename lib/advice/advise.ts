@@ -3,9 +3,10 @@ import type { BudgetResult, TrialVerdict } from "@/lib/calc/budget";
 import { addDays, thaiDate } from "@/lib/calc/time";
 import { categoryOf } from "@/lib/chat/parse";
 import { generate } from "@/lib/ai/gemini";
+import { formatBaht } from "@/lib/format/money";
 import { listPlans } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
-import { numbersIn, onlyKnownNumbers, readQuestion, type Day, type Question } from "@/lib/advice/question";
+import { FORBIDDEN, numbersIn, onlyKnownNumbers, readQuestion, type Day, type Question } from "@/lib/advice/question";
 
 // Card 15: «พรุ่งนี้กินชาบู 300 บาทไหวไหม». The AI reads the question and words the answer; every number
 // comes from the one calculator (card 14 tries), and an answer with any other number is replaced by
@@ -46,7 +47,7 @@ const DAY_OFFSET: Record<Day, number> = { today: 0, tomorrow: 1, day_after_tomor
 const DAY_LABEL: Record<Day, string> = { today: "วันนี้", tomorrow: "พรุ่งนี้", day_after_tomorrow: "มะรืน" };
 
 const baht = (satang: number) => Math.round(satang) / 100;
-const fmt = (satang: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(satang / 100);
+const fmt = (satang: number) => formatBaht(Math.round(satang)); // same as the screens: 61.50
 
 // The AI reads the question (card 15), but only what is written counts: its amount is used only when it is
 // the one price written in the question, and the day comes from the words (วันนี้ / พรุ่งนี้ / มะรืน).
@@ -215,15 +216,13 @@ function knownNumbers(f: Facts): number[] {
   return n.filter((x): x is number => x !== null);
 }
 
-const FORBIDDEN = /ลดค่ากิน|ลดค่าอาหาร|ลดค่ารถ|ลดค่าเดินทาง|กินน้อยลง|อดข้าว|ถอนเงินออม|ใช้เงินออม/;
-
 // The AI words it; the answer is used only if it keeps to the given numbers, says the shortfall when
 // there is one, and never suggests cutting food or transport. Otherwise the template.
 async function explain(f: Facts): Promise<{ explanation: string; byAI: boolean }> {
   const template = templateFor(f);
   const text = await generate({
     system:
-      "คุณคือ 'พอใช้' ผู้ช่วยเงินของนักศึกษา ตอบภาษาไทย เป็นกันเอง ไม่เกิน 5 บรรทัด จากข้อมูล JSON ที่ให้เท่านั้น " +
+      "คุณคือ 'พอใช้' ผู้ช่วยเงินของนักศึกษา เป็นผู้ชาย ตอบภาษาไทย เป็นกันเอง สุภาพ ลงท้ายด้วย ครับ ห้ามใช้ ค่ะ คะ จ้า ไม่เกิน 5 บรรทัด จากข้อมูล JSON ที่ให้เท่านั้น " +
       "verdict: enough=ไหว, tight=ตึง (จ่ายได้แต่ค่ากินค่ารถต่อวันไม่พอ), short=ไม่พอ (บอกยอดที่ขาด). " +
       "ใช้เฉพาะตัวเลขที่อยู่ในข้อมูล ห้ามคำนวณหรือปัดเลขเอง ห้ามแนะนำให้ลดค่ากินหรือค่าเดินทาง ห้ามแนะนำใช้เงินออม " +
       "ทางเลือกใช้เงินเผื่อต้องบอกว่าต้องให้ผู้ใช้อนุญาตก่อน ไม่ต้องใส่หัวข้อหรือ markdown",

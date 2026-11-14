@@ -15,7 +15,7 @@ import {
   type Draft,
 } from "@/lib/chat/messages";
 import type { LineMessage } from "./reply";
-import type { FlexMessage } from "./flex";
+import type { FlexMessage } from "./branded-flex";
 
 export type FlexExample = Readonly<{
   id: string;

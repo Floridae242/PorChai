@@ -67,12 +67,14 @@ export interface LoadedBudget {
 export async function loadBudget(userId: string, now = new Date()): Promise<LoadedBudget> {
   const db = getDb();
   const cycle = await requireActiveCycle(userId);
-  const [anchor, entries, plans] = await Promise.all([
+  const [anchor, entries, plans, incomes] = await Promise.all([
     currentAnchor(cycle),
     db.from("entries").select("amount, spent_on, created_at, source").eq("cycle_id", cycle.id).is("cancelled_at", null),
     db.from("plans").select("id, kind, amount, status, due_on").eq("cycle_id", cycle.id),
+    db.from("incomes").select("amount, received_on, created_at").eq("cycle_id", cycle.id).is("cancelled_at", null),
   ]);
   if (entries.error) throw entries.error;
+  if (incomes.error) throw incomes.error;
   if (plans.error) throw plans.error;
 
   const today = thaiDate(now);
@@ -84,7 +86,11 @@ export async function loadBudget(userId: string, now = new Date()): Promise<Load
   }));
   const planRows = plans.data as PlanRow[];
   const input: BudgetInput = {
-    balance: balanceNow(anchor, rows),
+    balance: balanceNow(
+      anchor,
+      rows,
+      incomes.data.map((i) => ({ amount: i.amount as number, receivedOn: i.received_on as string, createdAt: new Date(i.created_at as string) })),
+    ),
     spentToday: spentOnDay(rows, today),
     emergencyBuffer: cycle.emergency_buffer,
     savings: cycle.savings_amount,

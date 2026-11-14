@@ -63,6 +63,7 @@ supabase stop
 2. ใส่ env ใน Vercel (Project Settings > Environment Variables) ห้ามใส่ในไฟล์ใน repo ชื่อตัวแปรตาม `.env.example`:
    `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `NEXT_PUBLIC_LIFF_ID`, `LINE_LOGIN_CHANNEL_ID`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
    (`SUPABASE_ANON_KEY` ใช้เฉพาะเทสต์ ไม่ต้องใส่)
+   Microsoft Clarity (ไม่บังคับ): `NEXT_PUBLIC_CLARITY_PROJECT_ID` ค่าว่าง = ปิด **ห้ามตั้งใน Production จนกว่ามินตราเซ็นผ่านการตรวจปิดบังข้อมูล** (ดูหัวข้อ Microsoft Clarity)
    AI (การ์ด 15): `GEMINI_API_KEY` (คีย์จาก Google AI Studio แผนฟรี พอถือ) · `GEMINI_MODEL` ไม่ใส่ก็ได้ (ค่าเริ่มต้น `gemini-3.5-flash-lite`) · ไม่มีคีย์ = ระบบตอบด้วยข้อความแม่แบบ ไม่พัง
 3. สร้างตารางบนโปรเจกต์จริง: `supabase link --project-ref <ref>` แล้ว `supabase db push`
 4. deploy preview บน Vercel (push branch) แล้วจดโดเมน
@@ -83,6 +84,16 @@ supabase stop
 | `lib/line/` | ตรวจลายเซ็น ตรวจ ID token ส่งข้อความ LINE | Backend |
 
 หน้าจอเรียกข้อมูลผ่าน `app/api/` เท่านั้น ไม่ต่อฐานข้อมูลตรง
+
+## Microsoft Clarity (วัดการใช้งานหน้า MINI App)
+
+- โหลดเฉพาะหน้า `/app` เท่านั้น (ไม่โหลดที่ `/`, `/miniapp`, `/business`, `/shop`, หน้ายินยอม) และโหลดหลังผู้ใช้กดยอมรับ + LIFF พร้อมแล้ว โค้ดอยู่ที่ `lib/clarity/` ที่เดียว ห้ามเรียก `clarity(` ที่อื่น ห้ามส่ง identify/tag/event (มีเทสต์กันไว้)
+- เปิดใช้โดยตั้ง `NEXT_PUBLIC_CLARITY_PROJECT_ID` ค่านี้ฝังตอน build ต้อง deploy ใหม่เมื่อเปลี่ยน ค่าว่าง = ปิด
+- ต้องตั้ง **Masking เป็น Strict** ที่หน้า Settings > Masking ของโปรเจกต์ Clarity เอง (ตั้งจากโค้ดไม่ได้ มีผลกับการบันทึกใหม่ อาจใช้เวลาถึง 1 ชม.) ป้าย `data-clarity-mask="true"` ในโค้ดเป็นชั้นที่สอง
+- URL ถูกบันทึกและปิดบังไม่ได้: ห้ามใส่ยอด ชื่อ หรือข้อความส่วนตัวใน URL (ลิงก์โปรส่งแค่ `?promo=<id>` วันเงินเข้าใหม่เก็บในหน่วยความจำ ไม่ใส่ `?payday=`) มีเทสต์ตรวจ
+- ทดสอบในเครื่อง: ใส่ Project ID ใน `.env.local` รัน `npm run dev` แล้วเปิด `/app/consent?scenario=fresh` กดยอมรับ เดินหน้าด้วยข้อมูลสมมติ ให้ผู้ตรวจดูภาพบันทึกว่าข้อความ ตัวเลข และช่องกรอกเป็นบล็อกทึบ
+- ปิดฉุกเฉิน: ลบ `NEXT_PUBLIC_CLARITY_PROJECT_ID` จาก Vercel แล้ว deploy ใหม่
+- เอกสาร Clarity ระบุว่าไม่ควรใช้กับผู้ใช้อายุต่ำกว่า 18 ปี ต้องให้ทีมหรืออาจารย์ตัดสินก่อนเปิดกับผู้ใช้จริง
 
 ## กฎของ repo
 
