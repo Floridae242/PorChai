@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { POST } from "@/app/api/admin/richmenu/route";
+import { DELETE, POST } from "@/app/api/admin/richmenu/route";
 
 // Rich menu setup (โฟรวิว's spec + image public/richmenu.png): run once after deploy. The LINE token
 // lives only on Vercel, so this runs there, behind the same secret as the scheduler.
 
-const req = (key = "s3cret") =>
-  new Request("https://porchai.vercel.app/api/admin/richmenu", { method: "POST", headers: { Authorization: `Bearer ${key}` } });
+const req = (key = "s3cret", method = "POST") =>
+  new Request("https://porchai.vercel.app/api/admin/richmenu", { method, headers: { Authorization: `Bearer ${key}` } });
 
 describe("POST /api/admin/richmenu", () => {
   let calls: { url: string; method: string; body: unknown; type: string | null }[];
@@ -68,5 +68,48 @@ describe("POST /api/admin/richmenu", () => {
     const res = await POST(req());
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: "LINE create menu 400: bad spec" });
+  });
+});
+
+// Moving the menu to LINE OA Manager (13 Nov): a default set through the API wins over OA Manager's,
+// so ours is taken off everyone and deleted. Other menus are left alone.
+describe("DELETE /api/admin/richmenu", () => {
+  let calls: string[];
+  beforeEach(() => {
+    vi.stubEnv("CRON_SECRET", "s3cret");
+    vi.stubEnv("LINE_CHANNEL_ACCESS_TOKEN", "line-token");
+    calls = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit = {}) => {
+        calls.push(`${init.method ?? "GET"} ${url.replace("https://api.line.me", "")}`);
+        if (url.endsWith("/richmenu/list")) {
+          return Response.json({ richmenus: [{ richMenuId: "old-1", name: "PorChai Main Menu v1" }, { richMenuId: "other", name: "someone else's" }] });
+        }
+        return new Response("{}", { status: 200 });
+      }),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("refuses without the secret", async () => {
+    expect((await DELETE(req("wrong", "DELETE"))).status).toBe(401);
+    expect(calls).toEqual([]);
+  });
+
+  it("takes the default off everyone, then deletes only our menu", async () => {
+    const res = await DELETE(req("s3cret", "DELETE"));
+    expect(await res.json()).toEqual({ removed: 1 });
+    expect(calls).toEqual(["DELETE /v2/bot/user/all/richmenu", "GET /v2/bot/richmenu/list", "DELETE /v2/bot/richmenu/old-1"]);
+  });
+
+  it("a LINE error says which step failed", async () => {
+    vi.mocked(fetch).mockImplementation(async () => new Response("no", { status: 500 }));
+    const res = await DELETE(req("s3cret", "DELETE"));
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "LINE clear default 500: no" });
   });
 });

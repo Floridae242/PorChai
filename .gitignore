@@ -43,3 +43,8 @@ next-env.d.ts
 # allow the template that lists variable names only
 !.env.example
 scripts/chat-eval-report.md
+
+# Generated browser traces and office lock files stay local.
+/test-results/
+/playwright-report/
+~$*

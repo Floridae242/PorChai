@@ -1,6 +1,15 @@
 # LINE Developing: live setup
 
-## Configuration inspected on 12 November 2026
+## Vercel update (12 November 2026)
+
+- Base URL supplied by the team: `https://porchai.vercel.app`.
+- Canonical MINI App route supplied by the team: `/app`.
+- Desired Developing Endpoint: `https://porchai.vercel.app/app` (Console access required to update the previous endpoint).
+- Messaging webhook was read from LINE and confirmed active at `https://porchai.vercel.app/api/line/webhook`.
+- Live probes: existing `/miniapp` and mascot PNG 200; signed empty webhook 200; invalid signature 401; bot token 200.
+- New card/UI source remains on `Tle` until deployed; these probes do not prove the new UI is deployed.
+
+## Previous tunnel configuration inspected on 12 November 2026
 
 - Provider: PorChai, `2005796246`.
 - MINI App Developing channel: `2012545254`, LIFF ID `2012545254-6025ZG1r`.

@@ -362,6 +362,13 @@ export function buildTodayBudgetCard(vm: TodayBudgetCardViewModel): FlexMessage 
           },
           {
             type: "text",
+            text: `เงินทั้งหมดตอนนี้ ${bahtText(vm.balance)}`,
+            size: "xs",
+            color: FLEX_COLORS.green900,
+            margin: "md",
+          },
+          {
+            type: "text",
             text: `ใช้ได้ ${formatBaht(vm.disposablePool)} ÷ ${vm.daysRemaining} วัน · กันออม ${formatBaht(vm.savingsReserved)} · เผื่อ ${bahtText(vm.bufferReserved)}`,
             size: "xxs",
             color: FLEX_COLORS.sage500,
