@@ -1,5 +1,8 @@
 # PorChai (พอใช้)
 
+บิลประจำแบบปฏิทินและ Flex แจ้งเตือน: [วิธีใช้และตั้ง scheduler](docs/BILL-CALENDAR.md)
+แต้มร่วมกันและโฆษณาสาธิต: [การทำงานและตรวจรหัสเชื่อมต่อ](docs/POINTS-SYNC-AND-SPONSORS.md)
+
 ผู้ช่วยการเงินสำหรับนักศึกษาบน LINE OA และหน้าจอ LIFF
 LINE OA + Messaging API · LIFF · Next.js + TypeScript · Supabase PostgreSQL · AI API · Vercel · Microsoft Clarity · ทดสอบด้วย Vitest
 

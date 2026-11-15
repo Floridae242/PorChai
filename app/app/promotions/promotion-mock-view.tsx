@@ -5,22 +5,70 @@ import { AppHeader } from "@/components/shell/app-header";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { campaigns } from "@/lib/promotions/demo";
+import { Mascot } from "@/components/ui/mascot";
 
 export function MockPromotionBanner() {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
   return (
-    <aside className="rounded-md border border-line bg-reward-bg p-4">
-      <p className="text-xs font-semibold text-secondary">
-        โฆษณาตัวอย่าง · ผู้สนับสนุนสมมติ
-      </p>
-      <p className="mt-1 font-bold text-primary">สิทธิพิเศษสำหรับชีวิตนักศึกษา</p>
-      <p className="mt-1 text-xs text-secondary">คูปองและโปรสาธิต ใช้ซื้อจริงไม่ได้</p>
-      <Link
-        href="/app/promotions"
-        className="mt-2 inline-block min-h-8 text-sm font-semibold text-link"
+    <aside
+      aria-label="โฆษณาตัวอย่าง"
+      className="relative rounded-md border border-line bg-reward-bg p-3 pr-11"
+    >
+      <button
+        type="button"
+        aria-label="ปิดโฆษณาตัวอย่าง"
+        onClick={() => setDismissed(true)}
+        className="absolute right-0 top-0 flex size-11 items-center justify-center rounded-pill text-secondary"
       >
-        ดูตัวอย่างคูปองและโปร ›
+        ×
+      </button>
+      <Link
+        href="/app/sponsors"
+        className="flex min-h-16 items-center gap-3 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)]"
+      >
+        <span className="shrink-0 rounded-sm bg-card p-1">
+          <Mascot pose="greeting" size={56} />
+        </span>
+        <span className="flex min-w-0 flex-col gap-1">
+          <span className="text-[10px] font-semibold text-secondary">
+            AD · โฆษณาตัวอย่าง · ผู้สนับสนุนสมมติ
+          </span>
+          <span className="text-sm font-bold leading-5 text-primary">
+            สิทธิพิเศษสำหรับชีวิตนักศึกษา ›
+          </span>
+          <span className="text-xs text-secondary">ดูโปรสาธิต · ใช้ซื้อจริงไม่ได้</span>
+        </span>
       </Link>
     </aside>
+  );
+}
+export function SponsorShowcase() {
+  return (
+    <main className="flex flex-col gap-4 py-2 font-body">
+      <AppHeader title="โปรจากผู้สนับสนุน" back="/app" tone="default" />
+      <Banner
+        kind="info"
+        text="โฆษณาตัวอย่างทั้งหมด ผู้สนับสนุนและข้อเสนอเป็นข้อมูลสมมติ ใช้ซื้อสินค้าจริงไม่ได้"
+      />
+      {campaigns.map((c) => (
+        <article
+          key={c.id}
+          className="flex flex-col gap-3 rounded-md border border-line bg-card p-5"
+        >
+          <span className="text-xs font-semibold text-link">
+            AD · ผู้สนับสนุนสมมติ
+          </span>
+          <p className="text-sm text-secondary">{c.shop}</p>
+          <h2 className="text-lg font-semibold text-primary">{c.title}</h2>
+          <p className="rounded-sm bg-reward-bg p-3 font-semibold">{c.offer}</p>
+          <p className="text-sm leading-6 text-secondary">{c.terms}</p>
+          <p className="text-xs text-secondary">
+            สำหรับสาธิตเท่านั้น ไม่มีการซื้อ จองสิทธิ์ หรือหักแต้ม
+          </p>
+        </article>
+      ))}
+    </main>
   );
 }
 export function PromotionMockView() {

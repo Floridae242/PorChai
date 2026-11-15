@@ -13,11 +13,11 @@ describe("getLiff", () => {
     const { getLiff } = await import("./client");
     const { initializeLiff } = await import("@/lib/line/liff-client");
     const [a, b] = await Promise.all([getLiff(), getLiff()]);
-    await initializeLiff("2012545176-udYyTUiA");
+    await initializeLiff("2012545254-6025ZG1r");
     await getLiff();
     expect(a).toBe(b);
     expect(init).toHaveBeenCalledTimes(1);
-    expect(init).toHaveBeenCalledWith({ liffId: "2012545176-udYyTUiA" });
+    expect(init).toHaveBeenCalledWith({ liffId: "2012545254-6025ZG1r" });
   });
 
   it("lets a failed init be retried", async () => {

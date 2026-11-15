@@ -1,5 +1,35 @@
 import { expect, it } from "vitest";
 import { readHelpRequest } from "./help-request";
+import { onboardingHelp } from "./onboarding";
+import { splitExplicitExpenses } from "@/lib/chat/multi-expense";
+
+it.each([
+  "จดหลายรายการพร้อมกันได้หรือไม่",
+  "จดหลายรายการพร้อมกันได้ไหมครับ",
+  "บันทึกหลายรายจ่ายได้มั้ย",
+  "ขอวิธีจดทีละหลายรายการ",
+  "ข้าว 45 กาแฟ 55 จดพร้อมกันได้หรือเปล่า",
+  "พิมพ์หลายรายการอย่างไร",
+])("intercepts multi-record capability/how-to before the financial flow: %s", message => {
+  const help = readHelpRequest(message);
+  expect(help).toEqual({ topic: "multi_record" });
+  const answer = onboardingHelp(`guide:${help!.topic}`)!;
+  expect(answer.text).toContain("2–5");
+  expect(answer.text).toContain("จดทั้งหมด");
+  expect(answer.text).toContain("ข้าว 45\nกาแฟ 55");
+  expect(answer.text).toContain("ยังไม่ได้สร้างรายการร่างหรือบันทึก");
+  expect(answer).not.toHaveProperty("pending");
+});
+
+it("does not hijack the real concatenated three-expense input", () => {
+  const message = "กินปลาหมึกย่าง70บาทน้ำส้มอีก30บาทซูชิอีก30บาท";
+  expect(readHelpRequest(message)).toBeNull();
+  expect(splitExplicitExpenses(message)).toEqual([
+    {title:"ปลาหมึกย่าง",amount:7000,category:"food"},
+    {title:"น้ำส้ม",amount:3000,category:"food"},
+    {title:"ซูชิ",amount:3000,category:"food"},
+  ]);
+});
 it.each([
   "ขอวิธีใช้",
   "ขอวิธีใช้งานหน่อยครับ",

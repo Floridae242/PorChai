@@ -62,7 +62,7 @@ import { reportCard } from "@/lib/chat/cards";
 import { CATEGORY_LABELS } from "@/lib/line/flex/format";
 import { parseIntent, statedDate, statedMoney } from "./parse";
 import { inferReadIntent } from "./infer";
-import { campaigns } from "@/lib/promotions/demo";
+import { sponsorCarousel } from "@/lib/line/sponsor-card";
 import { installmentSchedule, parseInstallment } from "./installments";
 import { addInstallments } from "@/lib/db/installments";
 import { isQuestion } from "@/lib/advice/question";
@@ -500,9 +500,7 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
         },
       );
     case "promos":
-      return say(
-        `คูปองและโปรจำลอง ใช้ซื้อจริงไม่ได้ครับ\n${campaigns.map((c) => `${c.kind === "ad" ? "โฆษณาตัวอย่าง" : "ข้อเสนอจำลอง"} · ${c.shop}\n${c.offer} · ${c.code}\n${c.terms}`).join("\n\n")}`,
-      );
+      return { message: sponsorCarousel() };
     case "notifications": {
       const p = await getNotificationPreferences(userId);
       if (i.enabled === undefined && !i.time)

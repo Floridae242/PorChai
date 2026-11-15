@@ -56,12 +56,12 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("P1 list", () => {
-  it("promos not_implemented -> honest empty state, no cards, points row shows 0", async () => {
+  it("promos not_implemented -> honest empty state, no cards, points row shows unknown", async () => {
     renderWith(apiWith({ promos: notImpl, points: notImpl }), <PerksListView />);
     expect(await screen.findByText("ยังไม่พร้อมใช้งาน")).toBeTruthy();
     expect(screen.queryByText("ข้อเสนอจากผู้สนับสนุน")).toBeNull();
     expect(screen.queryByRole("link", { name: /ดูรายละเอียดและรับสิทธิ์/ })).toBeNull();
-    expect(screen.getByText("0 แต้ม")).toBeTruthy();
+    expect(screen.getByText("— แต้ม")).toBeTruthy();
     expect(screen.queryByText(/\b11 แต้ม/)).toBeNull();
     expect(screen.getByRole("link", { name: /ดูของที่แลกได้/ }).getAttribute("href")).toBe("/app/points");
   });
@@ -192,15 +192,15 @@ describe("P3 code / P3b", () => {
 describe("K1 points / K2", () => {
   const REWARD: Reward = { id: "r1", name: "สติกเกอร์", cost: 5, stock: 3 };
 
-  it("points unavailable -> 0 แต้ม (never 11); claim -> ยังไม่พร้อมใช้งาน and points unchanged", async () => {
+  it("points unavailable -> unknown (never a fake zero); claim -> ยังไม่พร้อมใช้งาน and points unchanged", async () => {
     renderWith(apiWith({ points: notImpl, claimPoints: notImpl, rewards: async () => [] }), <PointsView />);
     expect(await screen.findByText("แต้มสะสม")).toBeTruthy();
-    expect(screen.getByText("0")).toBeTruthy();
+    expect(screen.getByText("—")).toBeTruthy();
     expect(screen.queryByText("11")).toBeNull();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "รับแต้มฟรี" }));
     expect(await screen.findByText("ยังไม่พร้อมใช้งาน")).toBeTruthy();
-    expect(screen.getByText("0")).toBeTruthy();
+    expect(screen.getByText("—")).toBeTruthy();
     expect(screen.queryByText(/รับแต้มฟรีแล้ว/)).toBeNull();
   });
 
