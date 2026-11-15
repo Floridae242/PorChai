@@ -160,7 +160,6 @@ export function SummaryView() {
 
   return (
     <main className="flex flex-col gap-4 py-4 font-body">
-      <MockPromotionBanner />
       {budget.kind === "payday-passed" ? (
         <Banner
           kind="info"
@@ -242,6 +241,9 @@ export function SummaryView() {
       </section>
       {pointState.failed&&<p role="status" className="text-xs text-secondary">ยังอัปเดตแต้มไม่ได้ ยอดที่แสดงอาจยังไม่ล่าสุด <button type="button" onClick={()=>void pointState.refresh()} className="min-h-11 font-semibold text-link">โหลดแต้มใหม่</button></p>}
 
+      {/* Demo sponsor (labelled as a sample): under the points card, it belongs to the same perks family. */}
+      <MockPromotionBanner />
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {categories ? (
           <section className="flex flex-col justify-between gap-3 rounded-md border border-line bg-card p-4">
@@ -318,7 +320,6 @@ export function SummaryView() {
           </div>
         )}
       </section>
-
     </main>
   );
 }

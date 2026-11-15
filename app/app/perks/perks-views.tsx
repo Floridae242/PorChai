@@ -115,6 +115,7 @@ export function PerksListView() {
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="สิทธิพิเศษ & แต้ม" tone="default" />
+      {/* /app/promotions is dev-only: the link shows in mock mode only */}
       {API_MODE === "mock" ? (
         <Link href="/app/promotions" className={buttonClass("secondary")}>
           คูปอง โปรโมชัน และโฆษณาตัวอย่าง

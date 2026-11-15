@@ -64,25 +64,20 @@ describe("SummaryView (G04: B1, B1m, B1k, S4, S10)", () => {
     const hero = screen.getByText("เหลือใช้วันนี้");
     const dash = screen.getByRole("region", { name: "ภาพรวมรายงาน" });
     const points = screen.getByText("สะสมแต้มรายวัน");
-    expect(
-      hero.compareDocumentPosition(dash) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      dash.compareDocumentPosition(points) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    const nav = within(dash).getByRole("navigation", {
-      name: "เมนูรายงานและเครื่องมือ",
-    });
-    const hrefs = within(nav)
-      .getAllByRole("link")
-      .map((l) => l.getAttribute("href"));
-    expect(hrefs).toEqual([
-      "/app/reports",
+    expect(hero.compareDocumentPosition(dash) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(dash.compareDocumentPosition(points) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // one main link to the report, the other tools as small links
+    expect(within(dash).getByRole("link", { name: /ดูรายงานวัน \/ เดือน/ }).getAttribute("href")).toBe("/app/reports");
+    const nav = within(dash).getByRole("navigation", { name: "เมนูรายงานและเครื่องมือ" });
+    expect(within(nav).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual([
       "/app/insights",
       "/app/search",
       "/app/notifications",
       "/app/help",
     ]);
+    // the demo sponsor sits right under the points card, before the category summary
+    const banner = screen.getByLabelText("โฆษณาตัวอย่าง");
+    expect(points.compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("shows the server's number even when it is not previous + 1", async () => {

@@ -49,25 +49,13 @@ export function ReportNumbers({
   );
 }
 
-// Home "dashboard": this month's recorded totals (from the server) and the way into the other screens.
+// Home "dashboard": this month's recorded totals (from the server), one main link into the report,
+// and the other tools as small text links.
 const DASHBOARD_LINKS = [
-  {
-    href: "/app/reports",
-    label: "รายงานวัน / เดือน",
-    hint: "กราฟและรายการแต่ละวัน",
-  },
-  {
-    href: "/app/insights",
-    label: "พฤติกรรมและงบรายหมวด",
-    hint: "ใช้เงินไปกับอะไรบ้าง",
-  },
-  { href: "/app/search", label: "ค้นหา · AI Search", hint: "ค้นรายการที่จดไว้" },
-  {
-    href: "/app/notifications",
-    label: "สรุปและเตือนผ่าน LINE",
-    hint: "ตั้งเวลาเอง ปิดได้",
-  },
-  { href: "/app/help", label: "วิธีใช้พอใช้", hint: "เริ่มต้นและคำถามที่พบบ่อย" },
+  { href: "/app/insights", label: "พฤติกรรมและงบรายหมวด" },
+  { href: "/app/search", label: "AI Search" },
+  { href: "/app/notifications", label: "ตั้งค่าสรุปผ่าน LINE" },
+  { href: "/app/help", label: "วิธีใช้พอใช้" },
 ] as const;
 
 export function DashboardInsights() {
@@ -122,29 +110,24 @@ export function DashboardInsights() {
           ยังอัปเดตรายงานไม่ได้ ตัวเลขอาจยังไม่ล่าสุด
         </p>
       )}
-      <nav aria-label="เมนูรายงานและเครื่องมือ">
-        <ul className="grid grid-cols-2 gap-2">
-          {DASHBOARD_LINKS.map((l, i) => (
-            <li key={l.href} className={i === 4 ? "col-span-2" : ""}>
-              <Link
-                href={l.href}
-                className="flex h-full min-h-16 items-center justify-between gap-2 rounded-sm border border-line bg-card px-3 py-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)]"
-              >
-                <span className="flex min-w-0 flex-col">
-                  <span className="break-words text-sm font-semibold leading-6 text-primary">
-                    {l.label}
-                  </span>
-                  <span className="text-xs leading-5 text-secondary">
-                    {l.hint}
-                  </span>
-                </span>
-                <span aria-hidden className="text-lg text-muted">
-                  ›
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+      <Link
+        href="/app/reports"
+        className="flex min-h-12 items-center justify-between gap-3 rounded-md border border-line-strong bg-card px-4 py-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)]"
+      >
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-sm font-semibold text-primary">ดูรายงานวัน / เดือน</span>
+          <span className="truncate text-xs text-secondary">กราฟและรายการแต่ละวัน</span>
+        </span>
+        <span aria-hidden className="text-lg text-muted">
+          ›
+        </span>
+      </Link>
+      <nav aria-label="เมนูรายงานและเครื่องมือ" className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-link">
+        {DASHBOARD_LINKS.map((l) => (
+          <Link key={l.href} href={l.href} className="inline-flex min-h-8 items-center">
+            {l.label} ›
+          </Link>
+        ))}
       </nav>
     </section>
   );
