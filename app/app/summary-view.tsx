@@ -1,6 +1,7 @@
 "use client";
 import { DashboardInsights } from "./reports/reports-view";
 import { MockPromotionBanner } from "./promotions/promotion-mock-view";
+import { API_MODE } from "./_providers/liff-provider";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -166,8 +167,6 @@ export function SummaryView() {
 
   return (
     <main className="flex flex-col gap-4 py-4 font-body">
-      <DashboardInsights />
-      <MockPromotionBanner />
       {budget.kind === "payday-passed" ? (
         <Banner
           kind="info"
@@ -213,6 +212,8 @@ export function SummaryView() {
           ปรับยอด ›
         </Link>
       </div>
+
+      <DashboardInsights />
 
       <section className="flex items-center justify-between gap-3 rounded-md border border-line bg-reward-bg p-4">
         <div className="flex flex-col gap-0.5">
@@ -322,6 +323,9 @@ export function SummaryView() {
           </div>
         )}
       </section>
+
+      {/* Fictional sponsor: shown only in mock mode (production never shows sample offers). */}
+      {API_MODE === "mock" ? <MockPromotionBanner /> : null}
     </main>
   );
 }

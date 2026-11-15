@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "@/components/shell/toast";
@@ -48,6 +48,19 @@ describe("SummaryView (G04: B1, B1m, B1k, S4, S10)", () => {
     expect(await screen.findByText("รับแต้มฟรีแล้ววันนี้ ✓")).toBeTruthy();
     expect(screen.getByText("รับแต้มฟรีแล้ว +1 · รวม 12 แต้ม")).toBeTruthy();
     expect(screen.getByText("12 แต้ม")).toBeTruthy();
+  });
+
+  it("home order: today's budget first, then the dashboard, then points; the dashboard links to every tool", async () => {
+    renderSummary(createMockApi({ scenario: "default" }));
+    await screen.findByText("120");
+    const hero = screen.getByText("เหลือใช้วันนี้");
+    const dash = screen.getByRole("region", { name: "ภาพรวมรายงาน" });
+    const points = screen.getByText("สะสมแต้มรายวัน");
+    expect(hero.compareDocumentPosition(dash) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(dash.compareDocumentPosition(points) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const nav = within(dash).getByRole("navigation", { name: "เมนูรายงานและเครื่องมือ" });
+    const hrefs = within(nav).getAllByRole("link").map((l) => l.getAttribute("href"));
+    expect(hrefs).toEqual(["/app/reports", "/app/insights", "/app/search", "/app/notifications", "/app/help"]);
   });
 
   it("shows the server's number even when it is not previous + 1", async () => {

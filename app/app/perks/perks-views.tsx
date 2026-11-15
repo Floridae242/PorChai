@@ -677,6 +677,12 @@ export function PointsView() {
             จดรายการวันนี้สำเร็จ รับอัตโนมัติวันละ 1 แต้มตามเวลาไทย วันที่ไม่จดก็กดรับได้
             รวมกันได้วันละครั้ง
           </p>
+          <Link
+            href="/app/points/history"
+            className="mt-2 inline-block min-h-8 text-sm font-semibold text-link underline underline-offset-4"
+          >
+            ดูประวัติแต้ม ›
+          </Link>
         </div>
         <Mascot pose="reward" size={72} />
       </section>
