@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot generator="Robot 7.5 (Python 3.15.0 on win32)" generated="2026-11-16T03:31:37.672935" rpa="false" schemaversion="5">
+<suite id="s1" name="Cycle" source="D:\PorChai\robot\suites\api\cycle.robot">
+<test id="s1-t1" name="TC-01 to TC-03: Simulate, Reserve, and Spend Central Example" line="8">
+<kw name="Create Session" owner="RequestsLibrary">
+<msg time="2026-11-16T03:31:38.233469" level="INFO">Creating Session using : alias=porchai, url=http://localhost:3000, headers={'Authorization': 'Bearer mock_token_alpha', 'Content-Type': 'application/json'},                     cookies={}, auth=None, timeout=None, proxies=None, verify=False,                     debug=0 </msg>
+<arg>porchai</arg>
+<arg>${BASE_URL}</arg>
+<arg>headers=&amp;{AUTH_HEADERS_USER_A}</arg>
+<doc>Create Session: create a HTTP session to a server</doc>
+<status status="PASS" start="2026-11-16T03:31:38.232938" elapsed="0.000930"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-16T03:31:38.235221" level="INFO">${payload} = {'balance': '100000', 'payday': '2026-11-18', 'bills': []}</msg>
+<var>${payload}</var>
+<arg>balance=100000</arg>
+<arg>payday=2026-11-18</arg>
+<arg>bills=@{EMPTY}</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-16T03:31:38.234392" elapsed="0.000884"/>
+</kw>
+<kw name="POST On Session" owner="RequestsLibrary">
+<msg time="2026-11-16T03:31:42.334715" level="WARN">Retrying (RetryAdapter(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:31:46.620487" level="WARN">Retrying (RetryAdapter(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:31:51.090236" level="WARN">Retrying (RetryAdapter(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:31:55.143136" level="FAIL">ConnectionError: HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/cycle (Caused by NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))</msg>
+<var>${resp}</var>
+<arg>porchai</arg>
+<arg>/api/cycle</arg>
+<arg>json=${payload}</arg>
+<doc>Sends a POST request on a previously created HTTP Session.</doc>
+<status status="FAIL" start="2026-11-16T03:31:38.235629" elapsed="17.159641">ConnectionError: HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/cycle (Caused by NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))</status>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<arg>${resp.status_code}</arg>
+<arg>200</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.395839" elapsed="0.000048"/>
+</kw>
+<kw name="GET On Session" owner="RequestsLibrary">
+<var>${summary}</var>
+<arg>porchai</arg>
+<arg>/api/summary</arg>
+<doc>Sends a GET request on a previously created HTTP Session.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.396283" elapsed="0.000041"/>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<arg>${summary.status_code}</arg>
+<arg>200</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.396631" elapsed="0.000035"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<var>${data}</var>
+<arg>${summary.json()}</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.396993" elapsed="0.000030"/>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<arg>${data['usable']}</arg>
+<arg>70000</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.397273" elapsed="0.000031"/>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<arg>${data['dailyBudget']}</arg>
+<arg>10000</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.397560" elapsed="0.000029"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<var>${sim_body}</var>
+<arg>amount=14000</arg>
+<arg>name=Shirt</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.397868" elapsed="0.000028"/>
+</kw>
+<kw name="POST On Session" owner="RequestsLibrary">
+<var>${sim_resp}</var>
+<arg>porchai</arg>
+<arg>/api/simulate</arg>
+<arg>json=${sim_body}</arg>
+<doc>Sends a POST request on a previously created HTTP Session.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.398133" elapsed="0.000027"/>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<arg>${sim_resp.status_code}</arg>
+<arg>200</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.398532" elapsed="0.000034"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<var>${sim_data}</var>
+<arg>${sim_resp.json()}</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.398850" elapsed="0.000039"/>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<arg>${sim_data['usable']}</arg>
+<arg>56000</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.399182" elapsed="0.000030"/>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<arg>${sim_data['dailyBudget']} 8000</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="NOT RUN" start="2026-11-16T03:31:55.399448" elapsed="0.000028"/>
+</kw>
+<doc>Validates central financial calculation: 1,000 THB, 300 THB bill, 7 days.</doc>
+<tag>api</tag>
+<tag>calculation</tag>
+<tag>R2</tag>
+<tag>R3-quarter</tag>
+<status status="FAIL" start="2026-11-16T03:31:38.230711" elapsed="17.169103">ConnectionError: HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/cycle (Caused by NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))</status>
+</test>
+<test id="s1-t2" name="TC-04: Validate Quarter Baht Floor Rounding (R3-quarter)" line="33">
+<kw name="Create Session" owner="RequestsLibrary">
+<msg time="2026-11-16T03:31:55.401736" level="INFO">Creating Session using : alias=porchai, url=http://localhost:3000, headers={'Authorization': 'Bearer mock_token_alpha', 'Content-Type': 'application/json'},                     cookies={}, auth=None, timeout=None, proxies=None, verify=False,                     debug=0 </msg>
+<arg>porchai</arg>
+<arg>${BASE_URL}</arg>
+<arg>headers=&amp;{AUTH_HEADERS_USER_A}</arg>
+<doc>Create Session: create a HTTP session to a server</doc>
+<status status="PASS" start="2026-11-16T03:31:55.401350" elapsed="0.000619"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-16T03:31:55.403061" level="INFO">${payload} = {'balance': '70000', 'payday': '2026-11-14', 'bills': []}</msg>
+<var>${payload}</var>
+<arg>balance=70000</arg>
+<arg>payday=2026-11-14</arg>
+<arg>bills=@{EMPTY}</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-16T03:31:55.402286" elapsed="0.000821"/>
+</kw>
+<kw name="POST On Session" owner="RequestsLibrary">
+<msg time="2026-11-16T03:31:59.483928" level="WARN">Retrying (RetryAdapter(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:32:03.742608" level="WARN">Retrying (RetryAdapter(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:32:08.220985" level="WARN">Retrying (RetryAdapter(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:32:12.314822" level="FAIL">ConnectionError: HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/cycle (Caused by NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))</msg>
+<var>${resp}</var>
+<arg>porchai</arg>
+<arg>/api/cycle</arg>
+<arg>json=${payload}</arg>
+<doc>Sends a POST request on a previously created HTTP Session.</doc>
+<status status="FAIL" start="2026-11-16T03:31:55.403480" elapsed="16.919474">ConnectionError: HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/cycle (Caused by NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))</status>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<arg>${resp.status_code}</arg>
+<arg>200</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="NOT RUN" start="2026-11-16T03:32:12.323514" elapsed="0.000048"/>
+</kw>
+<kw name="GET On Session" owner="RequestsLibrary">
+<var>${summary}</var>
+<arg>porchai</arg>
+<arg>/api/summary</arg>
+<doc>Sends a GET request on a previously created HTTP Session.</doc>
+<status status="NOT RUN" start="2026-11-16T03:32:12.323962" elapsed="0.000047"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<var>${data}</var>
+<arg>${summary.json()}</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="NOT RUN" start="2026-11-16T03:32:12.324396" elapsed="0.000038"/>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<arg>${data['dailyBudget']}</arg>
+<arg>23325</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="NOT RUN" start="2026-11-16T03:32:12.324732" elapsed="0.000032"/>
+</kw>
+<kw name="Evaluate" owner="BuiltIn">
+<var>${mod}</var>
+<arg>${data['dailyBudget']} % 25</arg>
+<doc>Evaluates the given expression in Python and returns the result.</doc>
+<status status="NOT RUN" start="2026-11-16T03:32:12.325074" elapsed="0.000034"/>
+</kw>
+<kw name="Should Be Equal As Integers" owner="BuiltIn">
+<arg>${mod}</arg>
+<arg>0</arg>
+<doc>Fails if objects are unequal after converting them to integers.</doc>
+<status status="NOT RUN" start="2026-11-16T03:32:12.325413" elapsed="0.000039"/>
+</kw>
+<doc>Validates 700 THB / 3 days rounds down to 233.25 THB (23,325 satang), not 233.33.</doc>
+<tag>api</tag>
+<tag>R3-quarter</tag>
+<tag>rounding</tag>
+<status status="FAIL" start="2026-11-16T03:31:55.400610" elapsed="16.925232">ConnectionError: HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/cycle (Caused by NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))</status>
+</test>
+<doc>API Suite for Por-Chai Cycle Calculation and Financial Rules (R1–R13).</doc>
+<status status="FAIL" start="2026-11-16T03:31:37.676862" elapsed="34.650272"/>
+</suite>
+<statistics>
+<total>
+<stat pass="0" fail="2" skip="0">All Tests</stat>
+</total>
+<tag>
+<stat pass="0" fail="2" skip="0">api</stat>
+<stat pass="0" fail="1" skip="0">calculation</stat>
+<stat pass="0" fail="1" skip="0">R2</stat>
+<stat pass="0" fail="2" skip="0">R3-quarter</stat>
+<stat pass="0" fail="1" skip="0">rounding</stat>
+</tag>
+<suite>
+<stat name="Cycle" id="s1" pass="0" fail="2" skip="0">Cycle</stat>
+</suite>
+</statistics>
+<errors>
+<msg time="2026-11-16T03:31:42.334715" level="WARN">Retrying (RetryAdapter(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:31:46.620487" level="WARN">Retrying (RetryAdapter(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:31:51.090236" level="WARN">Retrying (RetryAdapter(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:31:59.483928" level="WARN">Retrying (RetryAdapter(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:32:03.742608" level="WARN">Retrying (RetryAdapter(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+<msg time="2026-11-16T03:32:08.220985" level="WARN">Retrying (RetryAdapter(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=3000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it")': /api/cycle</msg>
+</errors>
+</robot>
