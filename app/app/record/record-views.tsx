@@ -11,7 +11,13 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { InputField } from "@/components/ui/input-field";
 import { Mascot } from "@/components/ui/mascot";
-import { USER_CATEGORIES, type Entry, type Plan, type Summary, type UserCategory } from "@/lib/api-types";
+import {
+  USER_CATEGORIES,
+  type Entry,
+  type Plan,
+  type Summary,
+  type UserCategory,
+} from "@/lib/api-types";
 import { thaiDate } from "@/lib/calc/time";
 import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import { ApiError } from "@/lib/client/errors";
@@ -23,7 +29,12 @@ import {
 } from "@/lib/client/pending-record";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
-import { formatBaht, parseBahtInput, satangToInputString } from "@/lib/format/money";
+import {
+  formatBaht,
+  parseBahtInput,
+  satangToInputString,
+} from "@/lib/format/money";
+import type { SpendingCategory } from "@/lib/insights/types";
 
 const MSG_INCOME_NOT_READY = "ยังไม่พร้อมใช้งาน — ตอนนี้จดได้เฉพาะรายจ่าย";
 
@@ -35,7 +46,8 @@ export function RecordNewView() {
   const api = useApi();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialType = searchParams?.get("type") === "income" ? "income" : "expense";
+  const initialType =
+    searchParams?.get("type") === "income" ? "income" : "expense";
   const { submit, busy } = useSubmit<"linked" | "saved">();
 
   const [type, setType] = useState<"expense" | "income">(initialType);
@@ -43,6 +55,12 @@ export function RecordNewView() {
   const [amountText, setAmountText] = useState("");
   const [note, setNote] = useState("");
   const [category, setCategory] = useState<UserCategory>("food");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [personalLabels,setPersonalLabels] = useState<Record<string,string>>({});
+  const [customCategories, setCustomCategories] = useState<SpendingCategory[]>(
+    [],
+  );
+  const [categoriesFailed, setCategoriesFailed] = useState(false);
   const [spentOn, setSpentOn] = useState(() => thaiDate(new Date()));
   const dateTouched = useRef(false);
   const [error, setError] = useState<string | null>(null); // amount field
@@ -60,6 +78,29 @@ export function RecordNewView() {
       });
   }, [api]);
 
+  useEffect(() => {
+    let active = true;
+    Promise.resolve()
+      .then(() => api.spendingCategories())
+      .then((rows) => {
+        if (active) setPersonalLabels(Object.fromEntries(rows.map(c=>[c.id,c.label])));
+        if (active)
+          setCustomCategories(
+            rows.filter(
+              (row) =>
+                row.parent !== "bills" &&
+                !USER_CATEGORIES.includes(row.id as UserCategory),
+            ),
+          );
+      })
+      .catch(() => {
+        if (active) setCategoriesFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api]);
+
   async function handleSave() {
     const parsed = parseBahtInput(amountText);
     if (!parsed.ok) {
@@ -72,22 +113,43 @@ export function RecordNewView() {
     const draft: PendingRecordDraft = {
       type,
       amount: parsed.satang,
-      note: trimmed || (type === "income" ? "" : CATEGORY_LABELS[category]),
+      note:
+        trimmed ||
+        (type === "income"
+          ? ""
+          : (customCategories.find((c) => c.id === categoryId)?.label ??
+            CATEGORY_LABELS[category])),
       category,
+      ...(categoryId && type === "expense" ? { categoryId } : {}),
       spentOn,
     };
     // One key per payload: a retry of the same data reuses it, an edited amount/note/date gets a new one.
-    const payload = { ...draft, category: type === "expense" ? category : null };
+    const payload = {
+      ...draft,
+      category: type === "expense" ? category : null,
+    };
 
     const result = await submit(payload, async (key) => {
       if (type === "income") {
-        await api.addIncome({ amount: draft.amount, note: trimmed || null, receivedOn: spentOn }, key);
+        await api.addIncome(
+          { amount: draft.amount, note: trimmed || null, receivedOn: spentOn },
+          key,
+        );
         return "saved" as const;
       }
-      const { plans } = await api.plans().catch(() => ({ plans: [] as Plan[] }));
-      if (plans.some((p) => p.kind === "purchase" && p.status === "reserved")) return "linked" as const;
+      const { plans } = await api
+        .plans()
+        .catch(() => ({ plans: [] as Plan[] }));
+      if (plans.some((p) => p.kind === "purchase" && p.status === "reserved"))
+        return "linked" as const;
       await api.addEntry(
-        { amount: draft.amount, category: draft.category, note: draft.note, spentOn: draft.spentOn },
+        {
+          amount: draft.amount,
+          category: draft.category,
+          note: draft.note,
+          spentOn: draft.spentOn,
+          ...(categoryId ? { categoryId } : {}),
+        },
         key,
       );
       return "saved" as const;
@@ -105,7 +167,11 @@ export function RecordNewView() {
       return;
     }
     if ("skipped" in result) return;
-    if (type === "income" && result.error instanceof ApiError && result.error.code === "not_implemented") {
+    if (
+      type === "income" &&
+      result.error instanceof ApiError &&
+      result.error.code === "not_implemented"
+    ) {
       setFormError(MSG_INCOME_NOT_READY); // typed data stays in the form
       return;
     }
@@ -116,7 +182,11 @@ export function RecordNewView() {
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="จดรายการ" back="/app" tone="default" />
 
-      <div role="tablist" aria-label="ประเภทรายการ" className="grid grid-cols-2 gap-2 rounded-pill border border-line bg-card p-1">
+      <div
+        role="tablist"
+        aria-label="ประเภทรายการ"
+        className="grid grid-cols-2 gap-2 rounded-pill border border-line bg-card p-1"
+      >
         <button
           type="button"
           role="tab"
@@ -128,7 +198,9 @@ export function RecordNewView() {
             setFormError(null);
           }}
           className={`rounded-pill py-2 text-sm font-semibold ${
-            type === "expense" ? "bg-action-primary text-on-action" : "text-secondary"
+            type === "expense"
+              ? "bg-action-primary text-on-action"
+              : "text-secondary"
           }`}
         >
           รายจ่าย
@@ -144,7 +216,9 @@ export function RecordNewView() {
             setFormError(null);
           }}
           className={`rounded-pill py-2 text-sm font-semibold ${
-            type === "income" ? "bg-action-primary text-on-action" : "text-secondary"
+            type === "income"
+              ? "bg-action-primary text-on-action"
+              : "text-secondary"
           }`}
         >
           รายรับ
@@ -172,7 +246,9 @@ export function RecordNewView() {
 
         <InputField
           label="ชื่อรายการ"
-          placeholder={type === "expense" ? "เช่น ข้าวมันไก่, กาแฟ" : "เช่น ได้ค่าขนมเพิ่ม"}
+          placeholder={
+            type === "expense" ? "เช่น ข้าวมันไก่, กาแฟ" : "เช่น ได้ค่าขนมเพิ่ม"
+          }
           value={note}
           onChange={(e) => setNote(e.target.value)}
           state={note ? "filled" : "default"}
@@ -183,11 +259,53 @@ export function RecordNewView() {
             <span className="text-sm font-medium text-primary">หมวดหมู่</span>
             <div className="flex flex-wrap gap-2">
               {USER_CATEGORIES.map((cat) => (
-                <Chip key={cat} selected={category === cat} onClick={() => setCategory(cat)}>
-                  {CATEGORY_LABELS[cat]}
+                <Chip
+                  key={cat}
+                  selected={category === cat && !categoryId}
+                  onClick={() => {
+                    setCategory(cat);
+                    setCategoryId(null);
+                  }}
+                >
+                  {personalLabels[cat] ?? CATEGORY_LABELS[cat]}
                 </Chip>
               ))}
             </div>
+            {customCategories.length > 0 && (
+              <label className="mt-2 flex flex-col gap-2 text-sm text-primary">
+                หมวดของฉัน
+                <select
+                  className="min-h-12 rounded-sm border border-line-strong bg-card px-3"
+                  value={categoryId ?? ""}
+                  disabled={busy}
+                  onChange={(e) => {
+                    const row = customCategories.find(
+                      (c) => c.id === e.target.value,
+                    );
+                    setCategoryId(row?.id ?? null);
+                    if (row && row.parent !== "bills") setCategory(row.parent);
+                  }}
+                >
+                  <option value="">เลือกหมวดที่สร้างไว้</option>
+                  {customCategories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {categoriesFailed && (
+              <p className="text-xs text-secondary">
+                โหลดหมวดที่สร้างไว้ไม่สำเร็จ ยังจดด้วยหมวดหลักได้ครับ
+              </p>
+            )}
+            <Link
+              href="/app/settings/categories"
+              className="text-sm font-semibold text-link"
+            >
+              จัดการหมวดและงบรายเดือน ›
+            </Link>
           </div>
         ) : null}
 
@@ -204,7 +322,12 @@ export function RecordNewView() {
         />
       </section>
 
-      {formError ? <Banner kind={formError === MSG_INCOME_NOT_READY ? "info" : "error"} text={formError} /> : null}
+      {formError ? (
+        <Banner
+          kind={formError === MSG_INCOME_NOT_READY ? "info" : "error"}
+          text={formError}
+        />
+      ) : null}
 
       <div className="flex flex-col gap-2">
         <Button variant="primary" block busy={busy} onClick={handleSave}>
@@ -223,7 +346,9 @@ export function RecordLinkView() {
   const router = useRouter();
   const { submit, busy } = useSubmit<"linked" | "unlinked">();
   // undefined = not read yet (sessionStorage is only read after mount); null = there is no draft.
-  const [draft, setDraft] = useState<PendingRecordDraft | null | undefined>(undefined);
+  const [draft, setDraft] = useState<PendingRecordDraft | null | undefined>(
+    undefined,
+  );
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | "none">("none");
   const [error, setError] = useState<string | null>(null);
@@ -249,9 +374,13 @@ export function RecordLinkView() {
       .plans()
       .then(({ plans: list }) => {
         // Default stays "none": the typed expense is recorded as its own entry unless the user picks a plan.
-        setPlans(list.filter((p) => p.kind === "purchase" && p.status === "reserved"));
+        setPlans(
+          list.filter((p) => p.kind === "purchase" && p.status === "reserved"),
+        );
       })
-      .catch((err: unknown) => setError(errorText(err, "โหลดรายการในแผนไม่สำเร็จ")));
+      .catch((err: unknown) =>
+        setError(errorText(err, "โหลดรายการในแผนไม่สำเร็จ")),
+      );
   }, [api]);
 
   async function handleConfirm() {
@@ -259,11 +388,19 @@ export function RecordLinkView() {
     setError(null);
     const result = await submit({ selectedPlanId, draft }, async (key) => {
       if (selectedPlanId !== "none") {
-        await api.planAction(selectedPlanId, "pay", { category: draft.category });
+        await api.planAction(selectedPlanId, "pay", {
+          category: draft.category,
+        });
         return "linked" as const;
       }
       await api.addEntry(
-        { amount: draft.amount, category: draft.category, note: draft.note, spentOn: draft.spentOn },
+        {
+          amount: draft.amount,
+          category: draft.category,
+          note: draft.note,
+          spentOn: draft.spentOn,
+          ...(draft.categoryId ? { categoryId: draft.categoryId } : {}),
+        },
         key,
       );
       return "unlinked" as const;
@@ -290,18 +427,26 @@ export function RecordLinkView() {
 
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
-      <AppHeader title="ผูกกับรายการในแผนไหม" back="/app/record/new" tone="default" />
+      <AppHeader
+        title="ผูกกับรายการในแผนไหม"
+        back="/app/record/new"
+        tone="default"
+      />
 
       <section className="flex flex-col gap-2 rounded-md border border-line bg-card p-4 text-sm">
         <span className="text-xs text-secondary">รายการที่กำลังจด</span>
         <div className="flex items-center justify-between">
           <span className="font-semibold text-primary">{draft.note}</span>
-          <span className="font-bold tabular-nums text-primary">{formatBaht(draft.amount)} บาท</span>
+          <span className="font-bold tabular-nums text-primary">
+            {formatBaht(draft.amount)} บาท
+          </span>
         </div>
       </section>
 
       <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
-        <h2 className="text-base font-semibold text-primary">พบรายการที่เก็บไว้ในแผนรอบนี้</h2>
+        <h2 className="text-base font-semibold text-primary">
+          พบรายการที่เก็บไว้ในแผนรอบนี้
+        </h2>
         <p className="text-xs text-secondary">
           ถ้ารายการนี้คือของที่คุณเก็บไว้ในแผน ให้เลือกผูกกันเพื่อปลดยอดที่กันไว้และไม่หักงบซ้ำสองครั้ง
         </p>
@@ -311,7 +456,9 @@ export function RecordLinkView() {
             <label
               key={p.id}
               className={`flex cursor-pointer items-center justify-between rounded-sm border p-3 text-sm ${
-                selectedPlanId === p.id ? "border-line-strong bg-selected" : "border-line bg-card"
+                selectedPlanId === p.id
+                  ? "border-line-strong bg-selected"
+                  : "border-line bg-card"
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -323,17 +470,25 @@ export function RecordLinkView() {
                   className="size-4 accent-[var(--green-700)]"
                 />
                 <div>
-                  <p className="font-semibold text-primary">ผูกกับ &quot;{p.title}&quot;</p>
-                  <p className="text-xs text-secondary">ยืนยันจ่ายจริง · ไม่หักงบซ้ำ</p>
+                  <p className="font-semibold text-primary">
+                    ผูกกับ &quot;{p.title}&quot;
+                  </p>
+                  <p className="text-xs text-secondary">
+                    ยืนยันจ่ายจริง · ไม่หักงบซ้ำ
+                  </p>
                 </div>
               </div>
-              <span className="font-semibold tabular-nums text-primary">{formatBaht(p.amount)} บาท</span>
+              <span className="font-semibold tabular-nums text-primary">
+                {formatBaht(p.amount)} บาท
+              </span>
             </label>
           ))}
 
           <label
             className={`flex cursor-pointer items-center gap-2.5 rounded-sm border p-3 text-sm ${
-              selectedPlanId === "none" ? "border-line-strong bg-selected" : "border-line bg-card"
+              selectedPlanId === "none"
+                ? "border-line-strong bg-selected"
+                : "border-line bg-card"
             }`}
           >
             <input
@@ -344,8 +499,12 @@ export function RecordLinkView() {
               className="size-4 accent-[var(--green-700)]"
             />
             <div>
-              <p className="font-semibold text-primary">ไม่ผูก (จดเป็นรายจ่ายแยกต่างหาก)</p>
-              <p className="text-xs text-secondary">รายการที่เก็บไว้ในแผนยังอยู่เหมือนเดิม</p>
+              <p className="font-semibold text-primary">
+                ไม่ผูก (จดเป็นรายจ่ายแยกต่างหาก)
+              </p>
+              <p className="text-xs text-secondary">
+                รายการที่เก็บไว้ในแผนยังอยู่เหมือนเดิม
+              </p>
             </div>
           </label>
         </div>
@@ -361,7 +520,9 @@ export function RecordLinkView() {
       {error ? <Banner kind="error" text={error} /> : null}
 
       <Button variant="primary" block busy={busy} onClick={handleConfirm}>
-        {selectedPlanId !== "none" ? "ยืนยันจ่ายจริงและผูกกับแผน" : "บันทึกเป็นรายจ่ายใหม่"}
+        {selectedPlanId !== "none"
+          ? "ยืนยันจ่ายจริงและผูกกับแผน"
+          : "บันทึกเป็นรายจ่ายใหม่"}
       </Button>
     </main>
   );
@@ -397,7 +558,9 @@ export function RecordDoneView() {
 
       {summary && summary.budget.kind === "ok" ? (
         <section className="flex w-full flex-col gap-2 rounded-md border border-line-strong bg-card p-5">
-          <span className="text-xs font-semibold text-secondary">เหลือใช้วันนี้</span>
+          <span className="text-xs font-semibold text-secondary">
+            เหลือใช้วันนี้
+          </span>
           <div className="flex items-baseline justify-center gap-2">
             <span className="text-4xl font-bold tabular-nums text-primary">
               {formatBaht(summary.budget.todayRemaining)}
@@ -405,7 +568,8 @@ export function RecordDoneView() {
             <span className="text-base font-semibold text-secondary">บาท</span>
           </div>
           <p className="text-xs text-secondary">
-            จากงบวันนี้ {formatBaht(summary.budget.dailyBudget)} บาท · ใช้ไปแล้ว {formatBaht(summary.spentToday)} บาท
+            จากงบวันนี้ {formatBaht(summary.budget.dailyBudget)} บาท · ใช้ไปแล้ว{" "}
+            {formatBaht(summary.spentToday)} บาท
           </p>
         </section>
       ) : null}
@@ -414,7 +578,10 @@ export function RecordDoneView() {
         <Link href="/app" className={buttonClass("primary", true)}>
           กลับหน้าสรุป
         </Link>
-        <Link href="/app/plan?tab=list" className={buttonClass("secondary", true)}>
+        <Link
+          href="/app/plan?tab=list"
+          className={buttonClass("secondary", true)}
+        >
           ดูรายการทั้งหมด
         </Link>
       </div>
@@ -501,7 +668,9 @@ export function RecordEditView() {
           category,
           spentOn,
         };
-    const result = await save.submit({ id: entry.id, ...body }, () => api.editEntry(entry.id, body));
+    const result = await save.submit({ id: entry.id, ...body }, () =>
+      api.editEntry(entry.id, body),
+    );
     if (result.ok) {
       toast.show("บันทึกการแก้ไขแล้ว", { mascot: "budgetOk" });
       router.replace("/app/plan?tab=list");
@@ -537,7 +706,11 @@ export function RecordEditView() {
   if (loadFailed) {
     return (
       <main className="flex flex-col gap-4 py-4 font-body">
-        <AppHeader title="แก้ไขรายการ" back="/app/plan?tab=list" tone="default" />
+        <AppHeader
+          title="แก้ไขรายการ"
+          back="/app/plan?tab=list"
+          tone="default"
+        />
         <Banner kind="error" text="โหลดรายการไม่สำเร็จ ลองใหม่อีกครั้ง" />
         <Button
           variant="primary"
@@ -556,7 +729,11 @@ export function RecordEditView() {
   if (!entry) {
     return (
       <main className="flex flex-col gap-4 py-4 font-body">
-        <AppHeader title="แก้ไขรายการ" back="/app/plan?tab=list" tone="default" />
+        <AppHeader
+          title="แก้ไขรายการ"
+          back="/app/plan?tab=list"
+          tone="default"
+        />
         <Banner kind="error" text="ไม่พบรายการนี้" />
       </main>
     );
@@ -603,7 +780,12 @@ export function RecordEditView() {
           <span className="text-sm font-medium text-primary">หมวดหมู่</span>
           <div className="flex flex-wrap gap-2">
             {USER_CATEGORIES.map((cat) => (
-              <Chip key={cat} selected={category === cat} disabled={isBill} onClick={() => setCategory(cat)}>
+              <Chip
+                key={cat}
+                selected={category === cat}
+                disabled={isBill}
+                onClick={() => setCategory(cat)}
+              >
                 {CATEGORY_LABELS[cat]}
               </Chip>
             ))}
@@ -623,25 +805,51 @@ export function RecordEditView() {
       {error ? <Banner kind="error" text={error} /> : null}
 
       <div className="flex flex-col gap-2">
-        <Button variant="primary" block busy={save.busy} disabled={busy || isBill} onClick={handleSave}>
+        <Button
+          variant="primary"
+          block
+          busy={save.busy}
+          disabled={busy || isBill}
+          onClick={handleSave}
+        >
           บันทึกการแก้ไข
         </Button>
-        <Button variant="secondary" block disabled={busy} onClick={() => setDeleteOpen(true)}>
+        <Button
+          variant="secondary"
+          block
+          disabled={busy}
+          onClick={() => setDeleteOpen(true)}
+        >
           ลบรายการนี้
         </Button>
       </div>
 
-      <Sheet open={deleteOpen} onClose={() => setDeleteOpen(false)} title="ยืนยันลบรายการนี้ไหม">
+      <Sheet
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="ยืนยันลบรายการนี้ไหม"
+      >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-secondary">
-            เมื่อลบ &quot;{entry.note ?? CATEGORY_LABELS[entry.category]}&quot; ({formatBaht(entry.amount)} บาท)
+            เมื่อลบ &quot;{entry.note ?? CATEGORY_LABELS[entry.category]}&quot; (
+            {formatBaht(entry.amount)} บาท)
             ระบบจะคำนวณงบรายวันและยอดเหลือใช้วันนี้ใหม่ทันที
           </p>
           <div className="flex flex-col gap-2">
-            <Button variant="primary" block busy={del.busy} onClick={handleDelete}>
+            <Button
+              variant="primary"
+              block
+              busy={del.busy}
+              onClick={handleDelete}
+            >
               ยืนยันลบรายการ
             </Button>
-            <Button variant="ghost" block disabled={del.busy} onClick={() => setDeleteOpen(false)}>
+            <Button
+              variant="ghost"
+              block
+              disabled={del.busy}
+              onClick={() => setDeleteOpen(false)}
+            >
               ยกเลิก
             </Button>
           </div>

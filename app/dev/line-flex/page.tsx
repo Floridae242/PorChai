@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { flexExamples } from "@/lib/line/flex-examples";
+import { flexCaseCatalog } from "@/lib/line/flex-case-catalog";
 import { FlexPreview } from "./preview";
 
 export const metadata: Metadata = {
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function LineFlexPage() {
-  return <FlexPreview examples={flexExamples()} />;
+  return <FlexPreview examples={flexCaseCatalog()} />;
 }

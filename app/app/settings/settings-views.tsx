@@ -56,6 +56,7 @@ export function SettingsMainView() {
       <AppHeader title="ตั้งค่า" tone="default" />
 
       <section className="divide-y divide-line rounded-md border border-line bg-card px-4">
+        <ListRow title="วิธีใช้พอใช้" href="/app/help" badge={<Chevron />} />
         <ListRow title="รอบเงินและวันเงินเข้า" href="/app/plan/edit" badge={<Chevron />} />
         <ListRow title="การเตือน" href="/app/settings/notifications" badge={<Chevron />} />
         <ListRow title="เงินออม · เงินเผื่อ · ค่าจำเป็น" href="/app/settings/savings" badge={<Chevron />} />

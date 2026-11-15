@@ -43,6 +43,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it("preserves a selected personal category and its parent in the submitted entry",async()=>{
+  const api=mk(),cat=await api.saveSpendingCategory({label:"ชานม",parent:"food",monthlyBudget:50000}),save=vi.spyOn(api,"addEntry");
+  renderWith(api,<RecordNewView/>);const user=userEvent.setup();
+  const select=await screen.findByLabelText("หมวดของฉัน");await user.selectOptions(select,cat.id);
+  await user.type(screen.getByLabelText(AMOUNT),"50");await user.type(screen.getByLabelText("ชื่อรายการ"),"ชาไทย");await user.click(screen.getByRole("button",{name:"บันทึก"}));
+  await waitFor(()=>expect(save).toHaveBeenCalledWith(expect.objectContaining({category:"food",categoryId:cat.id,amount:5000}),expect.any(String)));
+});
+
 describe("RecordNewView — income (D1)", () => {
   it("not_implemented: shows the in-form banner, keeps typed data, never claims success", async () => {
     const api = mk();

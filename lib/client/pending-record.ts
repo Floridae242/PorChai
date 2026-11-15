@@ -1,10 +1,12 @@
-import type { UserCategory } from "@/lib/api-types";
+import { USER_CATEGORIES,type UserCategory } from "@/lib/api-types";
+import { categoryIdOk } from "@/lib/insights/categories";
 
 // Draft handed from D1 (new record) to D2 (link to plan). Lives in sessionStorage only until the
 // record is saved. Read it after mount (never during render) so server and client markup match.
 const KEY = "porchai.pending_record.v1";
 
 export interface PendingRecordDraft {
+  categoryId?: string | null;
   type: "expense" | "income";
   amount: number; // satang
   note: string;
@@ -32,7 +34,8 @@ export function loadPendingRecord(): PendingRecordDraft | null {
       !Number.isSafeInteger(d.amount) ||
       d.amount <= 0 ||
       typeof d.note !== "string" ||
-      typeof d.category !== "string" ||
+      !USER_CATEGORIES.includes(d.category as UserCategory) ||
+      (d.categoryId!==undefined && d.categoryId!==null && !categoryIdOk(d.categoryId)) ||
       typeof d.spentOn !== "string"
     ) {
       return null;

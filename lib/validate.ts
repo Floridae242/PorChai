@@ -2,10 +2,12 @@ import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
 import { savingsFromPercent, setAsideFits } from "@/lib/calc/inputs";
 import { thaiDate } from "@/lib/calc/time";
 import { HttpError } from "@/lib/http";
+import { categoryIdOk } from "@/lib/insights/categories";
 
 // Input checks for the API. Each failure is a 422 with a Thai message naming the field.
 
 export interface NewEntry {
+  categoryId?: string | null;
   amount: number;
   category: UserCategory;
   note: string | null;
@@ -98,7 +100,9 @@ function futurePayday(v: unknown, today: string): string {
 
 export function parseNewEntry(body: unknown, today: string): NewEntry {
   const b = asObject(body);
+  if(b.categoryId !== undefined && b.categoryId !== null && !categoryIdOk(b.categoryId))throw invalid("รหัสหมวดส่วนตัวไม่ถูกต้องครับ");
   return {
+    ...(b.categoryId !== undefined ? {categoryId:b.categoryId as string|null}: {}),
     amount: amount(b.amount),
     category: category(b.category),
     note: note(b.note),
@@ -109,6 +113,7 @@ export function parseNewEntry(body: unknown, today: string): NewEntry {
 export function parseEntryPatch(body: unknown, today: string): EntryPatch {
   const b = asObject(body);
   const patch: EntryPatch = {};
+  if("categoryId" in b){if(b.categoryId !== null && !categoryIdOk(b.categoryId))throw invalid("รหัสหมวดส่วนตัวไม่ถูกต้องครับ");patch.categoryId=b.categoryId as string|null;}
   if ("amount" in b) patch.amount = amount(b.amount);
   if ("category" in b) patch.category = category(b.category);
   if ("note" in b) patch.note = note(b.note);

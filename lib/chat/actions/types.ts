@@ -9,9 +9,15 @@ import type {
   FinanceReport,
 } from "@/lib/reports/types";
 import type { InstallmentInput } from "./installments";
+import type { SaveCategory } from "@/lib/insights/types";
+import type { NewEntryRequest } from "@/lib/api-types";
 
 export type Tool =
   | "help"
+  | "insights"
+  | "categories"
+  | "category_save"
+  | "category_entry"
   | "setup"
   | "income"
   | "entry"
@@ -54,6 +60,8 @@ export interface Intent {
   selected?: { id: string; title: string; amount: number; status?: string }; // populated only from server-owned lists
 }
 export type Mutation =
+  | {op:"category_save";input:SaveCategory}
+  | {op:"category_entry";input:NewEntryRequest}
   | { op: "installments"; input: InstallmentInput }
   | {
       op: "plan_add";

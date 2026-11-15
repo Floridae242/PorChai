@@ -4,10 +4,11 @@ import { requireActiveCycle } from "@/lib/db/budget";
 import { HttpError } from "@/lib/http";
 import type { EntryPatch, NewEntry } from "@/lib/validate";
 
-const COLUMNS = "id, amount, category, note, spent_on, source, created_at, cancelled_at";
+const COLUMNS = "id, amount, category, category_id, note, spent_on, source, created_at, cancelled_at";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface Row {
+  category_id: string | null;
   id: string;
   amount: number;
   category: Entry["category"];
@@ -19,6 +20,7 @@ interface Row {
 }
 
 const toEntry = (r: Row): Entry => ({
+  ...(r.category_id ? {categoryId:r.category_id}: {}),
   id: r.id,
   amount: r.amount,
   category: r.category,
@@ -59,6 +61,7 @@ export async function addEntry(
       cycle_id: cycle.id,
       amount: input.amount,
       category: input.category,
+      category_id: input.categoryId ?? null,
       note: input.note,
       spent_on: input.spentOn,
       source,
@@ -67,6 +70,7 @@ export async function addEntry(
     .select(COLUMNS)
     .single();
   if (!error) return { entry: toEntry(data as Row), created: true };
+  if(error.code === "SC404" || error.code === "SC422")throw new HttpError(422,"invalid_category","ไม่พบหมวดของบัญชีนี้ หรือเลือกกลุ่มไม่ตรงกับหมวดครับ");
   if (error.code !== "23505") throw error;
 
   const existing = await db
@@ -101,7 +105,7 @@ export async function entryForChat(userId: string, id: string): Promise<{ entry:
 function checkPlanEntryEdit(row: Row, patch: EntryPatch): void {
   if (row.source !== "plan") return;
   if (row.category === "bills") throw new HttpError(409, "plan_entry", "รายการจ่ายบิลเปลี่ยนหมวดไม่ได้");
-  if (Object.keys(patch).some((k) => k !== "category")) {
+  if (Object.keys(patch).some((k) => k !== "category" && k !== "categoryId")) {
     throw new HttpError(409, "plan_entry", "รายการนี้มาจากการจ่ายแผน เปลี่ยนได้แค่หมวด");
   }
 }
@@ -115,6 +119,7 @@ export async function editEntry(userId: string, id: string, patch: EntryPatch): 
     .update({
       ...(patch.amount !== undefined && { amount: patch.amount }),
       ...(patch.category !== undefined && { category: patch.category }),
+      ...(patch.categoryId !== undefined ? {category_id:patch.categoryId} : patch.category !== undefined && patch.category !== row.category ? {category_id:null} : {}),
       ...(patch.note !== undefined && { note: patch.note }),
       ...(patch.spentOn !== undefined && { spent_on: patch.spentOn }),
     })
@@ -124,6 +129,7 @@ export async function editEntry(userId: string, id: string, patch: EntryPatch): 
     .single();
   // The DB refuses edits to a cancelled entry; a cancel may have landed since we read it
   if (error?.code === "23514") throw CANCELLED();
+  if(error?.code === "SC404" || error?.code === "SC422")throw new HttpError(422,"invalid_category","ไม่พบหมวดของบัญชีนี้ หรือเลือกกลุ่มไม่ตรงกับหมวดครับ");
   if (error) throw error;
   return toEntry(data as Row);
 }

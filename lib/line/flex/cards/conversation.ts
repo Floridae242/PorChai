@@ -4,7 +4,7 @@ import type { FlexMessage, FlexText, LineChatMessage, TextReplyMessage } from ".
 const segmenter = new Intl.Segmenter("th", { granularity: "grapheme" });
 
 /** Compact, image-independent card for AI wording, questions and status replies. No financial logic. */
-export function buildConversationCard(message: TextReplyMessage): LineChatMessage {
+export function buildConversationCard(message: TextReplyMessage,heading?:string): LineChatMessage {
   const body = message.text;
   // Exceptional replies remain plain text; never silently remove part of the user's answer.
   if (!body.trim() || body.length > 4000) return message;
@@ -34,7 +34,7 @@ export function buildConversationCard(message: TextReplyMessage): LineChatMessag
       size: "mega",
       header: {
         type: "box", layout: "vertical", paddingAll: "16px", backgroundColor: FLEX_COLORS.lime100,
-        contents: [{ type: "text", text: "พอใช้ · PORCHAI", size: "sm", weight: "bold", color: FLEX_COLORS.green900, wrap: true }],
+        contents: [{ type: "text", text: heading?.trim() && heading.length<=60 ? `พอใช้ · ${heading}` : "พอใช้ · PORCHAI", size: "sm", weight: "bold", color: FLEX_COLORS.green900, wrap: true }],
       },
       body: {
         type: "box", layout: "vertical", paddingAll: "20px", backgroundColor: FLEX_COLORS.white,

@@ -74,6 +74,9 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
   const seg = encodeURIComponent;
 
   return {
+    spendingCategories: () => request({method:"GET",path:"/api/categories"}),
+    saveSpendingCategory: body => request({method:"PUT",path:"/api/categories",body}),
+    spendingInsights: (ai=false) => request({method:"GET",path:`/api/insights${ai?"?ai=1":""}`}),
     report: (period, date) =>
       request({
         method: "GET",

@@ -211,3 +211,7 @@ npm run bench:scale   # creates 1,000 temporary local accounts, runs budget requ
 ก่อนนำโค้ดนี้ขึ้น hosting ต้องใช้ migrations ใหม่ทั้งสองไฟล์ก่อน; งานรอบนี้ใช้กับฐานข้อมูล local เท่านั้น. ตั้ง limits ตาม `.env.example` และโควตาจริงของ LINE/Gemini/Supabase. บัญชีออนไลน์พร้อมกัน 1,000 คนไม่ได้แปลว่าส่งเข้า Gemini ได้ 1,000 งานพร้อมกัน: งาน AI เกินโควตาตอบด้วย template จากสูตรเงินจริง.
 
 คำสั่งใช้งานผ่านแชต LINE และข้อจำกัด: [CHAT-COMMANDS.md](docs/CHAT-COMMANDS.md)
+
+แต้มอัตโนมัติ หมวด/งบส่วนตัว และวิเคราะห์พฤติกรรม: [PERSONAL-FINANCE.md](docs/PERSONAL-FINANCE.md) ต้องใช้ migration `20261116030000_personal_categories_auto_points.sql` ก่อนเปิดใช้บน hosting
+
+Carousel ต้อนรับ วิธีใช้ในแชตและ MINI App และคลังการ์ดทุก flow ที่รองรับ: [LINE-ONBOARDING.md](docs/LINE-ONBOARDING.md)

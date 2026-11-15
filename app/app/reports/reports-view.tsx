@@ -71,6 +71,8 @@ export function DashboardInsights() {
         </p>
       )}
       <div className="flex flex-wrap gap-3 text-sm font-semibold text-link">
+        <Link href="/app/insights">พฤติกรรมและงบรายหมวด ›</Link>
+        <Link href="/app/help">วิธีใช้พอใช้ ›</Link>
         <Link href="/app/search">AI Search ›</Link>
         <Link href="/app/notifications">ตั้งค่าสรุปผ่าน LINE ›</Link>
       </div>
@@ -245,6 +247,9 @@ export function ReportsView() {
       )}
       <Link href="/app/notifications" className={buttonClass("secondary")}>
         ตั้งค่าสรุปผ่าน LINE
+      </Link>
+      <Link href="/app/insights" className={buttonClass("secondary")}>
+        ดูพฤติกรรมและคำแนะนำจากรายการที่จด
       </Link>
     </main>
   );

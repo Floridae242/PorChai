@@ -11,6 +11,15 @@ const bodyText = (card: FlexMessage) => card.contents.body.contents
 const nodes = (n: FlexNode): FlexNode[] => n.type === "box" ? [n, ...n.contents.flatMap(nodes)] : [n];
 
 describe("Flex-first LINE replies", () => {
+  it.each(["รายงานการใช้เงิน","หมวดและงบ","แผนผ่อนสินค้า","ตรวจข้อมูลก่อนยืนยัน","ผลการทำรายการ","ตรวจคำขออีกครั้ง","วิธีใช้พอใช้"])("uses explicit server context %s without altering the answer body",heading=>{
+    const source=text("ข้อความและยอดจริง 50 บาท"),card=presentReply(source,heading);
+    if(card.type!=="flex")throw Error("Flex required");expect(bodyText(card as FlexMessage)).toBe(source.text);expect(JSON.stringify(card.contents)).toContain(`พอใช้ · ${heading}`);
+  });
+  it("keeps guide access idempotent without dropping financial quick replies or exceeding LINE limits",()=>{
+    const source=text("เลือกได้ครับ",[{type:"postback",label:"ยืนยัน",data:"pc:yes:owned",displayText:"ยืนยัน"}]);
+    const result=withAppButton(withAppButton(source));expect(result.quickReply?.items.filter(x=>x.action.type==="postback" && x.action.data==="guide:all")).toHaveLength(1);expect(result.quickReply?.items[0]).toEqual(source.quickReply?.items[0]);
+    const full=text("เลือก",Array.from({length:13},(_,i)=>({type:"postback" as const,label:`เลือก ${i}`,data:`choice:${i}`,displayText:`เลือก ${i}`})));expect(withAppButton(full)).toBe(full);
+  });
   it.each([
     "สวัสดีครับ พอใช้ช่วยคิดเรื่องเงินได้ครับ", "กาแฟ จ่ายไปกี่บาทครับ?", "ยอดนี้ค่าอะไรครับ?",
     "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าในแอปก่อนครับ", "ยังไม่จดรายจ่ายครับ หมายถึงรายการไหน?",

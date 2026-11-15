@@ -78,6 +78,11 @@ export function parseIntent(message: string, today: string): Intent | null {
       .trim()
       .replace(/^(?:ช่วย(?!เหลือ)|ขอให้|ขอ(?=ดู)|อยากให้|อยาก)\s*/u, ""),
     bare = s.replace(/(?:ครับ|ค่ะ|นะครับ|หน่อย)+$/u, "").trim();
+  if(/^(?:ดู|ขอ)?(?:วิเคราะห์|พฤติกรรม|แพทเทิร์น)|^AI\s*(?:แนะนำ|วิเคราะห์)|^แนะนำงบ/iu.test(s))return {tool:"insights",query:s};
+  if(/^(?:ดู|ขอ)(?:หมวด|งบรายหมวด)/u.test(s))return {tool:"categories"};
+  if(/^(?:เพิ่มหมวด|ตั้งหมวด|ตั้งงบ)/u.test(s))return {tool:"category_save",query:bare};
+  if(/\sหมวด\s/u.test(s))return {tool:"category_entry",query:bare};
+  if(/^(?:ดู|ขอ)?(?:ภาพรวม|สรุปการใช้เงิน|สรุปค่าใช้จ่าย|สรุป)$/u.test(bare))return {...fields(s,"report",today),period:"month"};
   if (/ผ่อน|งวด/u.test(s)) return { tool: "installments", query: s };
   if (/^(เมนู|ช่วยเหลือ|ทำอะไรได้บ้าง|คำสั่ง|ใช้ยังไง|ใช้อย่างไร)$/u.test(bare))
     return { tool: "help" };
