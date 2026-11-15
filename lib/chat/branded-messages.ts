@@ -278,11 +278,10 @@ export const welcomeMessage = () =>
 // Chat with the AI (card 15). The AI's reply, guarded in lib/chat/converse.ts
 export const chatMessage = (reply: string): TextMessage => text(reply, [app()]);
 
-// AI off, failed or broke a guard: who the bot is and what is left today. It also answers «นายเป็นใคร»
-// when Gemini is busy (13 Nov); the list of 3 things was removed at the user's request.
+// Same as lib/chat/messages.ts (the one the bot uses): say it cannot answer, then what is left today
 export function chatFallbackMessage(s: Summary | null): TextMessage {
   const today = s ? budgetLine(s.budget, s.spentToday) : "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าในแอปก่อนนะครับ";
-  return text(["สวัสดีครับ ผมชื่อพอใช้ ผู้ช่วยเรื่องเงินของคุณ", today].join("\n"), [app()]);
+  return text(["ขอโทษครับ พอใช้ยังตอบข้อความนี้ไม่ได้", today, "ลองพิมพ์ใหม่ หรือกดเมนูพอใช้ด้านล่างได้ครับ"].join("\n"), [app()]);
 }
 
 // Not about money or the app: never the AI's words, always this

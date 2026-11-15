@@ -6,7 +6,7 @@ import { tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
 import { advise, dueOnOf } from "@/lib/advice/advise";
 import { findPriceHint } from "@/lib/advice/price-hint";
-import { isBalanceQuestion, isPurchaseWish, isQuestion, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isPurchaseWish, isQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
   adviceCard,
@@ -47,9 +47,12 @@ import {
   slipUnreadableMessage,
   recordedCard,
   todayCard,
+  paydayCard,
+  enoughCard,
   type RecordedEntry,
 } from "@/lib/chat/cards";
 import { factsOf, readChat, splitItems } from "@/lib/chat/converse";
+import { isDeleteDataAsk } from "@/lib/chat/delete-data";
 import {
   adviceMessage,
   alreadyManyMessage,
@@ -60,6 +63,7 @@ import {
   askTitleMessage,
   chatFallbackMessage,
   chatMessage,
+  deleteDataMessage,
   declinedMessage,
   expiredMessage,
   keptMessage,
@@ -178,6 +182,8 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // The rich menu made in LINE OA Manager sends texts, not postbacks (it has no postback buttons)
   const menu = MENU_TEXTS[body.trim()];
   if (menu) return say(menu());
+  // «ลบข้อมูลได้ไหม»: where to delete the account in the app (never done from the chat, never the AI)
+  if (isDeleteDataAsk(body)) return say(deleteDataMessage());
   const command = await chatAction(userId, body, pending);
   if (command) return command;
   const clarification = conversationBoundary(body);
@@ -213,6 +219,9 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
 
   // «เหลือเท่าไร», «งบเหลือป่ะ»: the budget card, its numbers from the calculator (the AI is never asked)
   if (isBalanceQuestion(body)) return say(todayCard(await loadSummary(userId)));
+  // «วันเงินเข้าเมื่อไร», «เงินพอถึงวันเงินเข้าไหม» (15 Nov): the same card, answering on top (never the AI)
+  if (isPaydayQuestion(body)) return say(paydayCard(await loadSummary(userId)));
+  if (isEnoughQuestion(body)) return say(enoughCard(await loadSummary(userId)));
 
   // Card 15: «พรุ่งนี้กินชาบู 300 ไหวไหม» is a question, not a spend — answer it, save nothing.
   // Without one clear price («เหลือกี่บาท?», «ชาบู 150 หรือ 200 ดี») it is chat. A question never

@@ -58,7 +58,7 @@ import {
   parseReminderSettings,
 } from "@/lib/validate";
 import { categoryOf, parseExpense } from "@/lib/chat/parse";
-import { CATEGORY_LABELS } from "@/lib/line/flex/format";
+import { reportCard } from "@/lib/chat/cards";
 import { parseIntent, statedDate, statedMoney } from "./parse";
 import { inferReadIntent } from "./infer";
 import { campaigns } from "@/lib/promotions/demo";
@@ -412,18 +412,18 @@ async function run(userId: string, i: Intent): Promise<Answer> {
         input: {},
       });
     case "report": {
+      // 15 Nov: a card with Thai dates (week = Monday to today), not raw ISO text
       const r = await loadReport(
         userId,
-        i.period === "day" ? "day" : "month",
+        i.period === "day" || i.period === "week" ? i.period : "month",
         i.date,
       );
-      return say(
-        `รายงาน${r.period === "day" ? "รายวัน" : "รายเดือน"} ${r.from} ถึง ${r.until} (ไม่รวมวันสุดท้าย)\nรายรับ ${money(r.income)}\nรายจ่าย ${money(r.spending)} · ${r.entriesCount} รายการ\nรับสุทธิ ${money(r.net)} (ไม่ใช่ยอดคงเหลือ)\n${r.categories.map((c) => `${CATEGORY_LABELS[c.category]}: ${money(c.amount)}`).join("\n")}`,
-      );
+      return { message: reportCard(r, thaiDate(new Date())) };
     }
     case "search": {
       if (!i.query) return say("พิมพ์ชื่อรายการ เช่น ค้นรายจ่าย ข้าว ครับ");
-      const r = await searchEntries(userId, i.query, i.period);
+      // Search has no week: a week asked for searches the month, as before weeks were read
+      const r = await searchEntries(userId, i.query, i.period === "week" ? "month" : i.period);
       return say(
         `${r.answer}\n${
           r.entries

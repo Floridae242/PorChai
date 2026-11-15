@@ -69,6 +69,18 @@ describe("chat command boundaries", () => {
       transport: 2000,
     });
   });
+  // 15 Nov: spans are the report card (Monday to today for a week), not the AI
+  it.each([
+    ["สัปดาห์นี้ใช้ไปเท่าไร", "week", undefined],
+    ["อาทิตย์นี้ใช้ไปกี่บาท", "week", undefined],
+    ["สัปดาห์ที่แล้วใช้ไปเท่าไร", "week", "2026-11-08"],
+    ["เมื่อวานใช้ไปเท่าไร", "day", "2026-11-14"],
+    ["เมื่อวานใช้เงินไปกี่บาท", "day", "2026-11-14"],
+    ["เดือนนี้ใช้ไปเท่าไร", "month", undefined],
+  ])("«%s» is a %s report", (message, period, date) => {
+    expect(parseIntent(message, today)).toMatchObject({ tool: "report", period, date });
+  });
+
   it("only derives relative dates from the server's Thai date", () => {
     expect(statedDate("เมื่อวาน", today)).toBe("2026-11-14");
     expect(statedDate("พรุ่งนี้", today)).toBe("2026-11-16");

@@ -42,7 +42,7 @@ export interface Intent {
   title?: string;
   date?: string;
   query?: string;
-  period?: "day" | "month" | "year";
+  period?: "day" | "week" | "month" | "year";
   enabled?: boolean;
   notification?: "daily" | "monthly" | "budget" | "all";
   time?: string;

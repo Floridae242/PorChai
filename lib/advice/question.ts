@@ -46,7 +46,7 @@ export function isPurchaseWish(text: string): boolean {
 // «เหลือเท่าไร», «งบเหลือป่ะ», «วันนี้ใช้ไปเท่าไร», «เช็คยอด»: the whole message is made of these words
 // and nothing else — an item («ชาบู»), a number or another span («สัปดาห์นี้») is not this ask.
 const BALANCE_WORDS =
-  /เช็ค|เช็ก|ดู|ตอนนี้|วันนี้|ยัง|อีก|ทั้งหมด|เงิน|เหลือ|ใช้ไป|ใช้ได้|ใช้|แล้ว|งบ|ยอด|วันละ|กี่บาท|เท่าไหร่|เท่าไหร|เท่าไร|เท่าใด|หรือเปล่า|รึเปล่า|ไหม|มั้ย|มั๊ย|ป่ะ|ปะ|ป่าว|บ้าง|หน่อย|ครับ|คับ|ค่ะ|คะ|นะ|จ้า|อะ|อ่ะ|ฉัน|เรา|ผม|หนู|[?？]|\s/g;
+  /เช็ค|เช็ก|ดู|ตอนนี้|วันนี้|ยัง|อีก|ทั้งหมด|เงิน|เหลือ|ใช้ไป|ใช้ได้|ใช้|ได้|แล้ว|งบ|ยอด|วันละ|กี่บาท|เท่าไหร่|เท่าไหร|เท่าไร|เท่าใด|หรือเปล่า|รึเปล่า|ไหม|มั้ย|มั๊ย|ป่ะ|ปะ|ป่าว|บ้าง|หน่อย|ครับ|คับ|ค่ะ|คะ|นะ|จ้า|อะ|อ่ะ|ฉัน|เรา|ผม|หนู|[?？]|\s/g;
 const BALANCE_TOPIC = /เหลือ|ใช้|งบ|ยอด/;
 // A bare «เหลือ» or «ใช้» says nothing: it needs a question word, or a word asking to see (เช็ค/ดู/ยอด/งบ)
 const BALANCE_ASK = /เท่า|กี่|ไหม|มั้ย|มั๊ย|ป่ะ|ปะ|ป่าว|เปล่า|บ้าง|[?？]|เช็ค|เช็ก|ดู|ยอด|งบ/;
@@ -55,6 +55,32 @@ export function isBalanceQuestion(raw: string): boolean {
   const text = normalize(raw);
   if (!BALANCE_TOPIC.test(text) || !BALANCE_ASK.test(text)) return false;
   return text.replace(BALANCE_WORDS, "") === "";
+}
+
+// «วันเงินเข้าเมื่อไร», «อีกกี่วันเงินเข้า» (15 Nov): today's card says when. Longer words first.
+const PAYDAY_WORDS =
+  /วันเงินเข้า|วันรับเงิน|เงินเข้า|เงินออก|รับเงิน|เมื่อไหร่|เมื่อไหร|เมื่อไร|เมื่อใด|วันไหน|ตอนไหน|กี่วัน|อีก|จะ|ถึง|วัน|ครับ|คับ|ค่ะ|คะ|นะ|จ้า|อะ|อ่ะ|[?？]|\s/g;
+const PAYDAY_TOPIC = /เงินเข้า|รับเงิน|เงินออก/;
+const PAYDAY_ASK = /เมื่อ|ไหน|กี่|[?？]/;
+
+export function isPaydayQuestion(raw: string): boolean {
+  const text = normalize(raw);
+  if (!PAYDAY_TOPIC.test(text) || !PAYDAY_ASK.test(text)) return false;
+  return text.replace(PAYDAY_WORDS, "") === "";
+}
+
+// «เงินพอถึงวันเงินเข้าไหม», «พอถึงสิ้นเดือนไหม» (15 Nov): today's card says if it lasts. With an item or a
+// price («ชาบู 300 พอไหม») it is a try instead; «ไหวไหม» alone says nothing, so money or a date is needed.
+const ENOUGH_WORDS =
+  /วันเงินเข้า|วันรับเงิน|เงินเข้า|สิ้นเดือน|พอใช้|เงิน|พอ|ไหว|ใช้|ถึง|จะ|หรือเปล่า|รึเปล่า|ไหม|มั้ย|มั๊ย|ป่ะ|ปะ|ป่าว|ครับ|คับ|ค่ะ|คะ|นะ|จ้า|อะ|อ่ะ|[?？]|\s/g;
+const ENOUGH_TOPIC = /พอ|ไหว/;
+const ENOUGH_ASK = /ไหม|มั้ย|มั๊ย|ป่ะ|ปะ|ป่าว|เปล่า|[?？]/;
+const ENOUGH_UNTIL = /เงิน|ถึง|สิ้นเดือน/;
+
+export function isEnoughQuestion(raw: string): boolean {
+  const text = normalize(raw);
+  if (!ENOUGH_TOPIC.test(text) || !ENOUGH_ASK.test(text) || !ENOUGH_UNTIL.test(text)) return false;
+  return text.replace(ENOUGH_WORDS, "") === "";
 }
 
 export function dayOf(text: string): Day {

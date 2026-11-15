@@ -5,6 +5,7 @@ import type { BudgetResult } from "@/lib/calc/budget";
 import type { ProposedItem } from "@/lib/db/chat-memory";
 import { formatBaht } from "@/lib/format/money";
 import { appUrl } from "@/lib/liff/config";
+import { miniAppUrl } from "@/lib/line/flex/format";
 import { text, type QuickReplyAction, type TextMessage } from "@/lib/line/reply";
 
 // What the bot says (card 09 / Figma L2, L6). Plain text for now; card 10 adds the edit buttons.
@@ -151,12 +152,20 @@ export const welcomeMessage = (): TextMessage =>
 // Chat with the AI (card 15). The AI's reply, guarded in lib/chat/converse.ts
 export const chatMessage = (reply: string): TextMessage => text(reply, [app()]);
 
-// AI off, failed or broke a guard: who the bot is and what is left today. It also answers «นายเป็นใคร»
-// when Gemini is busy (13 Nov); the list of 3 things was removed at the user's request.
+// AI off, failed or broke a guard: say so plainly, then what is left today. Not a greeting: 15 Nov,
+// «ลบข้อมูลได้ไหม» got «สวัสดีครับ ผมชื่อพอใช้…» and read as not understood. «นายเป็นใคร» and greetings
+// are answered without the AI (lib/chat/routine.ts). The list of 3 things stays out (the user's request).
 export function chatFallbackMessage(s: Summary | null): TextMessage {
   const today = s ? budgetLine(s.budget, s.spentToday) : "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าในแอปก่อนนะครับ";
-  return text(["สวัสดีครับ ผมชื่อพอใช้ ผู้ช่วยเรื่องเงินของคุณ", today].join("\n"), [app()]);
+  return text(["ขอโทษครับ พอใช้ยังตอบข้อความนี้ไม่ได้", today, "ลองพิมพ์ใหม่ หรือกดเมนูพอใช้ด้านล่างได้ครับ"].join("\n"), [app()]);
 }
+
+// «ลบข้อมูลได้ไหม» (lib/chat/delete-data.ts): where it is done. Never from the chat: it cannot be undone
+export const deleteDataMessage = (): TextMessage =>
+  text(
+    "ลบข้อมูลได้ครับ ทำในแอปที่ ตั้งค่า › ลบข้อมูลของฉัน\nจะลบยอดเงิน รอบเงิน บิล รายการที่จด และแต้มทั้งหมด กู้คืนไม่ได้ พอใช้จึงไม่ลบให้จากแชต ต้องกดยืนยันในแอปเองครับ",
+    [{ type: "uri", label: "ไปหน้าลบข้อมูล", uri: miniAppUrl("/app/settings/delete") }],
+  );
 
 // Not about money or the app: never the AI's words, always this
 export const offTopicMessage = (): TextMessage =>

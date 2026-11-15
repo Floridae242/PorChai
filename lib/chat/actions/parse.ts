@@ -35,13 +35,18 @@ function namedMoney(text: string, names: string): number | undefined {
 export function fields(message: string, tool: Tool, today: string): Intent {
   const normalized = normalizeMoneyText(message),
     time = normalized.match(/(?:^|\s|เวลา)([0-2]?\d:[0-5]\d)(?:\s|$)/)?.[1];
-  const period = /เมื่อวาน|วันนี้|รายวัน/u.test(message)
+  // «อาทิตย์» alone is Sunday: only «อาทิตย์นี้ / ที่แล้ว» is a week
+  const period = /สัปดาห์|อาทิตย์(?:นี้|ที่แล้ว)/u.test(message)
+    ? "week"
+    : /เมื่อวาน|วันนี้|รายวัน/u.test(message)
     ? "day"
     : /ย้อนหลัง.*ปี/u.test(message)
       ? "year"
       : "month";
   const date = /เดือนที่แล้ว/u.test(message)
     ? addDays(`${today.slice(0, 7)}-01`, -1)
+    : /(?:สัปดาห์|อาทิตย์)ที่แล้ว/u.test(message)
+    ? addDays(today, -7)
     : statedDate(message, today);
   const target = /ล่าสุด/u.test(message)
     ? "latest"
@@ -83,7 +88,7 @@ export function parseIntent(message: string, today: string): Intent | null {
     return { tool: "help" };
   if (/^(?:เริ่ม|ตั้ง)(?:แผน|รอบเงิน)|^เริ่มรอบใหม่/u.test(s)) return { tool: "setup" };
   if (
-    /^(?:ดู|ขอ)?(?:รายงาน|สรุป(?:รายวัน|รายเดือน|วันนี้|เดือน))|(?:เดือนนี้|เดือนที่แล้ว).*ใช้ไป(?:เท่า|กี่)/u.test(
+    /^(?:ดู|ขอ)?(?:รายงาน|สรุป(?:รายวัน|รายเดือน|วันนี้|เดือน))|(?:เดือนนี้|เดือนที่แล้ว|สัปดาห์นี้|สัปดาห์ที่แล้ว|อาทิตย์นี้|อาทิตย์ที่แล้ว|เมื่อวาน).*ใช้(?:เงิน)?ไป(?:เท่า|กี่)/u.test(
       s,
     )
   )

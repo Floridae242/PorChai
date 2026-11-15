@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHoldCard, buildIncomeCard, buildProposalCard, buildRecordedCard, type FlexMessage, type FlexNode } from "../index";
+import { buildHoldCard, buildIncomeCard, buildProposalCard, buildRecordedCard, buildReportCard, buildTodayBudgetCard, type FlexMessage, type FlexNode } from "../index";
 
 // The cards Por added in โฟรวิว's style: the same LINE limits as limits.test.ts (LINE rejects the whole
 // message when one is broken, and the user gets no answer).
@@ -29,6 +29,27 @@ const cards: [string, FlexMessage][] = [
       todayRemaining: 12000,
       pay: { label: "ยืนยันจ่ายจริง", data: JSON.stringify({ a: "pay", t: longTitle, m: 9999900, c: "other", k: "x".repeat(64), d: "2026-11-14" }) },
       tryFirst: { label: "ลองก่อนซื้อ", data: JSON.stringify({ a: "try", t: longTitle, m: 9999900, c: "other", k: "x".repeat(64) }) },
+    }),
+  ],
+  [
+    "report, every category, huge amounts",
+    buildReportCard({
+      heading: "รายงานสัปดาห์นี้",
+      range: "9 พ.ย. – 15 พ.ย.",
+      spending: 9999999900,
+      income: 9999999900,
+      entriesCount: 9999,
+      categories: (["food", "transport", "supplies", "other", "bills"] as const).map((category) => ({ category, amount: 1999999980 })),
+      reportUrl: "https://liff.line.me/2012545256-FlvBAc1N/reports",
+    }),
+  ],
+  ["report, empty", buildReportCard({ heading: "รายงานเมื่อวาน", range: "14 พฤศจิกายน 2569", spending: 0, income: 0, entriesCount: 0, categories: [], reportUrl: "https://liff.line.me/x/reports" })],
+  [
+    "today, with an answer on top",
+    buildTodayBudgetCard({
+      answer: "ยังไม่พอครับ ถ้าค่ากินค่ารถวันละ 130 บาท จะขาด 150.50 บาทก่อนเงินเข้า 27 พ.ย.",
+      todayRemaining: 12000, spentToday: 0, dailyBudget: 12000, disposablePool: 144000, daysRemaining: 12,
+      savingsReserved: 24000, bufferReserved: 12000, balance: 240000,
     }),
   ],
 ];
