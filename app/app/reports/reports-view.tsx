@@ -10,9 +10,9 @@ import { thaiDate } from "@/lib/calc/time";
 import { formatBaht } from "@/lib/format/money";
 import type { FinanceReport } from "@/lib/reports/types";
 
-export function ReportNumbers({ report }: { report: FinanceReport }) {
+export function ReportNumbers({ report, compact = false }: { report: FinanceReport; compact?: boolean }) {
   return (
-    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <dl className={compact ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-3 sm:grid-cols-3"}>
       {[
         ["รายจ่ายที่จด", report.spending],
         ["รายรับที่จด", report.income],
@@ -20,10 +20,13 @@ export function ReportNumbers({ report }: { report: FinanceReport }) {
       ].map(([label, amount]) => (
         <div
           key={String(label)}
-          className="rounded-md border border-line bg-card p-4"
+          className={`rounded-md border border-line bg-card ${compact ? "p-3" : "p-4"}`}
         >
           <dt className="text-xs text-secondary">{label}</dt>
-          <dd className="mt-2 text-xl font-bold tabular-nums text-primary">
+          <dd
+            data-clarity-mask="true"
+            className={`mt-1.5 font-bold tabular-nums text-primary ${compact ? "text-base" : "mt-2 text-xl"}`}
+          >
             {formatBaht(Number(amount))}
             <span className="ml-1 text-xs font-normal">บาท</span>
           </dd>
@@ -32,6 +35,16 @@ export function ReportNumbers({ report }: { report: FinanceReport }) {
     </dl>
   );
 }
+
+// Home "dashboard": this month's recorded totals (from the server) and the way into the other screens.
+const DASHBOARD_LINKS = [
+  { href: "/app/reports", label: "รายงานวัน / เดือน", hint: "กราฟและรายการแต่ละวัน" },
+  { href: "/app/insights", label: "พฤติกรรมและงบรายหมวด", hint: "ใช้เงินไปกับอะไรบ้าง" },
+  { href: "/app/search", label: "ค้นหา · AI Search", hint: "ค้นรายการที่จดไว้" },
+  { href: "/app/notifications", label: "สรุปและเตือนผ่าน LINE", hint: "ตั้งเวลาเอง ปิดได้" },
+  { href: "/app/help", label: "วิธีใช้พอใช้", hint: "เริ่มต้นและคำถามที่พบบ่อย" },
+] as const;
+
 export function DashboardInsights() {
   const api = useApi();
   const [report, setReport] = useState<FinanceReport | null>(null);
@@ -55,14 +68,9 @@ export function DashboardInsights() {
       className="flex flex-col gap-3 rounded-md border border-line bg-subtle p-4"
       aria-label="ภาพรวมรายงาน"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold text-primary">ภาพรวมเดือนนี้</h2>
-        <Link href="/app/reports" className="text-sm font-semibold text-link">
-          รายงานวัน / เดือน ›
-        </Link>
-      </div>
+      <h2 className="text-base font-bold text-primary">ภาพรวมเดือนนี้</h2>
       {report ? (
-        <ReportNumbers report={report} />
+        <ReportNumbers report={report} compact />
       ) : (
         <p className="text-sm text-secondary" aria-busy={!failed}>
           {failed
@@ -70,12 +78,26 @@ export function DashboardInsights() {
             : "กำลังโหลดรายงาน…"}
         </p>
       )}
-      <div className="flex flex-wrap gap-3 text-sm font-semibold text-link">
-        <Link href="/app/insights">พฤติกรรมและงบรายหมวด ›</Link>
-        <Link href="/app/help">วิธีใช้พอใช้ ›</Link>
-        <Link href="/app/search">AI Search ›</Link>
-        <Link href="/app/notifications">ตั้งค่าสรุปผ่าน LINE ›</Link>
-      </div>
+      <nav aria-label="เมนูรายงานและเครื่องมือ">
+        <ul className="flex flex-col overflow-hidden rounded-md border border-line bg-card">
+          {DASHBOARD_LINKS.map((l, i) => (
+            <li key={l.href} className={i === 0 ? "" : "border-t border-line"}>
+              <Link
+                href={l.href}
+                className="flex min-h-12 items-center justify-between gap-3 px-4 py-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)]"
+              >
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-semibold text-primary">{l.label}</span>
+                  <span className="truncate text-xs text-secondary">{l.hint}</span>
+                </span>
+                <span aria-hidden className="text-lg text-muted">
+                  ›
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </section>
   );
 }
