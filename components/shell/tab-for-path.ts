@@ -13,6 +13,9 @@ function normalise(pathname: string): string {
 export function tabForPath(pathname: string): TabKey | null {
   const p = normalise(pathname);
   if (p === "/app") return "summary";
+  if (under(p, "/app/reports") || under(p, "/app/search")) return "summary";
+  if (under(p, "/app/promotions")) return "perks";
+  if (under(p, "/app/notifications")) return "settings";
   if (under(p, "/app/summary") || under(p, "/app/cycle")) return "summary";
   // TODO(open-question): confirm against Figma 1280 sidebar
   if (under(p, "/app/plan/edit") || under(p, "/app/balance")) return "summary";

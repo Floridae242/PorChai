@@ -1,4 +1,6 @@
 // In-memory PorchaiApi for building and demoing screens before the backend catches up.
+import { mockReport } from "./report-mock";
+import { DEFAULT_NOTIFICATIONS } from "@/lib/reports/types";
 // Every number goes through lib/calc (computeBudget / tryOut); state transitions mirror lib/db.
 import type { Entry, NewCycleRequest, Plan, Summary, UserCategory } from "@/lib/api-types";
 import { computeBudget, tryOut, type BudgetInput } from "@/lib/calc/budget";
@@ -265,7 +267,54 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   }
   const rewardOf = (r: (typeof REWARD_FIXTURES)[number]): Reward => ({ ...r, stock: stock.get(r.id) ?? 0 });
 
+  let notifications = { ...DEFAULT_NOTIFICATIONS };
+  const reportIncomes: { amount: number; receivedOn: string }[] = [];
   return {
+    async report(period, date) {
+      return mockReport(
+        period,
+        date,
+        today,
+        entries,
+        reportIncomes,
+      );
+    },
+    async notificationPreferences() {
+      return { ...notifications };
+    },
+    async saveNotificationPreferences(value) {
+      notifications = { ...value };
+      return { ...notifications };
+    },
+    async search(query, mode, period = "month") {
+      if (mode === "web")
+        return {
+          mode,
+          answer: "โหมดจำลองไม่ค้นเว็บจริง กรุณาใช้บัญชี LINE ในโหมดจริง",
+          sources: [],
+        };
+      const from =
+        period === "day"
+          ? today
+          : period === "year"
+            ? addDays(today, -365)
+            : `${today.slice(0, 7)}-01`;
+      const found = entries.filter(
+        (e) =>
+          !e.cancelledAt &&
+          e.spentOn >= from &&
+          e.spentOn <= today &&
+          (e.note ?? "").toLowerCase().includes(query.toLowerCase()),
+      );
+      return {
+        mode,
+        answer: `ข้อมูลจำลอง: พบ ${found.length} รายการ`,
+        sources: [],
+        count: found.length,
+        total: found.reduce((s, e) => s + e.amount, 0),
+        entries: found.slice(0, 50),
+      };
+    },
     async me() {
       return { hasActiveCycle: cycle !== null };
     },
@@ -550,6 +599,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       // Income raises the money on hand: shift the balance anchor (entries after it still come off)
       c.anchor = { ...c.anchor, amount: c.anchor.amount + req.amount };
       incomeKeys.add(key);
+      reportIncomes.push({ amount: req.amount, receivedOn: req.receivedOn ?? today });
       return { summary: summaryOf(c) };
     },
 
@@ -602,6 +652,8 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       entryKeys.clear();
       planKeys.clear();
       incomeKeys.clear();
+      reportIncomes.length = 0;
+      notifications = { ...DEFAULT_NOTIFICATIONS };
       reminders = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
       points = START_POINTS;
       claimedOn = null;

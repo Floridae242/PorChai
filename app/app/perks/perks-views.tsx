@@ -114,6 +114,7 @@ export function PerksListView() {
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="สิทธิพิเศษ & แต้ม" tone="default" />
+      <Link href="/app/promotions" className={buttonClass("secondary")}>คูปอง โปรโมชัน และโฆษณาตัวอย่าง</Link>
 
       <section className="flex flex-col gap-2 rounded-md border border-line bg-reward-bg p-4">
         <div className="flex items-center justify-between gap-3">

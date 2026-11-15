@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { amountOnly, parseExpense } from "@/lib/chat/parse";
 
+it.each(["ได้รับเงิน 1000 บาท", "ได้รับเงิน ๑,๐๐๐ บาท", "แม่ให้เงิน 1000", "พ่อให้เงิน 1000", "got paid 1000", "income 1000"])("explicit received money is income, never an expense: %s", (message) => {
+  expect(parseExpense(message)).toMatchObject({ kind: "income", amount: 100000 });
+});
+it.each(["จะได้รับเงิน 1000", "รอเงินเข้า 1000", "แม่ให้เงินพรุ่งนี้ 1000", "ได้รับเงินคืน 1000"])("future or refund money is not silently booked: %s", (message) => {
+  expect(parseExpense(message).kind).toBe("ask");
+});
+
 // Card 09: a short message such as «ข้าว 50» becomes a name and an amount; anything unclear is asked, never guessed.
 
 describe("parseExpense — clear messages are recorded", () => {

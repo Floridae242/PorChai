@@ -18,6 +18,7 @@ import type {
   Summary,
 } from "@/lib/api-types";
 import type { Satang } from "@/lib/calc/money";
+import type { FinanceReport, NotificationPreferences, SearchResult } from "@/lib/reports/types";
 
 export interface Promo {
   id: string;
@@ -86,6 +87,16 @@ export interface SaveReminderSettings {
 export type PlanActionName = "pay" | "unpay" | "cancel" | "postpone" | "keep";
 
 export interface PorchaiApi {
+  report(period: "day" | "month", date?: string): Promise<FinanceReport>;
+  notificationPreferences(): Promise<NotificationPreferences>;
+  saveNotificationPreferences(
+    value: NotificationPreferences,
+  ): Promise<NotificationPreferences>;
+  search(
+    query: string,
+    mode: "web" | "entries",
+    period?: "day" | "month" | "year",
+  ): Promise<SearchResult>;
   me(): Promise<{ hasActiveCycle: boolean }>;
   createCycle(req: NewCycleRequest): Promise<{ summary: Summary }>;
   summary(): Promise<Summary>;
