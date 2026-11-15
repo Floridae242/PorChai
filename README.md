@@ -140,6 +140,8 @@ Webhook จะบันทึก event ID และเชื่อมตัว�
 
 แต้ม/ของรางวัล: หน้า MINI App เชื่อม `GET /api/points`, `POST /api/points/claim`, `GET /api/rewards` และ `POST /api/rewards/:id/redeem` แล้ว ต้อง apply migration `20261115000000_points_rewards.sql` ก่อนใช้ ระบบจริงเริ่ม 0 แต้มและ catalog ว่าง รายละเอียด transaction และ idempotency อยู่ใน [Frontend API](docs/frontend-api.md).
 
+รูปแบบแชต: คำตอบ AI คำถามกลับ และข้อความแจ้งผลใช้ Flex Card เป็นหลักแล้ว โดยคงการ์ดจดรายจ่ายเดิมและคำสั่งปุ่มเดิมไว้ ดูขอบเขต ข้อยกเว้น และวิธีพรีวิวใน [Flex-first replies](docs/LINE-FLEX-REPLIES.md).
+
 ### LINE Developers Console (ทำเมื่อมี HTTPS endpoint พร้อมแล้ว)
 
 สถานะการตั้งค่าและผลตรวจจริงรอบล่าสุดอยู่ใน [LINE live setup](docs/LINE-LIVE-SETUP.md). ปัจจุบันใช้ HTTPS tunnel ชั่วคราว ไม่ใช่ hosting ถาวร. ตรวจซ้ำได้ด้วย `npm run line:check -- --url https://<dev-host> --live` โดยไม่แสดง credential.

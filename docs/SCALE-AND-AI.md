@@ -114,3 +114,7 @@ Added another 14 cases: 11 token-cache boundary tests and three real local DB co
 Additional tests cover LRU ordering, audience-separated concurrent requests, expired-token refresh failing closed during provider outage, token size boundaries, one owner winning an expired-lease burst, anonymous claim denial, and a real overlapping duplicate webhook returning retry while work is active then becoming a completed duplicate.
 
 Evidence: 20 focused token tests passed after the fix; all 1,380 unit/integration tests and 305 local DB tests passed, with two existing QA TODOs unchanged. Lint, typecheck, production build, independent review and diff checks passed. No extra credential-backed Gemini evaluation or production request is part of this expansion.
+
+## Adaptive conversation follow-up — 15 November 2026
+
+See [AI conversation testing](AI-CONVERSATION-TESTING.md) for the new dialogue boundaries, contextual prompt changes, real-provider sample and remaining limitations. The synthetic provider sample improved narrow acceptance from 7/12 to 11/12, with one provider timeout in each candidate run; both candidate runs fail the strict all-cases assertion. Captured fluent-but-premature suggestions were added as regressions rather than treated as proof of answer quality.

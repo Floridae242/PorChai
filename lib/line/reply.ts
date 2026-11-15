@@ -1,6 +1,7 @@
 import type { FlexMessage as BrandedFlexMessage } from "./branded-flex";
 import type { FlexMessage, TextReplyMessage } from "@/lib/line/flex/types";
 import { appUrl } from "@/lib/liff/config";
+import { presentReply } from "./presentation";
 
 // LINE Messaging API reply. A reply costs no quota (a push does), so chat answers always use this.
 
@@ -39,7 +40,7 @@ export async function reply(replyToken: string, messages: ReplyMessage[]): Promi
   const res = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ replyToken, messages }),
+    body: JSON.stringify({ replyToken, messages: messages.map((m) => presentReply(withAppButton(m))) }),
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`LINE reply failed (${res.status})`);

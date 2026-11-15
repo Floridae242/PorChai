@@ -1,4 +1,5 @@
 import { routineChat } from "@/lib/chat/routine";
+import { conversationBoundary } from "@/lib/chat/intent";
 import { AiGate, withAiScope } from "@/lib/ai/admission";
 import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
 import { tomorrowBudget } from "@/lib/calc/budget";
@@ -82,6 +83,7 @@ import { userIdForLine } from "@/lib/db/users";
 import { HttpError } from "@/lib/http";
 import { decodePostback, type DecodedPostback } from "@/lib/line/flex/postback";
 import { reply, text, withAppButton, type ReplyMessage } from "@/lib/line/reply";
+import { presentReply } from "@/lib/line/presentation";
 
 interface LineEvent {
   type?: unknown;
@@ -137,7 +139,7 @@ export async function handleEvent(event: unknown): Promise<void> {
   }
   if (typeof e.replyToken === "string") {
     // The spend is already saved; a failed answer must not make LINE send the event again
-    await reply(e.replyToken, [withAppButton(answer.message)]).catch((err) => console.error(err));
+    await reply(e.replyToken, [presentReply(withAppButton(answer.message))]).catch((err) => console.error(err));
   }
 }
 
@@ -176,6 +178,11 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // The rich menu made in LINE OA Manager sends texts, not postbacks (it has no postback buttons)
   const menu = MENU_TEXTS[body.trim()];
   if (menu) return say(menu());
+  const clarification = conversationBoundary(body);
+  if (clarification) return converse(userId, body, history, { approximate: false, question: false, clarification });
+  // A social response ends the previous question; it is never the title of a pending amount.
+  const routine = routineChat(body);
+  if (routine?.kind === "chat" && routine.reply) return say(chatMessage(routine.reply));
   const amount = amountOnly(body);
   // Try card [ลองยอดอื่น] → «250»: try the new price (a new draft: paying it is a new spend)
   if (pending?.kind === "try" && pending.awaiting === "amount" && amount !== null) {
@@ -246,7 +253,7 @@ async function converse(
   userId: string,
   body: string,
   history: ChatLine[],
-  { approximate, question }: { approximate: boolean; question: boolean },
+  { approximate, question, clarification }: { approximate: boolean; question: boolean; clarification?: string },
 ): Promise<Answer> {
   const routine = routineChat(body);
   if (routine?.kind === "chat" && routine.reply) return say(chatMessage(routine.reply));
@@ -261,13 +268,14 @@ async function converse(
   });
   const reading = await readChat(body, history, factsOf(summary));
   if (reading?.kind === "spend") {
+    if (clarification) return say(chatMessage(clarification));
     // «ถ้ากินชาบูจะเหลือเท่าไร»: ask the price to try it, never «จ่ายไปกี่บาท?» (whose answer is recorded)
     if (question) return say(askPriceMessage(reading.item));
     return say(askAmountMessage(reading.item, approximate), { kind: "amount", title: reading.item });
   }
   if (reading?.kind === "off_topic") return say(offTopicMessage());
   if (reading?.kind === "chat" && reading.reply) return say(chatMessage(reading.reply));
-  return say(approximate ? askMessage("approximate") : chatFallbackMessage(summary));
+  return say(clarification ? chatMessage(clarification) : approximate ? askMessage("approximate") : chatFallbackMessage(summary));
 }
 
 // L6: more than what is left today → ask first, the user decides (never decided for them)
