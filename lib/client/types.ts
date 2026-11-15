@@ -42,6 +42,19 @@ export interface Reward {
   stock: number;
 }
 
+// Points history (newest first). One row per ledger entry: +1 for a day's points, a negative number for a
+// redemption. `day` is the Thai calendar date (YYYY-MM-DD); the reward code is never listed here.
+export interface PointsHistoryItem {
+  id: string;
+  kind: "daily" | "redemption";
+  delta: number;
+  day: string;
+  rewardName: string | null; // redemptions only
+}
+export interface PointsHistory {
+  items: PointsHistoryItem[];
+}
+
 export interface NewIncomeRequest {
   amount: Satang;
   note?: string | null;
@@ -120,6 +133,7 @@ export interface PorchaiApi {
   acceptConsent(version: string): Promise<void>;
   points(): Promise<{ balance: number; claimedToday: boolean }>;
   claimPoints(idempotencyKey: string): Promise<{ balance: number; claimedToday: true }>;
+  pointsHistory(): Promise<PointsHistory>;
   promos(): Promise<Promo[]>;
   promo(id: string): Promise<Promo>;
   claimPromo(id: string): Promise<{ code: string; expiresAt: string }>;

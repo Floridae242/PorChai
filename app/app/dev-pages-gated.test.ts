@@ -14,7 +14,11 @@ function walk(dir: string, out: string[] = []): string[] {
 
 describe("dev pages are gated in production", () => {
   const root = join(process.cwd(), "app", "app");
-  const files = [...walk(join(root, "dev")), join(root, "demo", "ui", "page.tsx")];
+  const files = [
+    ...walk(join(root, "dev")),
+    join(root, "demo", "ui", "page.tsx"),
+    join(root, "promotions", "page.tsx"),
+  ];
 
   it("finds the dev pages", () => {
     expect(files.length).toBeGreaterThanOrEqual(2);

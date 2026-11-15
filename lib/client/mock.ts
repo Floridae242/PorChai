@@ -28,7 +28,7 @@ import {
   START_POINTS,
   type PromoFixture,
 } from "./mock-fixtures";
-import type { CategoryTotal, PlanActionName, PorchaiApi, Promo, ReminderSettings, Reward } from "./types";
+import type { CategoryTotal, PlanActionName, PointsHistoryItem, PorchaiApi, Promo, ReminderSettings, Reward } from "./types";
 
 // Card 23: the server sends a fingerprint of the numbers; the mock only needs it to change when they do
 const mockBasis = (input: object) => JSON.stringify(input);
@@ -241,8 +241,12 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   // ---- points / promos / rewards ----
   let points = START_POINTS;
   let claimedOn: string | null = null;
+  let historyCount = 0;
+  const pointsLog: PointsHistoryItem[] = []; // newest first, like the server
+  const logPoints = (kind: PointsHistoryItem["kind"], delta: number, rewardName: string | null = null) =>
+    pointsLog.unshift({ id: `ph-${++historyCount}`, kind, delta, day: today, rewardName });
   let spendingCats:SpendingCategory[] = Object.entries({food:"อาหาร",transport:"เดินทาง",supplies:"ของใช้",other:"อื่น ๆ",bills:"บิล"}).map(([id,label])=>({id,label,parent:id as SpendingCategory["parent"],monthlyBudget:null,version:now().toISOString()}));
-  function awardRecording(day:string){if(day===today && claimedOn!==today){points+=1;claimedOn=today;}}
+  function awardRecording(day:string){if(day===today && claimedOn!==today){points+=1;claimedOn=today;logPoints("daily",1);}}
 
   const stock = new Map(REWARD_FIXTURES.map((r) => [r.id, r.stock]));
   const redeemed = new Map<string, { balance: number; code: string }>(); // idempotency key -> result
@@ -577,8 +581,13 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       if (claimedOn !== today) {
         points += 1;
         claimedOn = today;
+        logPoints("daily", 1);
       }
       return { balance: points, claimedToday: true };
+    },
+
+    async pointsHistory() {
+      return { items: pointsLog.map((i) => ({ ...i })) };
     },
 
     async promos() {
@@ -608,6 +617,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       if ((stock.get(r.id) ?? 0) <= 0) throw new ApiError(409, "out_of_stock", "ของหมดแล้ว");
       if (points < r.cost) throw new ApiError(409, "not_enough_points", "แต้มไม่พอ");
       points -= r.cost;
+      logPoints("redemption", -r.cost, r.name);
       stock.set(r.id, (stock.get(r.id) ?? 0) - 1);
       const result = { balance: points, code: `RW-${shortCode(`${r.id}:${key}`)}` };
       redeemed.set(key, result);
@@ -683,6 +693,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       reminders = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
       points = START_POINTS;
       claimedOn = null;
+      pointsLog.length = 0;
       for (const r of REWARD_FIXTURES) stock.set(r.id, r.stock);
       redeemed.clear();
       claimedCodes.clear();

@@ -78,6 +78,9 @@ describe("guarding the AI's split of several spends", () => {
   it("the same amount typed twice may be used twice", () => {
     expect(itemsFrom({ items: [{ title: "ข้าว", amount_baht: 20 }, { title: "น้ำ", amount_baht: 20 }] }, "ข้าว 20 น้ำ 20")).toHaveLength(2);
   });
+  it("rejects omitted prices instead of silently proposing only part of the list", () => {
+    expect(itemsFrom({items:[{title:"ข้าว",amount_baht:45},{title:"น้ำ",amount_baht:20}]},"ข้าว 45 น้ำ 20 ซูชิ 30")).toBeNull();
+  });
   it("rejects nothing, too many, zero, too large or malformed", () => {
     expect(itemsFrom({ items: [] }, msg)).toBeNull();
     expect(itemsFrom({ items: Array(6).fill({ title: "ข้าว", amount_baht: 1 }) }, "ข้าว 1 1 1 1 1 1")).toBeNull();
@@ -165,21 +168,24 @@ describe("readChat: the AI reads, the code decides", () => {
 
 describe("splitItems", () => {
   beforeEach(() => ai.mockReset());
-  it("a plain «name amount name amount» line is split by rule, without the AI", async () => {
-    expect(await splitItems("ข้าว 45 น้ำ 20")).toEqual([
-      { title: "ข้าว", amount: 4500, category: "food" },
-      { title: "น้ำ", amount: 2000, category: "food" },
-    ]);
+  it("reads clear pairs even with AI disabled", async () => {
+    ai.mockResolvedValue(null);
+    expect(await splitItems("ข้าว 45 น้ำ 20")).toHaveLength(2);
     expect(ai).not.toHaveBeenCalled();
   });
   it("asks the AI with only the message, and guards its answer", async () => {
+    const message = "45 บาทค่าข้าว 20 บาทค่าน้ำ";
     ai.mockResolvedValueOnce(JSON.stringify({ items: [{ title: "ข้าว", amount_baht: 45 }, { title: "น้ำ", amount_baht: 20 }] }));
-    expect(await splitItems("ข้าวกับน้ำ 45 กับ 20")).toHaveLength(2);
-    expect(ai.mock.calls[0][0].input).toBe("ข้าวกับน้ำ 45 กับ 20");
+    expect(await splitItems(message)).toHaveLength(2);
+    expect(ai.mock.calls[0][0].input).toBe(message);
     ai.mockResolvedValueOnce(JSON.stringify({ items: [{ title: "ข้าว", amount_baht: 65 }] }));
-    expect(await splitItems("ข้าวกับน้ำ 45 กับ 20")).toBeNull();
+    expect(await splitItems(message)).toBeNull();
     ai.mockResolvedValueOnce(null);
-    expect(await splitItems("ข้าวกับน้ำ 45 กับ 20")).toBeNull();
+    expect(await splitItems(message)).toBeNull();
+  });
+  it.each(["ข้าว 50 น้ำ 20 รวม 70", "รับเงิน 1000 ข้าว 50", "ข้าว 2 จาน 100 น้ำ 20", "ข้าว 50 น้ำ -20"])("does not ask AI to guess unsafe lists: %s", async message => {
+    expect(await splitItems(message)).toBeNull();
+    expect(ai).not.toHaveBeenCalled();
   });
 });
 

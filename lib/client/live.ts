@@ -118,6 +118,7 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     saveReminderSettings: (req) => request({ method: "PUT", path: "/api/reminders", body: req }),
     points: () => request({ method: "GET", path: "/api/points" }),
     claimPoints: (idempotencyKey) => request({ method: "POST", path: "/api/points/claim", idempotencyKey }),
+    pointsHistory: () => request({ method: "GET", path: "/api/points/history" }),
     rewards: () => request({ method: "GET", path: "/api/rewards" }),
     redeemReward: (id, idempotencyKey) => request({ method: "POST", path: `/api/rewards/${seg(id)}/redeem`, idempotencyKey }),
     // ตั้งค่า › ลบข้อมูลของฉัน: every row of the account; resolves only after the server confirms

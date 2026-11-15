@@ -151,6 +151,23 @@ describe("card 09: expenses from the chat", () => {
   it("mixed income and expense lines are clarified instead of silently becoming expenses",async()=>{
     await figma();await chat("รับเงิน 1000\nข้าว 50");expect(await screenEntries()).toEqual([]);
   });
+  it("the reported sentence proposes all three items with AI off and confirmation is idempotent",async()=>{
+    await figma();
+    await chat("กินปลาหมึกย่าง 70 บาท น้ำส้มอีก 30 บาท ซูชิอีก 30 บาท");
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+    expect(lastText()).toContain("เจอ 3 รายการ รวม 130 บาท");
+    for(const title of ["ปลาหมึกย่าง","น้ำส้ม","ซูชิ"]) expect(lastText()).toContain(title);
+    expect(await screenEntries()).toEqual([]);
+    const confirm=lastButtons().find(b=>b.label==="จดทั้งหมด")!.data!;
+    await tap(confirm);await tap(confirm);
+    expect((await screenEntries()).map((e:{amount:number})=>e.amount).sort((a:number,b:number)=>a-b)).toEqual([3000,3000,7000]);
+    await chat("ดูแต้ม");expect(lastText()).toContain("1 แต้ม");
+  });
+  it("declining the reported multi-item sentence saves nothing",async()=>{
+    await figma();await chat("กินปลาหมึกย่าง 70 บาท น้ำส้มอีก 30 บาท ซูชิอีก 30 บาท");
+    await tap(lastButtons().find(b=>b.label==="ไม่ใช่")!.data!);
+    expect(await screenEntries()).toEqual([]);
+  });
 
   it("creates installments only after confirmation and never books the purchase total as a spend",async()=>{
     await figma();await chat(`ผ่อน โทรศัพท์ ยอดรวม 1000.01 บาท 3 งวด เริ่ม ${today()}`);
@@ -349,7 +366,7 @@ describe("card 09: expenses from the chat", () => {
     const cases: [string, string, string][] = [
       ["ข้าว", "จ่ายไปกี่บาท", "กรอกเองในแอป"],
       ["Hey", "ยังตอบข้อความนี้ไม่ได้", "เปิดแอป"],
-      ["ข้าวกับน้ำ 50 กับ 20", "ทีละรายการ", "กรอกเองในแอป"],
+      ["ข้าว 50 น้ำ 20 รวม 70", "ยังแยกชื่อกับยอดได้ไม่ครบ", "กรอกเองในแอป"],
       ["ข้าวร้อยกว่า", "ยอดที่จ่ายจริง", "กรอกเองในแอป"],
       ["50", "ค่าอะไร", "กรอกเองในแอป"],
     ];
@@ -841,10 +858,10 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     expect(lastText()).toContain("จดแล้ว ✓ ข้าว 45 บาท");
   });
 
-  it("several spends: the AI proposes, [จดทั้งหมด] records each once", async () => {
+  it("several spends: explicit pairs propose without AI, [จดทั้งหมด] records each once", async () => {
     await figma();
     aiSays({ items: [{ title: "ข้าว", amount_baht: 45 }, { title: "น้ำ", amount_baht: 20 }] });
-    await chat("ข้าวกับน้ำ 45 กับ 20");
+    await chat("ข้าว 45 น้ำ 20");
     expect(last().type).toBe("flex"); // proposal card
     expect(lastText()).toContain("เจอ 2 รายการ รวม 65 บาท");
     for (const t of ["ข้าว", "45 บาท", "น้ำ", "20 บาท", "อาหาร"]) expect(lastText()).toContain(t);
@@ -899,25 +916,10 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     expect(await screenEntries()).toEqual([]);
   });
 
-  // 15 Nov: this went «ส่งทีละรายการ» when Gemini failed. Split by rule now: the AI is not needed
-  it("«กินปลาหมึกย่าง 70 บาท น้ำส้มอีก 30 บาท ซูชิอีก 30 บาท» with the AI off: 3 items to confirm, all food", async () => {
-    await figma();
-    vi.mocked(generate).mockClear();
-    await chat("กินปลาหมึกย่าง 70 บาท น้ำส้มอีก 30 บาท ซูชิอีก 30 บาท");
-    expect(last().type).toBe("flex");
-    expect(lastText()).toContain("เจอ 3 รายการ รวม 130 บาท");
-    for (const t of ["ปลาหมึกย่าง", "น้ำส้ม", "ซูชิ", "อาหาร"]) expect(lastText()).toContain(t);
-    expect(lastText()).not.toContain("อื่น ๆ");
-    expect(vi.mocked(generate)).not.toHaveBeenCalled();
-    expect(await screenEntries()).toEqual([]);
-    await tap(button("จดทั้งหมด").data);
-    expect((await screenEntries()).map((e: { amount: number }) => e.amount).sort()).toEqual([3000, 3000, 7000]);
-  });
-
   it("[ไม่ใช่] records nothing", async () => {
     await figma();
     aiSays({ items: [{ title: "ข้าว", amount_baht: 45 }, { title: "น้ำ", amount_baht: 20 }] });
-    await chat("ข้าวกับน้ำ 45 กับ 20");
+    await chat("ข้าว 45 น้ำ 20");
     await tap(button("ไม่ใช่").data);
     expect(lastText()).toContain("ไม่จด");
     expect(await screenEntries()).toEqual([]);
@@ -935,8 +937,8 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
   it("an AI split with an amount nobody typed is not offered — asked one at a time", async () => {
     await figma();
     aiSays({ items: [{ title: "ข้าว", amount_baht: 65 }] });
-    await chat("ข้าวกับน้ำ 45 กับ 20");
-    expect(lastText()).toContain("ทีละรายการ");
+    await chat("45 บาทค่าข้าว 20 บาทค่าน้ำ");
+    expect(lastText()).toContain("ยังแยกชื่อกับยอดได้ไม่ครบ");
     expect(lastButtons().map((b) => b.label)).not.toContain("จดทั้งหมด");
   });
 
