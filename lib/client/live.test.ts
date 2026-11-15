@@ -27,6 +27,37 @@ function setup(responses: Array<Response | Error>) {
 const hdr = (c: Call, k: string) => new Headers(c.init.headers).get(k);
 
 describe("createLiveApi", () => {
+  it("wires reports, opt-in settings and private/web lookup with the existing auth transport", async () => {
+    const { api, calls } = setup([
+      json(200, {}),
+      json(200, {}),
+      json(200, {}),
+      json(200, {}),
+    ]);
+    await api.report("month", "2026-11-01");
+    await api.notificationPreferences();
+    await api.saveNotificationPreferences({
+      daily: true,
+      monthly: false,
+      budget: false,
+      time: "20:00",
+    });
+    await api.search("ข้าว", "entries", "month");
+    expect(calls.map((c) => [c.url, c.init.method])).toEqual([
+      ["https://x.test/api/reports?period=month&date=2026-11-01", "GET"],
+      ["https://x.test/api/notifications/preferences", "GET"],
+      ["https://x.test/api/notifications/preferences", "PUT"],
+      ["https://x.test/api/search", "POST"],
+    ]);
+    expect(JSON.parse(calls[3].init.body as string)).toEqual({
+      query: "ข้าว",
+      mode: "entries",
+      period: "month",
+    });
+    expect(calls.every((c) => hdr(c, "Authorization") === "Bearer tok-1")).toBe(
+      true,
+    );
+  });
   it("connects points and rewards with authentication and stable idempotency headers", async () => {
     const { api, calls } = setup([json(200, { balance: 0, claimedToday: false }), json(201, { balance: 1, claimedToday: true }),
       json(200, []), json(201, { balance: 0, code: "RW-test" })]);

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addDays, thaiDate } from "@/lib/calc/time";
 import { getDb } from "@/lib/db/client";
 import { generate } from "@/lib/ai/gemini";
+import * as installmentsDb from "@/lib/db/installments";
 import type { VerifyResult } from "@/lib/line/id-token";
 import type { ReplyMessage } from "@/lib/line/reply";
 import { POST as webhook } from "@/app/api/line/webhook/route";
@@ -114,6 +115,139 @@ async function screenEntries() {
 }
 
 describe("card 09: expenses from the chat", () => {
+  it("creates installments only after confirmation and never books the purchase total as a spend",async()=>{
+    await figma();await chat(`ผ่อน โทรศัพท์ ยอดรวม 1000.01 บาท 3 งวด เริ่ม ${today()}`);
+    expect(lastText()).toContain("ยืนยัน");expect(lastText()).toContain("333.34 บาท");expect(await screenEntries()).toEqual([]);
+    const confirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;await tap(confirm);await tap(confirm);
+    expect(lastText()).toContain("จบแล้ว");
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    const rows=await db.from("plans").select("amount").eq("user_id",owner.data!.id).like("title","โทรศัพท์ · งวด %");
+    expect(rows.data).toHaveLength(3);expect(rows.data!.reduce((sum,row)=>sum+row.amount,0)).toBe(100001);expect(await screenEntries()).toEqual([]);
+  });
+  it.each([
+    "ผ่อน โทรศัพท์ 12000 12 งวด", "ผ่อน โทรศัพท์ ยอดรวม -100 บาท 2 งวด เริ่ม 2026-12-01",
+    "ผ่อน โทรศัพท์ ยอดรวม 100 บาท 0 งวด เริ่ม 2026-12-01", "ผ่อน โทรศัพท์ ยอดรวม 100 บาท 61 งวด เริ่ม 2026-12-01",
+    "ผ่อน โทรศัพท์ ยอดรวม 100 บาท 2 งวด เริ่ม 2026-02-30", "ผ่อน โทรศัพท์ ยอดรวม 100 บาท 2 งวด เริ่ม 2020-01-01",
+    "ผ่อน โทรศัพท์ ยอดรวม 100 บาท 2.5 งวด เริ่ม 2026-12-01", "ผ่อน โทรศัพท์ ยอดรวม 1.999 บาท 2 งวด เริ่ม 2026-12-01",
+    "ผ่อน โทรศัพท์ ดาวน์ 1000 บาท 12 งวด", "ผ่อน โทรศัพท์ ดอกเบี้ย 0% ยอดรวม 100 บาท 2 งวด เริ่ม 2026-12-01",
+    "ผ่อน โทรศัพท์ ยอดรวม 100 บาท 2 งวด เริ่ม 2026-12-01 ไหวไหม", "ฉันไม่ได้ผ่อนโทรศัพท์ 500 บาท",
+  ])("invalid or unclear installment message never falls through to expense recording: %s",async message=>{
+    await figma();expect((await chat(message)).status).toBe(200);expect(await screenEntries()).toEqual([]);
+    expect(lastButtons().some(b=>b.label === "ยืนยัน")).toBe(false);
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    expect((await db.from("plans").select("id").eq("user_id",owner.data!.id)).data).toHaveLength(1);
+  });
+  it("an installment affordability question is a calculator preview, never a saved bill",async()=>{
+    await figma();await chat(`ผ่อน โทรศัพท์ ยอดรวม 30000 บาท 3 งวด เริ่ม ${today()} ไหวไหม`);
+    expect(lastText()).toContain("ยังไม่ได้สร้างบิล");expect(lastText()).toContain("เงินขาด");expect(await screenEntries()).toEqual([]);
+    expect(lastButtons().some(b=>b.label === "ยืนยัน")).toBe(false);
+  });
+  it("installments beyond the first ten remain payable through paginated chat lists",async()=>{
+    await figma();await chat(`ผ่อน โทรศัพท์ ยอดรวม 12000 บาท 12 งวด เริ่ม ${today()}`);await chat("ยืนยัน");
+    await chat("ดูแผน หน้า 2");expect(lastText()).toContain("หน้า 2");expect(lastText()).toContain("งวด 10/12");
+    await chat("จ่ายบิล 1 หน้า 2");expect(lastText()).toContain("งวด 10/12");await chat("ยืนยัน");
+    expect((await screenEntries()).map((e:{amount:number})=>e.amount)).toEqual([100000]);
+  });
+  it("a transport error after commit can retry the same card without duplicate installment bills",async()=>{
+    await figma();await chat(`ผ่อน โทรศัพท์ ยอดรวม 1000.01 บาท 3 งวด เริ่ม ${today()}`);
+    const button=lastButtons().find(b=>b.label === "ยืนยัน")!.data!,original=installmentsDb.addInstallments;
+    const spy=vi.spyOn(installmentsDb,"addInstallments").mockImplementationOnce(async(...args)=>{await original(...args);throw new Error("simulated lost RPC response");});
+    try{expect((await tap(button)).status).toBe(500);expect((await tap(button)).status).toBe(200);expect(lastText()).toContain("สร้างบิลผ่อน");}
+    finally{spy.mockRestore();}
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    expect((await db.from("plans").select("id").eq("user_id",owner.data!.id).like("title","โทรศัพท์ · งวด %")).data).toHaveLength(3);
+  });
+
+  it("«ได้รับเงิน 1000 บาท» records income directly in LINE, not an expense or app redirect",async()=>{
+    await figma();expect((await chat("ได้รับเงิน 1000 บาท")).status).toBe(200);
+    expect(await screenEntries()).toEqual([]);
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();expect(owner.error).toBeNull();
+    const incomes=await db.from("incomes").select("amount,source").eq("user_id",owner.data!.id);expect(incomes.error).toBeNull();expect(incomes.data).toEqual([{amount:100000,source:"chat"}]);expect(lastText()).toContain("1,000");
+  });
+  it("reads a real daily report and searches the user's entries inside LINE",async()=>{
+    await figma();await chat("ข้าว 45");await chat("ดูรายงานวันนี้");expect(lastText()).toContain("รายงานรายวัน");expect(lastText()).toContain("45 บาท");
+    await chat("ค้นรายจ่าย ข้าว");expect(lastText()).toContain("พบ 1 รายการ");expect(lastText()).toContain("ข้าว");
+  });
+  it("notification opt-in in chat is a proposal until confirmed",async()=>{
+    await figma();await chat("เปิดสรุปรายวัน เวลา 20:00");expect(lastText()).toContain("ยืนยัน");
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    expect((await db.from("notification_preferences").select("daily").eq("user_id",owner.data!.id)).data).toEqual([]);
+    expect((await chat("ยืนยัน")).status,lastText()).toBe(200);expect((await db.from("notification_preferences").select("daily,send_at").eq("user_id",owner.data!.id).single()).data,lastText()).toMatchObject({daily:true,send_at:"20:00:00"});
+  });
+  it("a proposed bill is created once even if the old confirmation button is tapped again",async()=>{
+    await figma();await chat("เพิ่มบิล ค่าหอ 500 บาท");const confirm=lastButtons().find(b=>b.label==="ยืนยัน")?.data;expect(confirm).toBeTruthy();
+    expect((await tap(confirm!)).status,lastText()).toBe(200);expect(lastText()).toContain("เพิ่มบิล");await tap(confirm!);
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();const plans=await db.from("plans").select("amount").eq("user_id",owner.data!.id).eq("title","ค่าหอ").eq("amount",50000);expect(plans.data).toEqual([{amount:50000}]);
+  });
+  it("points review and balance are usable without opening MINI App",async()=>{
+    await figma();await chat("ดูแต้ม");expect(lastText()).toContain("0 แต้ม");await chat("เช็กครบแล้ว");expect(lastText()).toContain("1 แต้ม");await chat("ดูแต้ม");expect(lastText()).toContain("1 แต้ม");
+  });
+  it("cancellation closes an old confirmation button", async()=>{
+    await figma();await chat("เพิ่มบิล ค่าไฟ 100 บาท");const button=lastButtons().find(b=>b.label==="ยืนยัน")!.data!;
+    await chat("ยกเลิก");await tap(button);expect(lastText()).toContain("จบแล้ว");
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    expect((await db.from("plans").select("id").eq("user_id",owner.data!.id).eq("title","ค่าไฟ")).data).toEqual([]);
+  });
+  it("another account cannot confirm the owner's draft", async()=>{
+    await figma();await chat("เพิ่มบิล ค่าไฟ 100 บาท");const button=lastButtons().find(b=>b.label==="ยืนยัน")!.data!;
+    const other=`U_other_${run}`,id=`other_${run}_${eventIds.length}`;eventIds.push(id);
+    try{expect((await deliver({type:"postback",webhookEventId:id,replyToken:"other",source:{type:"user",userId:other},postback:{data:button}})).status).toBe(200);expect(lastText()).toContain("ไม่ใช่ของบัญชีนี้");}
+    finally{await db.from("users").delete().eq("line_user_id",other);}
+  });
+  it("a changed budget refuses an older mutation preview",async()=>{
+    await figma();await chat("กันเงินเผื่อ 200 บาท");const button=lastButtons().find(b=>b.label==="ยืนยัน")!.data!;
+    await chat("ข้าว 45");await tap(button);expect(lastText()).toContain("เปลี่ยน");
+  });
+  it("asks for a missing bill amount before previewing it",async()=>{
+    await figma();await chat("เพิ่มบิล ค่าไฟ");expect(lastText()).toContain("กี่บาท");await chat("100");expect(lastText()).toContain("ยืนยัน");await chat("ยืนยัน");expect(lastText()).toContain("เพิ่มบิล ค่าไฟ 100 บาท");
+  });
+  it("adjusts actual balance and essentials with confirmations",async()=>{
+    await figma();await chat("ปรับยอด 2000 บาท");await chat("ยืนยัน");expect(lastText()).toContain("2,000 บาท");expect(await screenEntries()).toEqual([]);
+    await chat("ตั้งค่าอาหาร 50 ค่ารถ 20");await chat("ยืนยัน");expect(lastText()).toContain("อาหาร 50 บาท");
+  });
+  it("edits and deletes an owned entry through chat, without duplicate writes",async()=>{
+    await figma();await chat("ข้าว 45");await chat("แก้รายการล่าสุด 60 บาท");await chat("ยืนยัน");expect((await screenEntries())[0].amount).toBe(6000);
+    await chat("ลบรายการล่าสุด");await chat("ยืนยัน");expect(await screenEntries()).toEqual([]);
+  });
+  it("pays and undoes a bill using transactional plan actions",async()=>{
+    await figma();await chat("จ่ายบิล 1");await chat("ยืนยัน");expect((await screenEntries())[0].amount).toBe(60000);
+    await chat("ยกเลิกการจ่ายบิล 1");await chat("ยืนยัน");expect(await screenEntries()).toEqual([]);
+  });
+  it("sets up a new account entirely in chat without inventing income or essentials",async()=>{
+    await chat("ได้รับเงิน 1000 บาท");expect(lastText()).toContain("ยังไม่ได้ตั้งรอบเงิน");
+    for(const message of ["เริ่มรอบเงิน","เงินจากบ้าน","รายเดือน","1000",addDays(today(),12),"100","50","ข้าม"]){expect((await chat(message)).status).toBe(200);}
+    expect(lastText()).toContain("ยืนยัน");await chat("ยืนยัน");expect(lastText()).toContain("เริ่มรอบเงินแล้ว");
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    expect((await db.from("incomes").select("id").eq("user_id",owner.data!.id)).data).toEqual([]);
+    expect((await db.from("cycles").select("start_balance,essential_food_daily").eq("user_id",owner.data!.id).single()).data).toMatchObject({start_balance:100000,essential_food_daily:null});
+  });
+  it("redeems a catalog reward once from a confirmed chat card",async()=>{
+    await figma();await chat("เช็กครบแล้ว");
+    const reward=await db.from("rewards").insert({name:"Chat test reward",stock:1,cost:1,active:true}).select("id").single();expect(reward.error).toBeNull();
+    try{
+      await chat("แลกของ");const pick=lastButtons().find(b=>b.label === "เลือก 1")!.data!;await tap(pick);expect(lastText()).toContain("ใช้ 1 แต้ม");
+      const confirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;await tap(confirm);expect(lastText()).toContain("เหลือ 0 แต้ม");await tap(confirm);expect(lastText()).toContain("จบแล้ว");
+      expect((await db.from("rewards").select("stock").eq("id",reward.data!.id).single()).data!.stock).toBe(0);
+    }finally{expect((await db.from("reward_claims").delete().eq("reward_id",reward.data!.id)).error).toBeNull();expect((await db.from("rewards").delete().eq("id",reward.data!.id)).error).toBeNull();}
+  });
+  it("AI routes a natural read request without booking the model's invented write",async()=>{
+    await figma();await chat("ข้าว 45");
+    vi.mocked(generate).mockResolvedValueOnce(JSON.stringify({tool:"report",amount:100000,userId:"other",selected:{id:"other"}}));
+    await chat("ขอข้อมูลรายงานของฉันหน่อย");expect(lastText()).toContain("รายงานรายเดือน");expect((await screenEntries()).map((e: { amount: number }) => e.amount)).toEqual([4500]);
+  });
+
+  it("shows explicitly fictional coupons in chat without recording a spend",async()=>{
+    await figma();await chat("ดูคูปอง");expect(lastText()).toContain("ใช้ซื้อจริงไม่ได้");expect(lastText()).toContain("DEMO-MEAL49");expect(await screenEntries()).toEqual([]);
+  });
+
+  it.each(["ค้นเว็บ ข้าว 50", "search coffee 50"])("search commands never become payments: %s", async (message) => {
+    await figma();
+    await chat(message);
+    expect(await screenEntries()).toEqual([]);
+    expect(lastText()).toContain("หน้าค้นหา");
+    expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "ค้นเว็บ" }));
+  });
+
   it.each([
     "ไม่ซื้อกาแฟ 50 แล้ว", "ไม่ได้จ่ายข้าว 45", "โอนให้เพื่อน 100", "ข้าว 45 ไม่สิ 50",
     "ข้าว 200 หาร 4 คน", "เบอร์ 0812345678", "ปี 2026", "cancel coffee 50",
@@ -145,6 +279,8 @@ describe("card 09: expenses from the chat", () => {
   afterEach(async () => {
     vi.unstubAllEnvs();
     await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    const commandOwner=await db.from("users").select("id").eq("line_user_id",lineA).maybeSingle();
+    if(commandOwner.data)await db.from("line_events").delete().like("webhook_event_id",`chat-command:${commandOwner.data.id}:%`);
     await db.from("users").delete().eq("line_user_id", lineA);
   });
 

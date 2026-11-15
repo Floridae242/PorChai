@@ -167,6 +167,7 @@ export function SettingsNotificationsView() {
       {header}
 
       {!ready ? <Banner kind="info" text={`${MSG_NOT_READY} — ตั้งค่าการเตือนยังใช้ไม่ได้ตอนนี้`} /> : null}
+      <Link href="/app/notifications" className={buttonClass("secondary")}>สรุปรายวัน รายเดือน และเตือนงบ</Link>
 
       <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
         <label className="flex items-center justify-between gap-3 text-sm font-semibold text-primary">

@@ -1,4 +1,6 @@
 "use client";
+import { DashboardInsights } from "./reports/reports-view";
+import { MockPromotionBanner } from "./promotions/promotion-mock-view";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -164,6 +166,8 @@ export function SummaryView() {
 
   return (
     <main className="flex flex-col gap-4 py-4 font-body">
+      <DashboardInsights />
+      <MockPromotionBanner />
       {budget.kind === "payday-passed" ? (
         <Banner
           kind="info"

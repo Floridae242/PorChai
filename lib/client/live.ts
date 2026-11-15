@@ -74,6 +74,21 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
   const seg = encodeURIComponent;
 
   return {
+    report: (period, date) =>
+      request({
+        method: "GET",
+        path: `/api/reports?${new URLSearchParams({ period, ...(date ? { date } : {}) })}`,
+      }),
+    notificationPreferences: () =>
+      request({ method: "GET", path: "/api/notifications/preferences" }),
+    saveNotificationPreferences: (body) =>
+      request({ method: "PUT", path: "/api/notifications/preferences", body }),
+    search: (query, mode, period) =>
+      request({
+        method: "POST",
+        path: "/api/search",
+        body: { query, mode, period },
+      }),
     me: async () => {
       const r = await request<{ hasActiveCycle: boolean }>({ method: "GET", path: "/api/me" });
       return { hasActiveCycle: r.hasActiveCycle };

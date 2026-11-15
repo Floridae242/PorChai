@@ -1,6 +1,7 @@
 import type { UserCategory } from "@/lib/api-types";
 import { getDb } from "@/lib/db/client";
 import type { SlipKind } from "@/lib/ocr/slip";
+import type { ActionPending } from "@/lib/chat/actions/types";
 
 // Short chat memory (migration 20261113000000_chat_memory). The database forgets lines older than
 // 30 minutes and beyond the newest 10; reads also skip anything older, in case nobody wrote since.
@@ -16,6 +17,7 @@ export interface ProposedItem {
 
 // What the bot's answer waits for
 export type Pending =
+  | ActionPending
   | { kind: "amount"; title: string } // «ข้าว» → asked how much
   | { kind: "title"; amount: number } // «45» → asked what for
   | { kind: "items"; key: string; items: ProposedItem[] } // several spends → [จดทั้งหมด][ไม่ใช่]
@@ -52,6 +54,16 @@ export interface ChatLine {
 }
 
 const since = () => new Date(Date.now() - WINDOW_MS).toISOString();
+
+// Nonces resolve only to this account's server-created draft, never a client-supplied action.
+export async function commandPendingFor(userId: string, key: string): Promise<ActionPending | null> {
+  const { data, error } = await getDb().from("chat_messages").select("pending")
+    .eq("user_id", userId).eq("role", "bot").eq("pending->>key", key)
+    .gte("created_at", since()).order("id", { ascending: false }).limit(1);
+  if (error) throw error;
+  const p = data[0]?.pending as ActionPending | undefined;
+  return p?.kind.startsWith("chat_") ? p : null;
+}
 
 // Oldest first, as the conversation went
 export async function recentChat(userId: string): Promise<ChatLine[]> {

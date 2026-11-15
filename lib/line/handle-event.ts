@@ -63,7 +63,6 @@ import {
   declinedMessage,
   expiredMessage,
   keptMessage,
-  noCycleMessage,
   offTopicMessage,
   recordedMessage,
   type Draft,
@@ -84,6 +83,7 @@ import { HttpError } from "@/lib/http";
 import { decodePostback, type DecodedPostback } from "@/lib/line/flex/postback";
 import { reply, text, withAppButton, type ReplyMessage } from "@/lib/line/reply";
 import { presentReply } from "@/lib/line/presentation";
+import { chatAction, chatActionButton } from "@/lib/chat/actions";
 
 interface LineEvent {
   type?: unknown;
@@ -127,7 +127,7 @@ export async function handleEvent(event: unknown): Promise<void> {
     }
   } catch (err) {
     if (!(err instanceof HttpError && err.code === "no_cycle")) throw err;
-    answer = say(noCycleMessage());
+    answer = say(text("ยังไม่ได้ตั้งรอบเงินครับ พิมพ์ ‘เริ่มรอบเงิน’ เพื่อตั้งค่าในแชตได้เลย คำสั่งเมื่อกี้ยังไม่ได้บันทึกครับ"));
   }
   if (!answer) return;
   if (said !== null) {
@@ -178,6 +178,8 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // The rich menu made in LINE OA Manager sends texts, not postbacks (it has no postback buttons)
   const menu = MENU_TEXTS[body.trim()];
   if (menu) return say(menu());
+  const command = await chatAction(userId, body, pending);
+  if (command) return command;
   const clarification = conversationBoundary(body);
   if (clarification) return converse(userId, body, history, { approximate: false, question: false, clarification });
   // A social response ends the previous question; it is never the title of a pending amount.
@@ -298,6 +300,8 @@ const LABEL = { pay: "ยืนยันจ่ายจริง", try: "ลอ�
 
 // Buttons from holdMessage / tryMessage / adviceMessage / proposalMessage. Anything malformed is ignored.
 async function onPostback(userId: string, data: string): Promise<{ label: string; answer: Answer } | null> {
+  const command = await chatActionButton(userId, data);
+  if (command) return { label: "คำสั่งแชต", answer: command };
   const flex = decodePostback(data);
   if (flex) return { label: flexLabel(flex), answer: await onCardButton(userId, flex) };
   const choice = readChoice(data);
