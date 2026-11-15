@@ -71,6 +71,7 @@ export interface BalanceCheckRequest {
 export type PlanStatus = "reserved" | "postponed" | "paid" | "cancelled" | "separate";
 
 export interface Plan {
+  billScheduleId?: string | null;
   id: string;
   kind: "bill" | "purchase";
   title: string;

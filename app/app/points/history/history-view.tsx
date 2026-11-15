@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ApiError } from "@/lib/client/errors";
 import type { PointsHistoryItem } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
+import {useDataRevision} from "@/lib/client/use-data-revision";
 import { formatThaiDate } from "@/lib/format/date";
 
 const MSG_NOT_READY = "ยังไม่พร้อมใช้งาน";
@@ -47,6 +48,7 @@ function HistoryRow({ item }: { item: PointsHistoryItem }) {
 
 export function PointsHistoryView() {
   const api = useApi();
+  const revision=useDataRevision();
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [attempt, setAttempt] = useState(0);
 
@@ -64,7 +66,7 @@ export function PointsHistoryView() {
     return () => {
       cancelled = true;
     };
-  }, [api, attempt]);
+  }, [api, attempt,revision]);
 
   return (
     <main className="flex flex-col gap-4 py-2 font-body">

@@ -1,5 +1,7 @@
 import { flexExamples, type FlexExample } from "./flex-examples";
 import { buildOnboardingCarousel } from "./onboarding";
+import { billNotification } from "./bill-notification";
+import {sponsorCarousel} from "./sponsor-card";
 import { text } from "./reply";
 import { presentReply } from "./presentation";
 import type { FlexMessage } from "./branded-flex";
@@ -61,6 +63,9 @@ export function flexCaseCatalog(): FlexExample[] {
       message: buildOnboardingCarousel(),
     },
     ...flexExamples().slice(1),
+    add("sponsored-demo","โฆษณาตัวอย่างในแชต",sponsorCarousel()),
+    add("bill-three-days","บิล: เตือนล่วงหน้า 3 วัน",billNotification({title:"ค่าหอ (ตัวอย่าง)",amount:300000,dueOn:"2026-12-01",repeat:"monthly"},3)),
+    add("bill-due-today","บิล: ครบกำหนดวันนี้",billNotification({title:"ค่าอินเทอร์เน็ต (ตัวอย่าง)",amount:39900,dueOn:"2026-12-01",repeat:"once"},0)),
     add("today-live", "งบวันนี้", todayCard(summary(input))),
     add(
       "record-live",

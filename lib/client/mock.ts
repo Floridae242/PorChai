@@ -1,4 +1,6 @@
 import { mockSpendingInsights } from "./insights-mock";
+import { monthDue, moveMonth, parseBillSchedule } from "@/lib/bills/calendar";
+import type { BillSchedule } from "@/lib/bills/types";
 import { parseCategory } from "@/lib/insights/categories";
 import type { SpendingCategory } from "@/lib/insights/types";
 // In-memory PorchaiApi for building and demoing screens before the backend catches up.
@@ -105,6 +107,9 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   const plans: StoredPlan[] = [];
   const entryKeys = new Map<string, string>(); // idempotency key -> entry id
   const planKeys = new Map<string, string>();
+  const billSchedules: BillSchedule[]=[];
+  const billKeys=new Map<string,string>();
+  const billPlans=new Map<string,string[]>();
   const incomeKeys = new Set<string>();
   let reminders: ReminderSettings = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
 
@@ -356,6 +361,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       // The mock keeps one cycle; a new one starts clean
       entries.length = 0;
       plans.length = 0;
+      billSchedules.length=0;billKeys.clear();billPlans.clear();
       for (const b of req.bills ?? []) {
         const status = b.status === "separate" || b.status === "paid" ? b.status : "reserved";
         pushPlan({ kind: "bill", title: b.title, amount: b.amount, dueOn: b.dueOn ?? null, category: null, status });
@@ -509,6 +515,26 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
     async plans() {
       const c = requireCycle();
       return { plans: plans.map((p) => publicPlan(c, p)) };
+    },
+
+    async pointsConnection(){return {balance:points,accountCode:"DEMO-ACCOUNT",systemCode:"DEMO-SYSTEM",release:"mock"};},
+    async billSchedules(){return {schedules:structuredClone(billSchedules)};},
+    async createBillSchedule(req,key){
+      requireCycle();const known=billSchedules.find(s=>s.id===billKeys.get(key));if(known)return {...known};
+      const p=parseBillSchedule(req,today);const schedule:BillSchedule={...p,id:crypto.randomUUID(),enabled:true};
+      billSchedules.push(schedule);billKeys.set(key,schedule.id);
+      const dates=[p.startsOn];if(p.repeat==="monthly"){
+       const last=moveMonth(today.slice(0,7),1);
+       for(let m=p.startsOn.slice(0,7);m<=last;m=moveMonth(m,1)){const d=monthDue(m,Number(p.startsOn.slice(-2)));if(d>=p.startsOn&&!dates.includes(d))dates.push(d);}
+      }
+      const ids=dates.map(d=>{const plan=pushPlan({kind:"bill",title:p.title,amount:p.amount,dueOn:d,category:null,status:"reserved"});plan.billScheduleId=schedule.id;return plan.id;});
+      billPlans.set(schedule.id,ids);return {...schedule};
+    },
+    async updateBillSchedule(id,input){
+      const schedule=billSchedules.find(s=>s.id===id);if(!schedule)throw new ApiError(404,"not_found","ไม่พบบิล");
+      if(input.notify!==undefined)schedule.notify=input.notify;
+      if(input.stop){schedule.enabled=false;for(const id of billPlans.get(schedule.id)??[]){const p=findPlan(id);if(p.dueOn&&p.dueOn>=today&&["reserved","postponed"].includes(p.status))p.status="cancelled";}}
+      return {...schedule};
     },
 
     async addPlan(req, key) {

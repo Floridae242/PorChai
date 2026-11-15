@@ -291,7 +291,7 @@ describe("card 09: expenses from the chat", () => {
   });
 
   it("shows explicitly fictional coupons in chat without recording a spend",async()=>{
-    await figma();await chat("ดูคูปอง");expect(lastText()).toContain("ใช้ซื้อจริงไม่ได้");expect(lastText()).toContain("DEMO-MEAL49");expect(await screenEntries()).toEqual([]);
+    await figma();await chat("ดูคูปอง");expect(lastText()).toContain("ใช้ซื้อจริงไม่ได้");expect(lastText()).toContain("โฆษณาตัวอย่าง");expect(lastText()).toContain("ผู้สนับสนุนสมมติ");expect(lastText()).not.toContain("DEMO-MEAL49");expect(await screenEntries()).toEqual([]);
   });
 
   it.each(["ค้นเว็บ ข้าว 50", "search coffee 50"])("search commands never become payments: %s", async (message) => {

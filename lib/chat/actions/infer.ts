@@ -10,7 +10,6 @@ const READS = [
   "plans",
   "points",
   "rewards",
-  "promos",
   "notifications",
   "reminders",
 ] as const;

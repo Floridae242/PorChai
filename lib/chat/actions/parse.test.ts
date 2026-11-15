@@ -18,6 +18,9 @@ describe("chat command boundaries", () => {
     ["เปิดเตือนจด", "reminders"],
     ["กันเงินเผื่อ 0 บาท", "buffer"],
     ["ดูคูปอง", "promos"],
+    ["ดูโปร", "promos"],
+    ["ดูโฆษณา", "promos"],
+    ["ดูโปรตัวอย่าง", "promos"],
   ])("routes %s without recording an expense", (message, tool) => {
     expect(parseIntent(message, today)?.tool).toBe(tool);
   });
@@ -28,6 +31,12 @@ describe("chat command boundaries", () => {
     "ไม่จ่ายบิล 1",
     "ขอบคุณ",
     "ถ้าซื้อข้าว 50 จะพอไหม",
+    "โปรแกรมเรียน 100",
+    "โปร",
+    "รับคูปอง",
+    "คูปอง",
+    "ดูโปรแกรมเรียน",
+    "อย่าแสดงโฆษณา",
   ])("preserves ordinary chat and negative requests: %s", (message) => {
     expect(parseIntent(message, today)).toBeNull();
   });

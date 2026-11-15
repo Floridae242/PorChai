@@ -90,6 +90,8 @@ import { presentReply } from "@/lib/line/presentation";
 import { chatAction, chatActionButton } from "@/lib/chat/actions";
 import { onboardingHelp } from "@/lib/line/onboarding";
 import { readHelpRequest } from "@/lib/line/help-request";
+import {pointsConnection} from "@/lib/support/points-connection";
+import {getDb} from "@/lib/db/client";
 
 interface LineEvent {
   type?: unknown;
@@ -168,6 +170,11 @@ const MENU_TEXTS: Record<string, () => ReplyMessage> = {
 };
 
 async function onText(userId: string, body: string, eventId: string): Promise<Answer> {
+  if(/^(?:ตรวจแต้ม|ตรวจการซิงก์แต้ม)(?:ครับ|ค่ะ|คะ)?$/u.test(body.trim())){
+    const user=await getDb().from("users").select("line_user_id").eq("id",userId).single();if(user.error)throw user.error;
+    const info=await pointsConnection(userId,user.data.line_user_id);
+    return say(text(`ยอดจากเซิร์ฟเวอร์ ${info.balance} แต้ม\nรหัสบัญชี ${info.accountCode}\nรหัสระบบ ${info.systemCode} · เวอร์ชัน ${info.release}\nเปิดหน้าแต้มใน MINI App แล้วเลือก ตรวจการเชื่อมต่อ เพื่อเทียบรหัสทั้งสองฝั่งครับ`),undefined,"ตรวจการซิงก์แต้ม");
+  }
   const help=readHelpRequest(body);
   if(help)return say(help.topic?onboardingHelp(`guide:${help.topic}`)!:welcomeCard(),undefined,"วิธีใช้พอใช้");
   const history = await recentChat(userId);
