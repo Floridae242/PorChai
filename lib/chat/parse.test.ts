@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amountOnly, parseExpense } from "@/lib/chat/parse";
+import { amountOnly, categoryOf, parseExpense } from "@/lib/chat/parse";
 
 it.each(["ได้รับเงิน 1000 บาท", "ได้รับเงิน ๑,๐๐๐ บาท", "แม่ให้เงิน 1000", "พ่อให้เงิน 1000", "got paid 1000", "income 1000"])("explicit received money is income, never an expense: %s", (message) => {
   expect(parseExpense(message)).toMatchObject({ kind: "income", amount: 100000 });
@@ -111,3 +111,9 @@ describe("amountOnly: the answer to «กี่บาท?»", () => {
     for (const text of ["ข้าว 45", "45 50", "ประมาณ 45", "0", "99999999", "Hey", ""]) expect(amountOnly(text)).toBeNull();
   });
 });
+
+// 15 Nov: «ปลาหมึกย่าง» went to «อื่น ๆ»
+it.each(["ปลาหมึกย่าง", "กุ้งเผา", "หมาล่า", "ผัดกะเพรา", "ไข่เจียว", "ต้มยำ", "ลูกชิ้นทอด", "แกงเขียวหวาน", "โจ๊ก", "บะหมี่", "เบอร์เกอร์", "ชานมไข่มุก", "บิงซู", "โรตี", "สเต็ก", "ติ่มซำ"])(
+  "«%s» is food", (title) => expect(categoryOf(title)).toBe("food"),
+);
+it("«อย่าง» is not «ย่าง»: «อย่างอื่น» stays other", () => expect(categoryOf("อย่างอื่น")).toBe("other"));
