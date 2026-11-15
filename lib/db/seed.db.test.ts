@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { addDays } from "@/lib/calc/time";
 import { simulatePurchase } from "@/lib/calc/budget";
 import { getDb } from "@/lib/db/client";
 import { loadSummary } from "@/lib/db/budget";
@@ -15,6 +16,14 @@ async function seededUser(line: string): Promise<string> {
   return data.id;
 }
 
+// Test the seeded example at its own day, not the machine's next day.
+// Real-time rollover behavior is tested separately in the calculator/API suites.
+async function seedSummary(userId: string) {
+  const { data, error } = await db.from("cycles").select("payday").eq("user_id", userId).eq("status", "active").single();
+  if (error) throw error;
+  return loadSummary(userId, new Date(`${addDays(data.payday, -12)}T12:00:00+07:00`));
+}
+
 async function count(table: string, userId: string): Promise<number> {
   const { count } = await db.from(table).select("id", { count: "exact", head: true }).eq("user_id", userId);
   return count ?? 0;
@@ -23,7 +32,7 @@ async function count(table: string, userId: string): Promise<number> {
 describe("seed: try / choose a plan / pay for real", () => {
   it("try: after rice 45 the home screen shows 75 left; trying shoes 480 shows 80 a day and stores nothing", async () => {
     const userId = await seededUser("U_demo_try");
-    const s = await loadSummary(userId);
+    const s = await seedSummary(userId);
     expect(s).toMatchObject({ balance: 235500, reserved: 60000, spentToday: 4500 });
     expect(s.budget).toMatchObject({ kind: "ok", dailyBudget: 12000, todayRemaining: 7500, maxPurchase: 60000 });
 
@@ -44,14 +53,14 @@ describe("seed: try / choose a plan / pay for real", () => {
   });
 
   it("choose a plan: shoes 480 held back — money still 2,400, 80 a day", async () => {
-    const s = await loadSummary(await seededUser("U_demo_plan"));
+    const s = await seedSummary(await seededUser("U_demo_plan"));
     expect(s).toMatchObject({ balance: 240000, reserved: 108000 });
     expect(s.budget).toMatchObject({ kind: "ok", dailyBudget: 8000, todayRemaining: 8000 });
   });
 
   it("pay for real: shoes paid once — money 1,920, nothing held for them, still 80 a day", async () => {
     const userId = await seededUser("U_demo_paid");
-    const s = await loadSummary(userId);
+    const s = await seedSummary(userId);
     expect(s).toMatchObject({ balance: 192000, reserved: 60000, spentToday: 0 });
     expect(s.budget).toMatchObject({ kind: "ok", dailyBudget: 8000, todayRemaining: 8000 });
 

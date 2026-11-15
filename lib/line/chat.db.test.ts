@@ -149,7 +149,7 @@ describe("card 09: expenses from the chat", () => {
   it("09: unclear messages are asked back (AI off), with a button to the app; nothing is recorded", async () => {
     await figma();
     const cases: [string, string, string][] = [
-      ["ข้าว", "ผมชื่อพอใช้", "เปิดแอป"],
+      ["ข้าว", "จ่ายไปกี่บาท", "กรอกเองในแอป"],
       ["Hey", "ผมชื่อพอใช้", "เปิดแอป"],
       ["ข้าว 50 น้ำ 20", "ทีละรายการ", "กรอกเองในแอป"],
       ["ข้าวร้อยกว่า", "ยอดที่จ่ายจริง", "กรอกเองในแอป"],
@@ -161,6 +161,57 @@ describe("card 09: expenses from the chat", () => {
       expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label }));
     }
     expect(await screenEntries()).toEqual([]);
+  });
+
+  it("routine replies need no AI; a known item asks for its amount and records only after the answer", async () => {
+    await figma();
+    vi.mocked(generate).mockClear();
+    await chat("นายเป็นใคร");
+    expect(lastText()).toContain("ผมชื่อพอใช้");
+    await chat("กาแฟ");
+    expect(lastText()).toContain("จ่ายไปกี่บาท");
+    expect(await screenEntries()).toEqual([]);
+    await chat("45");
+    expect(await screenEntries()).toEqual([expect.objectContaining({ note: "กาแฟ", amount: 4500 })]);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("a bare amount followed by a routine item name still completes the pending title", async () => {
+    await figma();
+    expect((await chat("45")).status).toBe(200);
+    expect(await screenEntries()).toEqual([]);
+    expect((await chat("ข้าว")).status).toBe(200);
+    expect(await screenEntries()).toEqual([expect.objectContaining({ note: "ข้าว", amount: 4500 })]);
+  });
+
+  it("changing the topic clears an old pending amount; a later number does not record the old item", async () => {
+    await figma();
+    await chat("กาแฟ");
+    await chat("นายเป็นใคร");
+    expect(lastText()).toContain("ผมชื่อพอใช้");
+    await chat("45");
+    expect(lastText()).toContain("ค่าอะไร");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("a what-if interrupts pending spending without turning a later number into payment", async () => {
+    await figma();
+    await chat("กาแฟ");
+    await chat("ถ้าซื้อหูฟัง 700 ได้ไหม");
+    expect(await screenEntries()).toEqual([]);
+    await chat("45");
+    expect(lastText()).toContain("ค่าอะไร");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("a model daily-unit mixup falls back without changing existing expenses", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    vi.mocked(generate).mockResolvedValueOnce(JSON.stringify({ intent: "chat", topic: "money", item: null, reply: "วันนี้ใช้ได้อีก 75/วันครับ" }));
+    await chat("ใช้เยอะไปไหมวันนี้");
+    expect(lastText()).not.toContain("75/วัน");
+    expect(lastText()).toContain("วันนี้ใช้ได้อีก 75 บาท");
+    expect(await screenEntries()).toEqual([expect.objectContaining({ note: "ข้าว", amount: 4500 })]);
   });
 
   it("adding the OA as a friend: a welcome with a button to the app (MINI App link when the app is a MINI App)", async () => {
@@ -542,6 +593,14 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     expect(lastButtons().map((b) => b.label)).toEqual(["จดทั้งหมด", "ไม่ใช่", "กรอกเองในแอป", "เปิดแอป"]);
     expect(await screenEntries()).toEqual([]);
 
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(owner.error).toBeNull();
+    const pending = await db.from("chat_messages").select("pending").eq("user_id", owner.data!.id).not("pending", "is", null);
+    expect(pending.error).toBeNull();
+    expect(pending.data).toContainEqual({ pending: expect.objectContaining({ kind: "items", items: [
+      expect.objectContaining({ title: "ข้าว", amount: 4500 }), expect.objectContaining({ title: "น้ำ", amount: 2000 }),
+    ] }) });
+
     const all = button("จดทั้งหมด").data;
     await tap(all);
     expect(last().type).toBe("flex"); // โฟรวิว's recorded card with 2 items (Figma L10)
@@ -550,6 +609,36 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     await tap(all);
     expect(lastText()).toContain("จดไว้แล้ว");
     expect((await screenEntries()).map((e: { amount: number }) => e.amount).sort()).toEqual([2000, 4500]);
+  });
+
+  it("P-14: an unpriced future wish asks for its amount, never becomes a payment or a priced plan", async () => {
+    await figma();
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(owner.error).toBeNull();
+    const before = await db.from("plans").select("id,amount,title").eq("user_id", owner.data!.id).order("id");
+    expect(before.error).toBeNull();
+    // Even an invented model price cannot supply a missing user amount.
+    aiSays({ kind: "spend", title: "หมูกระทะ", amount_baht: 199, amount: 19900 });
+    expect((await chat("อยากกินหมูกระทะวันศุกร์")).status).toBe(200);
+    expect(lastText()).toMatch(/กี่บาท|ราคา|เท่าไร|จำนวนเงิน|ยอด/);
+    expect(await screenEntries()).toEqual([]);
+    const plans = await db.from("plans").select("id,amount,title").eq("user_id", owner.data!.id).order("id");
+    expect(plans.error).toBeNull();
+    expect(plans.data).toEqual(before.data); // preserve the fixture's existing bill
+    const memory = await db.from("chat_messages").select("pending").eq("user_id", owner.data!.id).not("pending", "is", null);
+    expect(memory.error).toBeNull();
+    for (const row of memory.data ?? []) {
+      expect(row.pending.kind).not.toBe("items");
+      expect(row.pending.draft?.amount ?? null).toBeNull();
+    }
+  });
+
+  it("a future purchase with a price still never records an immediate payment", async () => {
+    await figma();
+    aiSays({ intent: "spend", topic: "finance", item: "หูฟัง", reply: "" });
+    expect((await chat("อยากซื้อหูฟัง 199")).status).toBe(200);
+    expect(lastText()).not.toContain("จดแล้ว");
+    expect(await screenEntries()).toEqual([]);
   });
 
   it("[ไม่ใช่] records nothing", async () => {

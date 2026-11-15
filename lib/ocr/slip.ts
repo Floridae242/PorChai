@@ -30,7 +30,7 @@ export function slipFrom(ai: unknown, today: string): SlipReading | null {
   const a = ai as { is_slip?: unknown; kind?: unknown; merchant?: unknown; amount_baht?: unknown; candidates_baht?: unknown; date?: unknown };
   if (a.is_slip !== true) return null;
   const main = satang(a.amount_baht);
-  const others = (Array.isArray(a.candidates_baht) ? a.candidates_baht : []).map(satang).filter((s): s is number => s !== null);
+  const others = (Array.isArray(a.candidates_baht) ? a.candidates_baht.slice(0, 8) : []).map(satang).filter((s): s is number => s !== null);
   const all = [...new Set([...(main === null ? [] : [main]), ...others])];
   if (all.length === 0) return null;
   const merchant = typeof a.merchant === "string" ? a.merchant.trim().slice(0, MAX_TITLE) : "";

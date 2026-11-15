@@ -83,7 +83,13 @@ describe("POST /api/line/webhook", () => {
 
   it("when handleEvent throws: keeps going, answers 500, and forgets that event so LINE's redelivery is handled", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(handleEvent).mockRejectedValueOnce(new Error("boom"));
+    let shouldFail = true;
+    vi.mocked(handleEvent).mockImplementation(async (event) => {
+      if (shouldFail && (event as { webhookEventId?: string }).webhookEventId === id("E5")) {
+        shouldFail = false;
+        throw new Error("boom");
+      }
+    });
     const body = events(ev(id("E5")), ev(id("R1")));
     const res = await post(body);
     expect(res.status).toBe(500);
@@ -94,6 +100,22 @@ describe("POST /api/line/webhook", () => {
     expect(handleEvent).toHaveBeenCalledTimes(3);
     expect(vi.mocked(handleEvent).mock.calls[2][0]).toMatchObject({ webhookEventId: id("E5") });
     vi.mocked(console.error).mockRestore();
+  });
+
+  it("a concurrent duplicate requests redelivery while the owner is working, then becomes a completed duplicate", async () => {
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    vi.mocked(handleEvent).mockImplementation(async () => { await blocked; });
+    const body = events(ev(id("E1")));
+    const first = post(body);
+    try {
+      await vi.waitFor(() => expect(handleEvent).toHaveBeenCalledOnce());
+      expect((await post(body)).status).toBe(500);
+      expect(handleEvent).toHaveBeenCalledOnce();
+    } finally { release(); }
+    expect((await first).status).toBe(200);
+    expect((await post(body)).status).toBe(200);
+    expect(handleEvent).toHaveBeenCalledOnce();
   });
 
   it("503 when LINE_CHANNEL_SECRET is missing", async () => {

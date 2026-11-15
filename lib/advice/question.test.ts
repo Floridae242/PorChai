@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { isBalanceQuestion, isQuestion, numbersIn, onlyKnownNumbers, readQuestion } from "@/lib/advice/question";
 
+it.each(["อยากกินหมูกระทะวันศุกร์", "อยากซื้อหูฟัง 199", "อยากดื่มกาแฟ 50", "อยากสั่งข้าว 45"])(
+  "future purchase intent is a what-if, never an immediate payment: %s", (text) => expect(isQuestion(text)).toBe(true),
+);
+
 // Card 15: which chat messages are questions, the rule reading used when the AI is not available,
 // and the guard that keeps the AI from inventing numbers.
 

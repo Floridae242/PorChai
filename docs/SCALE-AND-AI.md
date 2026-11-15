@@ -1,0 +1,116 @@
+# Scaling and AI validation
+
+14 November 2026 · branch `Tle` · target: 1,000 concurrent users.
+
+## Implementation
+
+| Area | Change | Resource/correctness effect |
+|---|---|---|
+| Budget/alternatives | `budget_snapshot` RPC aggregates entries/income in PostgreSQL at one MVCC snapshot; all alternatives use `simulateLoaded` | One round trip instead of five for loading budget; avoids the REST 1,000-row cap; no shared cache of monetary facts |
+| SQL access | Partial indexes for live entries/income, reserved plans and enabled reminders | Supports filtered reads while retaining ownership predicates and service-only RPC grants |
+| DB burst control | FIFO `WorkPool`, 32 active budget reads, 1,024 queued maximum, 5s queue timeout and 5s query timeout | Bounds sockets/memory; rejects excess with 503 `overloaded`; Map removal and timeout cancellation are O(1) |
+| LINE token verification | SHA256-keyed LRU cache, at most 2,048 entries, TTL at most 30s and verified `exp`; at most 256 distinct verifications in flight | Concurrent identical tokens share one upstream request; invalid/unavailable results are not cached; audiences are isolated |
+| Account lookup | Read existing user before first-create upsert | Avoids repeatedly writing/locking an unchanged user record |
+| Webhook | Raw bytes remain signature-verified; at most 1MiB/100 events; 4 independent account groups per batch | FIFO for each account **within a batch**; database leases prevent acknowledging in-progress duplicates as complete |
+| Event recovery | Processing/done state, owner UUID and 120s lease; only owner can complete/release | An expired claim is reclaimable after a crash. Busy/error events return non-2xx; LINE redelivery must be enabled |
+| Request/images | Stream actual byte limits; 64KiB API JSON, 8MiB supported image types; at most 2 photo jobs per process | Geometrically growing byte buffer avoids per-chunk metadata growth; rejected jobs do not allocate base64 payloads |
+| AI admission | Shared PostgreSQL minute counters: 120 attempts globally/minute, 12 per user/minute by default | Every provider attempt, including retry, consumes quota atomically across instances; failure of admission falls back safely |
+| AI provider | 8 concurrent jobs per process, no waiting AI queue, 5-failure circuit breaker, 30s recovery probe | At most 2 transient attempts in the same 15s request budget; honors Retry-After; no raw provider errors or prompts in logs |
+| AI interpretation | Literal prices/days use deterministic rules; model only words the calculated outcome | Removes one provider call and prevents a model from replacing the literal price |
+| AI guards | Signed/Unicode/exponent/magnitude tests, unknown-number rejection, saved-action claims, bounded six-line context | More adversarial cases fall back; calculations and writes remain in code, not model instructions |
+| Data structures | Map frequency counts for repeated prices, Map/Set plan lookup and exclusion, linear habit grouping/latest selection | Replaces repeated `.find`/`.includes` and quadratic repeated array copying; medians still use sorting |
+| Chat retention | Per-user pruning on write; indexed global expiry on maintenance jobs | Removes cross-user delete work on every chat insert; expired lines are excluded immediately on read |
+
+The token cache can retain a previously valid result for up to 30s. Verified expiry always takes precedence. No raw bearer token is used as a cache key. The cache is process-local and contains only LINE identity verification, not balances or advice responses.
+
+`AI_GLOBAL_RPM`, `AI_USER_RPM`, `AI_MAX_CONCURRENT`, and `DB_READ_CONCURRENCY` are server-only settings. Defaults are conservative application limits, **not evidence of the provider account's actual quota**. A fixed-minute window can admit two adjacent buckets around a minute boundary. Align settings across all instances. Limiting model work does not limit ordinary financial calculations.
+
+## Measured evidence
+
+The local budget benchmark creates 1,000 distinct temporary accounts, creates cycles, then starts 1,000 incoming requests simultaneously. It exercises local PostgREST, PostgreSQL, `loadSummary` and the calculator. The database bulkhead admits 32 active requests and queues the remaining callers.
+
+| Measurement | Result |
+|---|---:|
+| Before DB backpressure, initial burst | 260/1,000 succeeded; 740 transport failures |
+| Diagnostic repeat before backpressure | 254/1,000 succeeded; 746 `TypeError: fetch failed` |
+| After backpressure | 1,000/1,000 succeeded; 0 failures |
+| Total elapsed after backpressure | 674 ms |
+| p50 / p95 / p99 | 352 / 607 / 620 ms |
+| Successful budget reads/second in that run | 1,484 |
+
+These are single-machine burst measurements, not a production SLA. Before/after failure rates show the connection-burst problem; failed-request latencies must not be treated as successful throughput. The ignored report `scripts/scale-benchmark-report.json` is regenerated by `npm run bench:scale`. Temporary benchmark rows are removed in `finally`.
+
+Automated coverage includes 1,505 financial entries beyond the API row limit, anchor/cancellation/backdated/income/paid-plan rules, equal-timestamp anchors, anonymous RPC denial, 25-way quota admission, 20-way event-lease races and stale owners, 1,000 keyed jobs, 1,000 token-verification callers, bounded AI overload/fallback, Retry-After/error/malformed response tests, and 5,000 deterministic generated money scenarios.
+
+The 1,000-call AI overload test intentionally admits 8 mocked provider jobs and falls back for 992 excess jobs. It proves resource bounds and recovery, not 1,000 simultaneous model completions or semantic accuracy.
+
+## Verification results
+
+- Unit/integration: 96 files, 1,380 passed; 2 existing QA TODOs remain.
+- Local database: 20 files, 305 passed.
+- `npm run lint`, `npm run typecheck`, `npm run build`: passed.
+- Optimization core received an independent code/security review with no blocking findings. A follow-up independent review of the live-evaluation delta could not run because the review agent reached its usage limit; that delta was reviewed locally and covered by regression tests. Working diff credential scan and `git diff --check`: passed.
+
+## AI evaluation and limits
+
+`npm run eval:offline` runs reproducible synthetic safety/failure cases without credentials or external calls. It validates prompt boundaries, output guards, resource controls and monetary invariants. It is prompt/runtime tuning; no model weights were trained.
+
+The user supplied a credential and it was configured only in ignored `.env.local` (mode 600). A live single-case smoke test succeeded in 2,338ms. Two synthetic evaluations then ran on 14 November 2026 with the existing `gemini-3.1-flash-lite` model:
+
+| Direct-reader evaluation | Outcomes |
+|---|---|
+| Baseline, all 54 cases | 21 `ok`, 9 `off_topic`, 4 `spend`, 20 `no_answer` |
+| Targeted rerun after prompt/guard changes, 10 selected cases | 3 `ok`, 2 `spend`, 4 `no_answer`, 1 `spend_not_in_text` |
+
+These are outcome labels, **not semantic accuracy scores**. Manual review of the baseline found that known digits alone were insufficient: the model sometimes described 75 baht remaining today as 75 baht/day, or called the total balance spendable budget. `groundedReply` now checks recognized financial claims against the corresponding facts, and the prompt explicitly distinguishes balance, todayRemaining and dailyBudget. The three accepted monetary answers in the targeted rerun kept these roles correct; this small selected sample does not prove general accuracy. The malformed follow-up interpretation was rejected, not recorded.
+
+The production handler now answers exact routine greetings/introduction/help and three common bare expense names without a provider call. This rule runs only after pending financial answers have been processed, so an item name answering a previous amount is not diverted. The direct-reader evaluations deliberately bypass this handler routing; do not count the routine fallback as an improved model score.
+
+20/54 baseline and 4/10 targeted cases returned no usable provider answer; several reached the 15s deadline. Provider reliability and broader semantic coverage therefore remain open work. No model weights were trained, no model winner was established, and the default model was not changed.
+
+Reproduce a small live report with `EVAL_LIMIT=12 npm run eval:chat -- scripts/chat.eval.ts`. `EVAL_CASES` optionally selects exact fixture messages separated by `|`. Live evaluation consumes provider quota; never use real spending histories, tokens, keys or LINE IDs in fixtures. The harness now fails when no case yields a usable response, rather than letting an entirely unavailable provider appear healthy. The generated report remains ignored by Git.
+
+Retry behavior follows [Google API errors](https://aistudio.google.com/docs/api-errors). SDK request deadlines follow [Supabase request timeouts](https://supabase.com/docs/guides/api/automatic-retries-in-supabase-js). Application validation remains necessary after any structured model output.
+
+## Rollout and remaining capacity work
+
+No hosted migration, deployment, push or production load test is performed by this task.
+
+1. Apply `20261114000000_scale_budget_ai.sql` and `20261114020000_line_event_leases.sql` before deploying the new code. They add indexes, RPCs, quotas, maintenance and event lease columns. Snapshot code deliberately does not fall back to silently truncated legacy reads when a migration is missing.
+2. Enable LINE webhook redelivery. Keep event-processing runtime below its 120s lease. Financial writes retain their own idempotency keys; a reply may fail independently after a successful write.
+3. Verify production query plans, index build/locking time on representative data, connection pool configuration and deployment instance concurrency. Do not run the local benchmark against hosted services: the harness explicitly rejects non-local database URLs.
+4. Run staged end-to-end journeys for 1,000 virtual users against an authorized staging environment, including LINE latency, token first-login bursts, mixed reads/writes, reminder fan-out, and realistic Gemini quotas/cost. Measure p95/p99, timeout/503 rate, duplicate writes, token/cache churn and DB utilization during sustained load.
+5. Cross-request conversational ordering is not globally serialized. Durable per-account queues/workers are the next architectural step if ordered multi-message chat under concurrent webhook deliveries is required. Keyed batch workers alone do not solve this.
+6. Existing reminder scheduling and history/list endpoints still need production-sized pagination/fan-out evaluation. No universal capacity claim is made for those paths. The two QA test TODOs have since been implemented (see below). Seed-fixture tests use the stored demo day instead of requiring a database reset after midnight.
+
+## Completing the two QA test TODOs — 15 November 2026
+
+P-14 now checks the real signed webhook, persisted `chat_messages.pending`, no entries before confirmation, and idempotent multi-item confirmation. `chat_drafts` is obsolete and was not reintroduced. An unpriced future wish exposed a fallback that greeted the user instead of asking for the price. Explicit purchase wishes now route to what-if handling even without a question mark; missing prices are asked deterministically without inventing an amount or creating an expense/plan. Priced wishes have a regression proving they do not become immediate payments. External model calls remain mocked in DB tests.
+
+P-24 now uses real local PostgreSQL wallet/inventory locks and transactions rather than only an in-memory reward mock. Added daily points and reward redemption RPCs, service-only permissions/RLS, authenticated APIs and live MINI App wiring. Points start at zero; there is no seeded live inventory. The catalog is bounded to the latest 100 active rewards. Tests cover last-item competition, overlapping retries, insufficient points, concurrent different purchases sharing one wallet, account-specific keys, current balances on replay, anonymous denial, invalid headers, forged request ownership/date and rollback on balance overflow.
+
+Apply `20261115000000_points_rewards.sql` in addition to the two earlier optimization migrations before deploying this code. This task applied it to local Supabase only. Production rollout, catalog administration, physical fulfillment and consent/promo backend gaps remain separate work. Removing the two `it.todo` markers does not imply all product TODOs or unknown inputs have been resolved.
+
+Final verification: 96 unit/integration files, 1,385 passing tests and zero test TODO markers; 22 local PostgreSQL files, 323 passing tests. The 18 existing perks component tests also passed after allowing long server-issued redemption codes to wrap on mobile. Lint, typecheck, production build, independent code review and `git diff --check` passed. The initial sandboxed Turbopack build stalled and was stopped; the same build completed successfully outside the sandbox. No provider-backed AI evaluation, hosted database migration, commit, push or deployment was performed.
+
+Unknown inputs cannot be exhaustively enumerated. Extend the synthetic dataset whenever a new failure is observed, keep a reproducible seed, and keep malformed/ambiguous model outputs on a deterministic fallback path.
+
+
+## Additional regression tests — 15 November 2026
+
+Added 78 cases: 69 financial-role/digit/unit permutations, four provider-error/recovery cases, four persisted chat/pending-flow cases, and one Thai-midnight snapshot case.
+
+The first run of the 69-case matrix exposed six failures: a today-remaining amount could be mislabeled with `/วัน`, `บ./วัน`, `฿/วัน`, spaced `ต่อ วัน`, Thai digits or full-width digits. The minimal daily-unit regex correction now checks these forms against dailyBudget as well. Correct daily values remain accepted; wrong role swaps, missing facts, signs and quarter-baht precision remain covered.
+
+DB regressions verify that a routine item name can complete a pending title, changing the topic does not leave an old pending expense active, what-if messages do not become payments, and rejected model wording does not change recorded spending. At 17:00 UTC (00:00 Bangkok), balance stays unchanged while today's spending resets and the basis/days-left change.
+
+Evidence: the initial matrix had 6 failures and 63 passes; after the fix, the full unit/integration suite has 1,369 passes plus 2 existing TODOs, and local DB tests have 302 passes. Lint, typecheck, production build, independent review of the added tests/minimal fix, and `git diff --check` passed. This expansion uses mocks and local Supabase; it makes no additional provider-backed model-quality claim.
+
+
+## Token and duplicate-event tests — 15 November 2026
+
+Added another 14 cases: 11 token-cache boundary tests and three real local DB concurrency/authorization tests. The first token run exposed six failures: four malformed explicit expiry values were accepted and two tests demonstrated mutable identity objects shared between callers/cache entries. The verifier now rejects malformed explicit `exp` values and returns isolated copies to initial callers, single-flight followers and cache hits. Missing expiry retains the existing uncached compatibility behavior.
+
+Additional tests cover LRU ordering, audience-separated concurrent requests, expired-token refresh failing closed during provider outage, token size boundaries, one owner winning an expired-lease burst, anonymous claim denial, and a real overlapping duplicate webhook returning retry while work is active then becoming a completed duplicate.
+
+Evidence: 20 focused token tests passed after the fix; all 1,380 unit/integration tests and 305 local DB tests passed, with two existing QA TODOs unchanged. Lint, typecheck, production build, independent review and diff checks passed. No extra credential-backed Gemini evaluation or production request is part of this expansion.

@@ -29,7 +29,7 @@ supabase db reset   # สร้างตารางใหม่จาก supaba
 supabase stop
 ```
 
-ข้อมูลทดสอบ (`supabase/seed.sql`) มีผู้ใช้เดโม 3 คนตามตัวเลข Figma: `U_demo_try` (ลอง), `U_demo_plan` (เลือกแผน), `U_demo_paid` (จ่ายจริง) · ใส่เฉพาะบนเครื่อง `supabase db push` ไม่ส่งขึ้น cloud · วันที่อิงวันที่ reset ถ้าเทสต์ข้ามวันให้ `supabase db reset` ใหม่ก่อน
+ข้อมูลทดสอบ (`supabase/seed.sql`) มีผู้ใช้เดโม 3 คนตามตัวเลข Figma: `U_demo_try` (ลอง), `U_demo_plan` (เลือกแผน), `U_demo_paid` (จ่ายจริง) · ใส่เฉพาะบนเครื่อง `supabase db push` ไม่ส่งขึ้น cloud · วันที่อิงวันที่ reset; เทสต์ seed อ่านตามวันของเดโมที่บันทึกไว้ จึงรันข้ามวันได้โดยไม่ต้อง reset ฐานข้อมูล
 
 เทสต์ฐานข้อมูล (`npm run test:db`) อ่านค่าจาก `.env.test.local` (ถูก `.gitignore` กันไว้ ห้าม commit)
 สร้างไฟล์นี้เองจากผล `supabase status -o env` ตามนี้:
@@ -138,6 +138,8 @@ LIFF ID เป็นค่า build-time จึงต้อง build ใหม�
 
 Webhook จะบันทึก event ID และเชื่อมตัวตนผ่าน Backend เมื่อกำหนด Supabase URL และ service role key ครบ. ถ้าทั้งสองค่าว่าง ยังทดสอบ OA/LIFF โดยไม่ต่อ DB ได้; ถ้าขาดค่าใดค่าหนึ่งตอบ 503. การกัน event ซ้ำของ DB ไม่ขวางการ retry ส่ง OA reply ที่ครั้งแรกส่งไม่สำเร็จ.
 
+แต้ม/ของรางวัล: หน้า MINI App เชื่อม `GET /api/points`, `POST /api/points/claim`, `GET /api/rewards` และ `POST /api/rewards/:id/redeem` แล้ว ต้อง apply migration `20261115000000_points_rewards.sql` ก่อนใช้ ระบบจริงเริ่ม 0 แต้มและ catalog ว่าง รายละเอียด transaction และ idempotency อยู่ใน [Frontend API](docs/frontend-api.md).
+
 ### LINE Developers Console (ทำเมื่อมี HTTPS endpoint พร้อมแล้ว)
 
 สถานะการตั้งค่าและผลตรวจจริงรอบล่าสุดอยู่ใน [LINE live setup](docs/LINE-LIVE-SETUP.md). ปัจจุบันใช้ HTTPS tunnel ชั่วคราว ไม่ใช่ hosting ถาวร. ตรวจซ้ำได้ด้วย `npm run line:check -- --url https://<dev-host> --live` โดยไม่แสดง credential.
@@ -191,3 +193,15 @@ npm run build
 หน้าแนะนำมี desktop scroll showcase 6 ฉาก, ตัวเลือกบนมือถือ, การ์ดเลื่อนแนวนอน, สลับข้อมูลนักศึกษา/ร้านค้า, สถานการณ์สมมติ, FAQ และปุ่มกลับด้านบน. รองรับ reduced motion โดยปิด animation และช่วง pinned. `/miniapp` มีหน้าแนะนำแบบการ์ด มาสคอตเคลื่อนไหว สถานะ LINE และปุ่มเปิดหน้าการเงินจริงใน `/app`.
 
 `/` คือหน้าแนะนำ PorChai พร้อมแชตตัวอย่างแบบสลับได้และ FAQ. `/miniapp` คือหน้าทดสอบที่ตรวจตัวตน LINE; `/business/demo` คือรายงานธุรกิจสมมติ. ตั้ง Console Endpoint URL เป็น `https://<dev-host>/app` เพื่อให้ LIFF เริ่มและรับ redirect ภายใต้ `/app` รวมถึงการเปิด MINI App URL ที่ไม่มีพารามิเตอร์. หากเคยตั้งเป็น root ให้เปลี่ยนก่อนทดสอบรอบนี้. ยังไม่ใช่การรับรอง MINI App หรือหลักฐานทดสอบ LINE จริง.
+
+## รองรับโหลดและประเมิน AI
+
+งานปรับระบบเป้าหมาย 1,000 คนพร้อมกันและขอบเขตผลวัดอยู่ใน [Scale and AI validation](docs/SCALE-AND-AI.md).
+
+```bash
+npm run eval:offline  # guard, fault injection, 1,000-call admission tests, 5,000 generated money cases; no key/cost
+npm run test:db       # local Supabase only, including >1,000 rows and concurrent event leases
+npm run bench:scale   # creates 1,000 temporary local accounts, runs budget requests, cleans up, writes ignored JSON
+```
+
+ก่อนนำโค้ดนี้ขึ้น hosting ต้องใช้ migrations ใหม่ทั้งสองไฟล์ก่อน; งานรอบนี้ใช้กับฐานข้อมูล local เท่านั้น. ตั้ง limits ตาม `.env.example` และโควตาจริงของ LINE/Gemini/Supabase. บัญชีออนไลน์พร้อมกัน 1,000 คนไม่ได้แปลว่าส่งเข้า Gemini ได้ 1,000 งานพร้อมกัน: งาน AI เกินโควตาตอบด้วย template จากสูตรเงินจริง.

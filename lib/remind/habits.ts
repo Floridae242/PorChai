@@ -48,13 +48,15 @@ export function findHabits(entries: EntryForHabit[], today: string): Habit[] {
   for (const x of entries) {
     if (!counts(x) || x.spentOn < from || x.spentOn >= today) continue;
     const k = habitKey(x.note!);
-    groups.set(k, [...(groups.get(k) ?? []), x]);
+    const group = groups.get(k);
+    if (group) group.push(x);
+    else groups.set(k, [x]);
   }
   const habits: Habit[] = [];
   for (const [key, xs] of groups) {
     const days = new Set(xs.map((x) => x.spentOn)).size;
     if (days < MIN_DAYS) continue;
-    const latest = [...xs].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1)!;
+    const latest = xs.reduce((last, x) => x.createdAt >= last.createdAt ? x : last);
     habits.push({
       key,
       label: latest.note!.trim(),
