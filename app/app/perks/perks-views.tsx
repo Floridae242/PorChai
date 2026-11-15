@@ -9,6 +9,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { API_MODE } from "@/app/app/_providers/liff-provider";
 import { AppHeader } from "@/components/shell/app-header";
 import { useToast } from "@/components/shell/toast";
 import { Banner } from "@/components/ui/banner";
@@ -127,9 +128,11 @@ export function PerksListView() {
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="สิทธิพิเศษ & แต้ม" tone="default" />
-      <Link href="/app/promotions" className={buttonClass("secondary")}>
-        คูปอง โปรโมชัน และโฆษณาตัวอย่าง
-      </Link>
+      {API_MODE === "mock" ? (
+        <Link href="/app/promotions" className={buttonClass("secondary")}>
+          คูปอง โปรโมชัน และโฆษณาตัวอย่าง
+        </Link>
+      ) : null}
 
       <section className="flex flex-col gap-2 rounded-md border border-line bg-reward-bg p-4">
         <div className="flex items-center justify-between gap-3">
