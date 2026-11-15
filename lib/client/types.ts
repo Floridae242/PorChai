@@ -100,6 +100,10 @@ export interface SaveReminderSettings {
 export type PlanActionName = "pay" | "unpay" | "cancel" | "postpone" | "keep";
 
 export interface PorchaiApi {
+  pointsConnection():Promise<import("@/lib/support/points-connection").PointsConnection>;
+  billSchedules(): Promise<{schedules: import("@/lib/bills/types").BillSchedule[]}>;
+  createBillSchedule(input: import("@/lib/bills/types").NewBillSchedule, key:string): Promise<import("@/lib/bills/types").BillSchedule>;
+  updateBillSchedule(id:string,input:{notify?:boolean;stop?:true}): Promise<import("@/lib/bills/types").BillSchedule>;
   spendingCategories(): Promise<import("@/lib/insights/types").SpendingCategory[]>;
   saveSpendingCategory(input: import("@/lib/insights/types").SaveCategory): Promise<import("@/lib/insights/types").SpendingCategory>;
   spendingInsights(ai?: boolean): Promise<import("@/lib/insights/types").SpendingInsights>;

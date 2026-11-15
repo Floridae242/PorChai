@@ -126,6 +126,10 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
       await request({ method: "DELETE", path: "/api/me" });
     },
 
+    pointsConnection: () => request({method:"GET",path:"/api/points/connection"}),
+    billSchedules: () => request({method:"GET",path:"/api/bills"}),
+    createBillSchedule: (body,idempotencyKey) => request({method:"POST",path:"/api/bills",body,idempotencyKey}),
+    updateBillSchedule: (id,body) => request({method:"PATCH",path:`/api/bills/${seg(id)}`,body}),
     // --- NOT ON THE SERVER YET (backend-gaps 13-20): wire each to its route when it ships ---
     consent: notImplemented,
     acceptConsent: notImplemented,

@@ -23,9 +23,20 @@ describe("LIFF deployment configuration", () => {
     expect((await import("./config")).LIFF_ID).toBe("2012545254-6025ZG1r");
   });
 
-  it("retains the standalone Login fallback when no ID is configured", async () => {
+  it("defaults to the canonical MINI App instead of silently opening a different Login channel", async () => {
     vi.stubEnv("NEXT_PUBLIC_LIFF_ID", "");
+    vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "");
     vi.resetModules();
-    expect((await import("./config")).LIFF_ID).toBe("2012545176-udYyTUiA");
+    const c = await import("./config");
+    expect(c.LIFF_ID).toBe("2012545254-6025ZG1r");
+    expect(c.appUrl()).toBe("https://miniapp.line.me/2012545254-6025ZG1r");
+  });
+  it("keeps an explicitly configured standalone LIFF channel working", async () => {
+    vi.stubEnv("NEXT_PUBLIC_LIFF_ID", "2012545176-udYyTUiA");
+    vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "2012545254");
+    vi.resetModules();
+    expect((await import("./config")).appUrl()).toBe(
+      "https://liff.line.me/2012545176-udYyTUiA",
+    );
   });
 });

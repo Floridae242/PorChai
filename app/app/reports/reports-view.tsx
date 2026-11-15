@@ -5,27 +5,40 @@ import { AppHeader } from "@/components/shell/app-header";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonClass } from "@/components/ui/button";
 import { useApi } from "@/lib/client/use-api";
+import { useDataRevision } from "@/lib/client/use-data-revision";
 import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import { thaiDate } from "@/lib/calc/time";
 import { formatBaht } from "@/lib/format/money";
 import type { FinanceReport } from "@/lib/reports/types";
 
-export function ReportNumbers({ report, compact = false }: { report: FinanceReport; compact?: boolean }) {
+export function ReportNumbers({
+  report,
+  compact = false,
+}: {
+  report: FinanceReport;
+  compact?: boolean;
+}) {
   return (
-    <dl className={compact ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-3 sm:grid-cols-3"}>
+    <dl
+      className={
+        compact
+          ? "grid grid-cols-2 gap-3"
+          : "grid grid-cols-2 gap-3 sm:grid-cols-3"
+      }
+    >
       {[
         ["รายจ่ายที่จด", report.spending],
         ["รายรับที่จด", report.income],
         ["รายรับ − รายจ่าย", report.net],
-      ].map(([label, amount]) => (
+      ].map(([label, amount], index) => (
         <div
           key={String(label)}
-          className={`rounded-md border border-line bg-card ${compact ? "p-3" : "p-4"}`}
+          className={`min-w-0 rounded-md border border-line ${compact && index === 2 ? "col-span-2 flex flex-wrap items-center justify-between gap-2 bg-subtle px-4 py-3" : "bg-card p-4"}`}
         >
           <dt className="text-xs text-secondary">{label}</dt>
           <dd
             data-clarity-mask="true"
-            className={`mt-1.5 font-bold tabular-nums text-primary ${compact ? "text-base" : "mt-2 text-xl"}`}
+            className={`break-words font-bold tabular-nums ${Number(amount) < 0 ? "text-danger" : "text-primary"} ${compact && index === 2 ? "text-lg" : "mt-2 text-xl"}`}
           >
             {formatBaht(Number(amount))}
             <span className="ml-1 text-xs font-normal">บาท</span>
@@ -36,7 +49,7 @@ export function ReportNumbers({ report, compact = false }: { report: FinanceRepo
   );
 }
 
-// Home "dashboard": this month's recorded totals (from the server), one main way into the report,
+// Home "dashboard": this month's recorded totals (from the server), one main link into the report,
 // and the other tools as small text links.
 const DASHBOARD_LINKS = [
   { href: "/app/insights", label: "พฤติกรรมและงบรายหมวด" },
@@ -47,6 +60,7 @@ const DASHBOARD_LINKS = [
 
 export function DashboardInsights() {
   const api = useApi();
+  const revision = useDataRevision();
   const [report, setReport] = useState<FinanceReport | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -54,7 +68,10 @@ export function DashboardInsights() {
     api
       .report("month")
       .then((r) => {
-        if (active) setReport(r);
+        if (active) {
+          setReport(r);
+          setFailed(false);
+        }
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -62,13 +79,18 @@ export function DashboardInsights() {
     return () => {
       active = false;
     };
-  }, [api]);
+  }, [api, revision]);
   return (
     <section
       className="flex flex-col gap-3 rounded-md border border-line bg-subtle p-4"
       aria-label="ภาพรวมรายงาน"
     >
-      <h2 className="text-base font-bold text-primary">ภาพรวมเดือนนี้</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-bold text-primary">ภาพรวมเดือนนี้</h2>
+        <span className="rounded-pill bg-card px-3 py-1 text-xs text-secondary">
+          จากรายการที่คุณจด
+        </span>
+      </div>
       {report ? (
         <ReportNumbers report={report} compact />
       ) : (
@@ -76,6 +98,16 @@ export function DashboardInsights() {
           {failed
             ? "ยังโหลดรายงานไม่ได้ เปิดหน้ารายงานเพื่อลองใหม่ได้ครับ"
             : "กำลังโหลดรายงาน…"}
+        </p>
+      )}
+      {report && (
+        <p className="text-xs leading-5 text-secondary">
+          ส่วนต่างรายรับกับรายจ่ายนี้ไม่ใช่เงินคงเหลือ ดูเงินที่ใช้ได้จริงจากการ์ดวันนี้ด้านบน
+        </p>
+      )}
+      {report && failed && (
+        <p role="status" className="text-xs text-danger">
+          ยังอัปเดตรายงานไม่ได้ ตัวเลขอาจยังไม่ล่าสุด
         </p>
       )}
       <Link
@@ -102,14 +134,15 @@ export function DashboardInsights() {
 }
 export function ReportsView() {
   const api = useApi();
+  const revision = useDataRevision();
   const today = thaiDate(new Date());
   const [period, setPeriod] = useState<"day" | "month">("month");
   const [anchor, setAnchor] = useState<string | undefined>();
   const [focusedDay, setFocusedDay] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const key = useMemo(
-    () => ({ api, period, anchor, attempt }),
-    [api, period, anchor, attempt],
+    () => ({ api, period, anchor, attempt, revision }),
+    [api, period, anchor, attempt, revision],
   );
   const [loaded, setLoaded] = useState<{
     key: typeof key;

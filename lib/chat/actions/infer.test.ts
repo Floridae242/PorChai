@@ -13,6 +13,7 @@ describe("model classification is read only", () => {
     "entry",
     "notifications_write",
     "none",
+    "promos",
   ])("rejects unsupported tool %s", async (tool) => {
     vi.mocked(generate).mockResolvedValue(
       JSON.stringify({ tool, id: "someone-else", amount: 100 }),

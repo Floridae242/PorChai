@@ -232,28 +232,31 @@ describe("H7 bills", () => {
     expect(screen.queryByText(/รวมบิล/)).toBeNull();
   });
 
-  it("add: a double tap makes one addPlan call (kind bill) and reloads", async () => {
-    const addPlan = vi.fn<PorchaiApi["addPlan"]>(async () => ({ plan: BILL }) as never);
+  it("add: reviews the chosen date and a double tap creates one bill schedule", async () => {
+    const createBillSchedule = vi.fn<PorchaiApi["createBillSchedule"]>(async () => ({id:"schedule"}) as never);
     const plans = vi.fn().mockResolvedValueOnce({ plans: [] }).mockResolvedValue({ plans: [BILL] });
-    renderWith(apiWith({ plans, addPlan }), <SettingsBillsView />);
+    renderWith(apiWith({ plans, createBillSchedule }), <SettingsBillsView />);
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "+ เพิ่มบิล" }));
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("ชื่อบิล"), "ค่าหอ");
     await user.type(within(dialog).getByLabelText("จำนวนเงิน (บาท)"), "400");
-    await user.dblClick(within(dialog).getByRole("button", { name: "บันทึก" }));
-    await waitFor(() => expect(addPlan).toHaveBeenCalledTimes(1));
-    expect(addPlan.mock.calls[0][0]).toMatchObject({ kind: "bill", title: "ค่าหอ", amount: 40000 });
+    await user.click(within(dialog).getByRole("button", {name:"ตรวจบิลก่อนบันทึก"}));
+    expect(createBillSchedule).not.toHaveBeenCalled();
+    await user.dblClick(within(dialog).getByRole("button", { name: "ยืนยันเพิ่มบิล" }));
+    await waitFor(() => expect(createBillSchedule).toHaveBeenCalledTimes(1));
+    expect(createBillSchedule.mock.calls[0][0]).toMatchObject({title: "ค่าหอ", amount: 40000,repeat:"monthly",notify:false,startsOn:expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)});
     expect(await screen.findByText("ค่าหอ")).toBeTruthy();
   });
 
-  it("edit -> ยังไม่พร้อมใช้งาน and calls nothing", async () => {
+  it("calendar selection is read-only and does not create or pay bills", async () => {
     const addPlan = vi.fn();
     const planAction = vi.fn();
     renderWith(apiWith({ plans: plansOf([BILL]), addPlan, planAction }), <SettingsBillsView />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "แก้ไข ค่าหอ" }));
-    expect(await screen.findByText(/ยังไม่พร้อมใช้งาน/)).toBeTruthy();
+    await screen.findByText("ค่าหอ");
+    const days=screen.getAllByRole("button").filter(b=>b.getAttribute("aria-label")?.match(/^\d{4}-\d{2}-\d{2}/));
+    await user.click(days[0]);
     expect(addPlan).not.toHaveBeenCalled();
     expect(planAction).not.toHaveBeenCalled();
   });

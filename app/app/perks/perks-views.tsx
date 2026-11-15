@@ -23,6 +23,9 @@ import {
 } from "@/lib/client/claimed-code";
 import type { Promo, Reward } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
+import {PointsConnectionHelp} from "@/components/points/connection-help";
+import {usePoints} from "@/lib/client/use-points";
+import {useDataRevision} from "@/lib/client/use-data-revision";
 import { useSubmit } from "@/lib/client/use-submit";
 import { formatThaiDate, formatThaiTime } from "@/lib/format/date";
 import { formatBaht } from "@/lib/format/money";
@@ -30,14 +33,6 @@ import { formatBaht } from "@/lib/format/money";
 const noopSubscribe = () => () => {};
 const MSG_NOT_READY = "ยังไม่พร้อมใช้งาน";
 const MSG_LOAD_FAILED = "โหลดข้อมูลไม่สำเร็จ ตรวจสอบสัญญาณแล้วลองใหม่อีกครั้ง";
-
-interface Points {
-  balance: number;
-  claimedToday: boolean;
-}
-
-// No points API yet (or it failed): show 0, never a guess.
-const NO_POINTS: Points = { balance: 0, claimedToday: false };
 
 function isCode(err: unknown, code: string): boolean {
   return err instanceof ApiError && err.code === code;
@@ -98,19 +93,11 @@ function LoadFailed({ onRetry }: { onRetry: () => void }) {
 export function PerksListView() {
   const api = useApi();
   const [promos, setPromos] = useState<Load<Promo[]>>({ state: "loading" });
-  const [points, setPoints] = useState<Points>(NO_POINTS);
+  const pointState=usePoints(),points=pointState.data;
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    api
-      .points()
-      .then((p) => {
-        if (!cancelled) setPoints(p);
-      })
-      .catch(() => {
-        if (!cancelled) setPoints(NO_POINTS);
-      });
     api.promos().then(
       (list) => {
         if (!cancelled) setPromos({ state: "ok", value: list });
@@ -138,7 +125,7 @@ export function PerksListView() {
               แต้มของฉัน
             </span>
             <span className="text-2xl font-bold tabular-nums text-primary">
-              {points.balance} แต้ม
+              {points?.balance??"—"} แต้ม
             </span>
           </div>
           <Link href="/app/points" className={buttonClass("secondary")}>
@@ -147,8 +134,9 @@ export function PerksListView() {
         </div>
         <p className="text-xs text-secondary">
           จดรายการวันนี้สำเร็จ รับอัตโนมัติวันละ 1 แต้มตามเวลาไทย หรือกดรับในหน้าสรุปได้
-          รวมกันได้วันละครั้ง{points.claimedToday ? " · วันนี้รับแล้ว" : ""}
+          รวมกันได้วันละครั้ง{points?.claimedToday ? " · วันนี้รับแล้ว" : ""}
         </p>
+        {pointState.failed&&<p role="status" className="text-xs text-secondary">ยังอัปเดตแต้มไม่ได้ <button type="button" onClick={()=>void pointState.refresh()} className="min-h-11 font-semibold text-link">โหลดแต้มใหม่</button></p>}
       </section>
 
       {promos.state === "loading" ? (
@@ -531,7 +519,9 @@ export function PointsView() {
   const toast = useToast();
   const claim = useSubmit<{ balance: number; claimedToday: true }>();
   const redeem = useSubmit<{ balance: number; code: string }>();
-  const [points, setPoints] = useState<Points>(NO_POINTS);
+  const pointState=usePoints(),points=pointState.data,revision=useDataRevision();
+  const {done:claimDone,reset:resetClaim}=claim;
+  useEffect(()=>{if(points?.claimedToday===false&&claimDone)resetClaim();},[points?.claimedToday,claimDone,resetClaim]);
   const [rewards, setRewards] = useState<Load<Reward[]>>({ state: "loading" });
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [redeemed, setRedeemed] = useState<RedeemedInfo | null>(null);
@@ -543,14 +533,6 @@ export function PointsView() {
 
   const loadAll = useCallback(() => {
     let cancelled = false;
-    api
-      .points()
-      .then((p) => {
-        if (!cancelled) setPoints(p);
-      })
-      .catch(() => {
-        if (!cancelled) setPoints(NO_POINTS);
-      });
     api.rewards().then(
       (list) => {
         if (!cancelled) setRewards({ state: "ok", value: list });
@@ -564,7 +546,7 @@ export function PointsView() {
     };
   }, [api]);
 
-  useEffect(() => loadAll(), [loadAll, attempt]);
+  useEffect(() => loadAll(), [loadAll, attempt,revision]);
 
   async function handleClaim() {
     setMessage(null);
@@ -572,8 +554,8 @@ export function PointsView() {
       api.claimPoints(key),
     );
     if (result.ok) {
-      setPoints(result.value);
-      toast.show(`รับแต้มฟรีแล้ว +1 · รวม ${result.value.balance} แต้ม`, {
+      pointState.update(result.value);
+      toast.show(`อัปเดตแต้มแล้ว · รวม ${result.value.balance} แต้ม`, {
         mascot: "reward",
       });
       return;
@@ -593,7 +575,7 @@ export function PointsView() {
       api.redeemReward(reward.id, key),
     );
     if (result.ok) {
-      setPoints((prev) => ({ ...prev, balance: result.value.balance }));
+      if(points)pointState.update({...points,balance:result.value.balance});else void pointState.refresh();
       setRedeemed({
         rewardName: reward.name,
         cost: reward.cost,
@@ -669,7 +651,7 @@ export function PointsView() {
           <span className="text-xs font-semibold text-secondary">แต้มสะสม</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-4xl font-bold tabular-nums text-primary">
-              {points.balance}
+              {points?.balance??"—"}
             </span>
             <span className="text-sm font-semibold text-primary">แต้ม</span>
           </div>
@@ -687,7 +669,7 @@ export function PointsView() {
         <Mascot pose="reward" size={72} />
       </section>
 
-      {points.claimedToday ? (
+      {points?.claimedToday ? (
         <p className="rounded-pill border border-line-strong bg-card px-4 py-2 text-center text-sm font-semibold text-ok">
           รับแต้มฟรีแล้ววันนี้ ✓
         </p>
@@ -698,6 +680,8 @@ export function PointsView() {
       )}
 
       {message ? <Banner kind={message.kind} text={message.text} /> : null}
+      {pointState.failed&&<p role="status" className="text-xs text-secondary">ยังอัปเดตแต้มไม่ได้ ยอดที่แสดงอาจยังไม่ล่าสุด <button type="button" onClick={()=>void pointState.refresh()} className="min-h-11 font-semibold text-link">โหลดแต้มใหม่</button></p>}
+      <PointsConnectionHelp/>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-base font-semibold text-primary">แลกของ</h2>
