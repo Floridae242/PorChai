@@ -59,6 +59,7 @@ import {
 } from "@/lib/validate";
 import { categoryOf, parseExpense } from "@/lib/chat/parse";
 import { reportCard } from "@/lib/chat/cards";
+import { CATEGORY_LABELS } from "@/lib/line/flex/format";
 import { parseIntent, statedDate, statedMoney } from "./parse";
 import { inferReadIntent } from "./infer";
 import { campaigns } from "@/lib/promotions/demo";
