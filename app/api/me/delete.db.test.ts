@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "@/lib/db/client";
 import { createCycle } from "@/lib/db/cycle";
 import { addEntry } from "@/lib/db/entries";
+import { saveSpendingCategory } from "@/lib/db/spending-categories";
 import { addIncome } from "@/lib/db/income";
 import { actOnPlan, addPlan } from "@/lib/db/plans";
 import { remember } from "@/lib/db/chat-memory";
@@ -34,7 +35,7 @@ const today = () => thaiDate(new Date());
 const USER_TABLES = [
   "cycles", "entries", "incomes", "plans", "history", "balance_checks", "chat_drafts", "chat_messages",
   "reminder_settings", "reminder_log", "points_wallets", "points_ledger", "reward_claims",
-  "notification_preferences", "notification_deliveries",
+  "notification_preferences", "notification_deliveries", "spending_categories",
 ];
 
 const call = (token?: string) =>
@@ -57,7 +58,8 @@ async function fullAccount(lineUserId: string): Promise<string> {
     ),
     today(),
   );
-  await addEntry(id, { amount: 4500, category: "food", note: "ข้าว", spentOn: today() }, `e-${run}`, "form");
+  const category = await saveSpendingCategory(id, {label:"ข้าวของฉัน",parent:"food",monthlyBudget:100000});
+  await addEntry(id, { amount: 4500, category: "food", categoryId:category.id, note: "ข้าว", spentOn: today() }, `e-${run}`, "form");
   await addIncome(id, { amount: 50000, note: "แม่โอน", receivedOn: today() }, `i-${run}`, "form");
   const { plan } = await addPlan(
     id,
@@ -107,7 +109,7 @@ describe("DELETE /api/me", () => {
     const id = await fullAccount(lineA);
     const before = await rowsOf(id);
     for (const table of ["users", "cycles", "entries", "incomes", "plans", "history", "balance_checks", "chat_messages",
-      "reminder_settings", "points_wallets", "points_ledger", "reward_claims", "notification_preferences", "ai_rate_windows"]) {
+      "reminder_settings", "points_wallets", "points_ledger", "reward_claims", "notification_preferences", "ai_rate_windows", "spending_categories"]) {
       expect(before[table], table).toBeGreaterThan(0);
     }
 
