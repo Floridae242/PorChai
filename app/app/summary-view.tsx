@@ -1,7 +1,6 @@
 "use client";
 import { DashboardInsights } from "./reports/reports-view";
 import { MockPromotionBanner } from "./promotions/promotion-mock-view";
-import { API_MODE } from "./_providers/liff-provider";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -247,6 +246,9 @@ export function SummaryView() {
         )}
       </section>
 
+      {/* Demo sponsor (labelled as a sample): under the points card, it belongs to the same perks family. */}
+      <MockPromotionBanner />
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {categories ? (
           <section className="flex flex-col justify-between gap-3 rounded-md border border-line bg-card p-4">
@@ -323,9 +325,6 @@ export function SummaryView() {
           </div>
         )}
       </section>
-
-      {/* Fictional sponsor: shown only in mock mode (production never shows sample offers). */}
-      {API_MODE === "mock" ? <MockPromotionBanner /> : null}
     </main>
   );
 }
