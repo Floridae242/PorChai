@@ -3,10 +3,11 @@ Documentation       Global variables and environment configurations for Por-Chai
 
 *** Variables ***
 # Environment & Base URLs
-${BASE_URL}             http://localhost:3000
+${BASE_URL}             http://localhost:3004
 ${API_BASE_URL}         ${BASE_URL}/api
-${LIFF_URL}             http://localhost:3000/app
+${LIFF_URL}             ${BASE_URL}/app
 ${DEV_PORT}             3004
+${HEADLESS}             False
 
 # Mock / Test User Identifiers
 ${TEST_USER_ID_A}       U_test_user_alpha_001

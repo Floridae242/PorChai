@@ -11,8 +11,11 @@ TC-01 to TC-03: Simulate, Reserve, and Spend Central Example
     Create Session     porchai    ${BASE_URL}    headers=&{AUTH_HEADERS_USER_A}
 
     # Step 1: Initialize Cycle (1,000 THB, 7 days, 300 THB bill)
-    ${payload}=        Create Dictionary    balance=100000    payday=2026-11-18    bills=@{EMPTY}
-    ${resp}=           POST On Session      porchai    /api/cycle    json=${payload}
+    ${payday7}=        Evaluate             (datetime.date.today() + datetime.timedelta(days=7)).isoformat()    modules=datetime
+    ${bill}=           Create Dictionary    title=Rent    amount=30000    dueOn=${payday7}    status=reserved
+    ${bills}=          Create List          ${bill}
+    ${payload}=        Create Dictionary    balance=100000    incomeSource=family    incomeFrequency=monthly    payday=${payday7}    bills=${bills}
+    ${resp}=           POST On Session      porchai    /api/cycle    json=${payload}    expected_status=any
     Should Be Equal As Integers    ${resp.status_code}    200
 
     # Step 2: Validate Summary - Pre-Trial (700 THB usable, 100 THB/day)
@@ -35,8 +38,9 @@ TC-04: Validate Quarter Baht Floor Rounding (R3-quarter)
     [Tags]             api    rounding    R3-quarter
     Create Session     porchai    ${BASE_URL}    headers=&{AUTH_HEADERS_USER_A}
 
-    ${payload}=        Create Dictionary    balance=70000    payday=2026-11-14    bills=@{EMPTY}
-    ${resp}=           POST On Session      porchai    /api/cycle    json=${payload}
+    ${payday3}=        Evaluate             (datetime.date.today() + datetime.timedelta(days=3)).isoformat()    modules=datetime
+    ${payload}=        Create Dictionary    balance=70000    incomeSource=family    incomeFrequency=monthly    payday=${payday3}    bills=@{EMPTY}
+    ${resp}=           POST On Session      porchai    /api/cycle    json=${payload}    expected_status=any
     Should Be Equal As Integers    ${resp.status_code}    200
 
     ${summary}=        GET On Session       porchai    /api/summary

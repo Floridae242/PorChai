@@ -3,7 +3,7 @@ Documentation       UI & LIFF Webview test suite for Por-Chai using Browser Libr
 Resource            ../../resources/variables.robot
 Library             Browser
 
-Suite Setup         New Browser    browser=chromium    headless=True
+Suite Setup         New Browser    browser=chromium    headless=${HEADLESS}
 Suite Teardown      Close Browser
 Test Setup          New Context    viewport={'width': 390, 'height': 844}
 Test Teardown       Close Context

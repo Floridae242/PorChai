@@ -7,7 +7,7 @@ import { computeBudget, simulatePurchase, type BudgetInput } from "@/lib/calc/bu
 import { thaiDate, addDays } from "@/lib/calc/time";
 import { baht } from "@/lib/calc/money";
 import { createHmac } from "node:crypto";
-import { verifyLineSignature } from "@/lib/line/signature";
+import { verifySignature } from "@/lib/line/signature";
 import { createMockApi } from "@/lib/client/mock";
 
 // Helper for HTTP Request
@@ -76,8 +76,8 @@ describe("Phase 3 QA API Contract & Integration Test Suite", () => {
 
     it("[TC-14-B1] payday in the past or today is rejected (DR01 / R1)", () => {
       const body = {
-        incomeSource: "เงินจากบ้าน/ทุน",
-        incomeFrequency: "รายเดือน",
+        incomeSource: "family",
+        incomeFrequency: "monthly",
         balance: 100000,
         payday: today, // today is invalid, must be in future
       };
@@ -86,8 +86,8 @@ describe("Phase 3 QA API Contract & Integration Test Suite", () => {
 
     it("[TC-14-B2] balance < buffer + savings is rejected (over set aside)", () => {
       const body = {
-        incomeSource: "เงินจากบ้าน/ทุน",
-        incomeFrequency: "รายเดือน",
+        incomeSource: "family",
+        incomeFrequency: "monthly",
         balance: 50000, // 500 THB
         emergencyBuffer: 40000, // 400 THB
         savingsAmount: 20000, // 200 THB (total 600 > 500)
@@ -107,14 +107,14 @@ describe("Phase 3 QA API Contract & Integration Test Suite", () => {
   describe("C. [TC-13 / R01] Balance Adjustment Contract", () => {
     it("[TC-13-C1] parses valid balance check with asOf timestamp", () => {
       const now = new Date("2026-11-16T12:00:00+07:00");
-      const check = parseBalanceCheck({ amount: 85000 }, now);
-      expect(check.amount).toBe(85000);
-      expect(typeof check.asOf).toBe("string");
+      const check = parseBalanceCheck({ balance: 85000, asOf: now.toISOString() }, now);
+      expect(check.balance).toBe(85000);
+      expect(check.asOf).toBeInstanceOf(Date);
     });
 
     it("[TC-13-C2] negative balance adjustment is rejected", () => {
       const now = new Date();
-      expect(() => parseBalanceCheck({ amount: -100 }, now)).toThrow();
+      expect(() => parseBalanceCheck({ balance: -100 }, now)).toThrow();
     });
   });
 
@@ -165,22 +165,38 @@ describe("Phase 3 QA API Contract & Integration Test Suite", () => {
       const mock = createMockApi();
       await mock.createCycle({
         balance: 100000,
-        incomeSource: "เงินจากบ้าน/ทุน",
-        incomeFrequency: "รายเดือน",
+        incomeSource: "family",
+        incomeFrequency: "monthly",
         payday: "2026-11-23",
         bills: [],
       });
 
-      const plan1 = await mock.planAction("plan_01", "keep");
-      expect(plan1).toBeDefined();
+      const created = await mock.addPlan(
+        { kind: "purchase", title: "Shirt", amount: 14000 },
+        "key_plan_01",
+      );
+      expect(created.plan.id).toBeDefined();
+      expect(created.plan.status).toBe("reserved");
     });
 
     it("[TC-03-E2] cannot pay an already cancelled plan (PR409)", async () => {
       const mock = createMockApi();
-      const plan = await mock.planAction("plan_c1", "cancel");
-      expect(plan.plan.status).toBe("cancelled");
-      // attempting to pay cancelled plan
-      await expect(mock.planAction("plan_c1", "pay")).rejects.toThrow();
+      await mock.createCycle({
+        balance: 100000,
+        incomeSource: "family",
+        incomeFrequency: "monthly",
+        payday: "2026-11-23",
+        bills: [],
+      });
+
+      const created = await mock.addPlan(
+        { kind: "purchase", title: "Shoes", amount: 25000 },
+        "key_plan_02",
+      );
+      const cancelled = await mock.planAction(created.plan.id, "cancel");
+      expect(cancelled.plan.status).toBe("cancelled");
+      // attempting to pay cancelled plan must fail
+      await expect(mock.planAction(created.plan.id, "pay")).rejects.toThrow();
     });
 
     it("[TC-16-E3] cancelling a reserved plan releases reserved money back to usable", async () => {
@@ -211,22 +227,23 @@ describe("Phase 3 QA API Contract & Integration Test Suite", () => {
     });
 
     it("[TC-21-F2] recording valid expense of 45 THB reduces budget", () => {
+      // 2,400 THB - 45 THB = 2,355 THB actual balance remaining
       const base: BudgetInput = {
-        balance: baht(2400),
-        spentToday: 0,
+        balance: baht(2355),
+        spentToday: baht(45),
         emergencyBuffer: 0,
         savings: 0,
         reserved: baht(600),
         essentialPerDay: null,
         today: "2026-11-16",
-        payday: "2026-11-28", // 12 days -> usable 1800, daily 150
+        payday: "2026-11-28", // 12 days left
       };
-      const before = computeBudget(base);
-      expect(before).toMatchObject({ kind: "ok", dailyBudget: baht(150), todayRemaining: baht(150) });
-
-      // After spending 45 THB today:
-      const after = computeBudget({ ...base, spentToday: baht(45) });
-      expect(after).toMatchObject({ kind: "ok", dailyBudget: baht(150), todayRemaining: baht(105) });
+      const r = computeBudget(base);
+      expect(r).toMatchObject({
+        kind: "ok",
+        dailyBudget: baht(150),
+        todayRemaining: baht(105),
+      });
     });
   });
 
@@ -236,14 +253,14 @@ describe("Phase 3 QA API Contract & Integration Test Suite", () => {
 
     it("[TC-18-H1] rejects invalid or missing LINE webhook signature", () => {
       const body = JSON.stringify({ events: [] });
-      expect(verifyLineSignature(body, "bad_signature", secret)).toBe(false);
-      expect(verifyLineSignature(body, null, secret)).toBe(false);
+      expect(verifySignature(body, "bad_signature", secret)).toBe(false);
+      expect(verifySignature(body, null, secret)).toBe(false);
     });
 
     it("[TC-18-H2] accepts valid HMAC-SHA256 signature calculated over exact body bytes", () => {
       const body = JSON.stringify({ events: [{ type: "message", webhookEventId: "evt_001" }] });
-      const validSig = createHmac("sha256", secret).update(Buffer.from(body, "utf8")).digest("base64");
-      expect(verifyLineSignature(body, validSig, secret)).toBe(true);
+      const validSig = createHmac("sha256", secret).update(body).digest("base64");
+      expect(verifySignature(body, validSig, secret)).toBe(true);
     });
   });
 
