@@ -145,7 +145,7 @@ export const ONBOARDING_STEPS = [
     detail:
       "โปรและคูปองปัจจุบันเป็นข้อมูลจำลอง ใช้ซื้อจริงไม่ได้ครับ พิมพ์ คู่มือ เพื่อกลับมาเลื่อนดูการ์ดนี้ได้เสมอ",
     label: "ดูวิธีใช้สิทธิ์",
-    path: "/app/promotions",
+    path: "/app/sponsors", // the user-facing demo page; /app/promotions is dev-only
     command: "ดูคูปอง",
     tip: "เริ่มจากพิมพ์ เริ่มรอบเงิน แล้วค่อยจดรายจ่ายแรก",
   },
