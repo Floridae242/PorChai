@@ -1,17 +1,19 @@
+import { WorkPool } from "@/lib/runtime/work-pool";
+import { positiveLimit } from "@/lib/runtime/limits";
 import { createHash } from "node:crypto";
 import type { Summary } from "@/lib/api-types";
 import { computeBudget, type BudgetInput } from "@/lib/calc/budget";
 import {
-  balanceNow,
   latestAnchor,
   reservedTotal,
-  spentOnDay,
   type BalanceAnchor,
   type PlanLike,
 } from "@/lib/calc/inputs";
 import { thaiDate } from "@/lib/calc/time";
 import { getDb } from "@/lib/db/client";
 import { HttpError } from "@/lib/http";
+
+const budgetReads = new WorkPool(positiveLimit(process.env.DB_READ_CONCURRENCY, 32, 128), 1024, 5000);
 
 export interface ActiveCycle {
   id: string;
@@ -40,7 +42,7 @@ export async function requireActiveCycle(userId: string): Promise<ActiveCycle> {
 }
 
 export async function currentAnchor(cycle: ActiveCycle): Promise<BalanceAnchor> {
-  const { data, error } = await getDb().from("balance_checks").select("balance, as_of").eq("cycle_id", cycle.id);
+  const { data, error } = await getDb().from("balance_checks").select("balance, as_of").eq("cycle_id", cycle.id).order("as_of", { ascending: false }).order("created_at").order("id").limit(1);
   if (error) throw error;
   return latestAnchor(
     { amount: cycle.start_balance, asOf: new Date(cycle.start_balance_at) },
@@ -50,6 +52,7 @@ export async function currentAnchor(cycle: ActiveCycle): Promise<BalanceAnchor> 
 
 export interface PlanRow {
   id: string;
+  title: string;
   kind: "bill" | "purchase";
   amount: number;
   status: PlanLike["status"];
@@ -65,47 +68,37 @@ export interface LoadedBudget {
 
 // The one place stored rows become calculator input, so chat, screens, tries and reminders agree.
 export async function loadBudget(userId: string, now = new Date()): Promise<LoadedBudget> {
-  const db = getDb();
-  const cycle = await requireActiveCycle(userId);
-  const [anchor, entries, plans, incomes] = await Promise.all([
-    currentAnchor(cycle),
-    db.from("entries").select("amount, spent_on, created_at, source").eq("cycle_id", cycle.id).is("cancelled_at", null),
-    db.from("plans").select("id, kind, amount, status, due_on").eq("cycle_id", cycle.id),
-    db.from("incomes").select("amount, received_on, created_at").eq("cycle_id", cycle.id).is("cancelled_at", null),
-  ]);
-  if (entries.error) throw entries.error;
-  if (incomes.error) throw incomes.error;
-  if (plans.error) throw plans.error;
-
   const today = thaiDate(now);
-  const rows = entries.data.map((e) => ({
-    amount: e.amount as number,
-    spentOn: e.spent_on as string,
-    createdAt: new Date(e.created_at as string),
-    fromPlan: e.source === "plan",
-  }));
-  const planRows = plans.data as PlanRow[];
+  const { data, error } = await budgetReads.run(async () =>
+    await getDb().rpc("budget_snapshot", { p_user: userId, p_today: today }).abortSignal(AbortSignal.timeout(5000)),
+  );
+  if (error) throw error;
+  if (!data) throw new HttpError(409, "no_cycle", "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าก่อนเริ่มใช้");
+  const snapshot = data as {
+    cycle: ActiveCycle;
+    anchor: { amount: number; asOf: string };
+    balance: number;
+    spentToday: number;
+    plans: PlanRow[];
+  };
+  const cycle = snapshot.cycle;
+  const anchor = { amount: snapshot.anchor.amount, asOf: new Date(snapshot.anchor.asOf) };
+  const planRows = snapshot.plans;
   const input: BudgetInput = {
-    balance: balanceNow(
-      anchor,
-      rows,
-      incomes.data.map((i) => ({ amount: i.amount as number, receivedOn: i.received_on as string, createdAt: new Date(i.created_at as string) })),
-    ),
-    spentToday: spentOnDay(rows, today),
+    balance: snapshot.balance,
+    spentToday: snapshot.spentToday,
     emergencyBuffer: cycle.emergency_buffer,
     savings: cycle.savings_amount,
-    reserved: reservedTotal(
-      planRows.map((p) => ({ amount: p.amount, status: p.status, dueOn: p.due_on })),
-      cycle.payday,
-    ),
-    // Set together (DB check); null until the user says
-    essentialPerDay:
-      cycle.essential_food_daily === null || cycle.essential_transport_daily === null
-        ? null
-        : cycle.essential_food_daily + cycle.essential_transport_daily,
+    reserved: reservedTotal(planRows.map((p) => ({ amount: p.amount, status: p.status, dueOn: p.due_on })), cycle.payday),
+    essentialPerDay: cycle.essential_food_daily === null || cycle.essential_transport_daily === null
+      ? null : cycle.essential_food_daily + cycle.essential_transport_daily,
     today,
     payday: cycle.payday,
   };
+  if (![anchor.amount, input.balance, input.spentToday, input.emergencyBuffer, input.savings, input.reserved,
+    ...(input.essentialPerDay === null ? [] : [input.essentialPerDay])].every(Number.isSafeInteger)) {
+    throw new HttpError(503, "amount_out_of_range", "ยอดเงินเกินขอบเขตที่คำนวณได้ กรุณาติดต่อทีมงาน");
+  }
   return { cycle, anchor, plans: planRows, input };
 }
 

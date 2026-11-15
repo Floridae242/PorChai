@@ -20,13 +20,13 @@ const QUESTION_END = /(ไหม|มั้ย|มั๊ย|ม้าย|ป่�
 // Polite endings after the question word: «ไหวไหมครับ», «ดีมั้ยนะ»
 const PARTICLES = /(\s*(ครับ|คับ|ค่ะ|คะ|นะ|จ้า|จ๊ะ|อะ|อ่ะ|เนี่ย))+$/;
 const APPROXIMATE = /กว่า|ประมาณ|ราว|เกือบ|~|\d\s*-\s*\d/;
-const NUMBER = /\d+(?:\.\d{1,2})?/g;
+const NUMBER = /[+-]?\d+(?:\.\d+)?/g;
 // Longer phrases first: «เหลือเงินใช้วันละเท่าไร» goes as one, before «เหลือ» or «เท่าไร» alone
 const FILLER =
   /ไหวไหม|ไหวมั้ย|พอไหม|พอมั้ย|ได้ไหม|ได้มั้ย|ดีไหม|ดีมั้ย|ควรไหม|เหลือเงินใช้วันละ|เหลือวันละ|หรือเปล่า|รึเปล่า|เท่าไหร่|เท่าไหร|เท่าไร|เท่าใด|กี่บาท|กี่วัน|ไหม|มั้ย|มั๊ย|ป่ะ|ป่าว|ไหว|ครับ|ค่ะ|คะ|ถ้า|สมมติ|สมมุติ|หาก|ควร|แล้ว|เหลือ|ยังไง|อย่างไร|ให้พอ|พรุ่งนี้|มะรืน(?:นี้)?|วันนี้|อยาก|จะ|กิน|ซื้อ|ดู|บาท|฿|[?？]/g;
 
 function normalize(text: string): string {
-  return text
+  return text.normalize("NFKC")
     .replace(/[๐-๙]/g, (d) => String(THAI_DIGITS.indexOf(d)))
     .replace(/(\d),(?=\d{3}(?!\d))/g, "$1")
     .trim();
@@ -35,7 +35,12 @@ function normalize(text: string): string {
 export function isQuestion(text: string): boolean {
   const t = text.trim();
   const bare = t.replace(PARTICLES, "").trim();
-  return QUESTION_WORDS.test(t) || QUESTION_START.test(bare) || QUESTION_END.test(bare);
+  return isPurchaseWish(t) || QUESTION_WORDS.test(t) || QUESTION_START.test(bare) || QUESTION_END.test(bare);
+}
+
+// Explicit desire describes a possible purchase, even without a question mark or price.
+export function isPurchaseWish(text: string): boolean {
+  return /^อยาก\s*(?:กิน|ซื้อ|ดื่ม|สั่ง)/u.test(text.trim());
 }
 
 // «เหลือเท่าไร», «งบเหลือป่ะ», «วันนี้ใช้ไปเท่าไร», «เช็คยอด»: the whole message is made of these words
@@ -61,7 +66,7 @@ export function dayOf(text: string): Day {
 export function readQuestion(raw: string): Question {
   const text = normalize(raw);
   const numbers = text.match(NUMBER) ?? [];
-  const exact = numbers.length === 1 && !APPROXIMATE.test(text);
+  const exact = numbers.length === 1 && !APPROXIMATE.test(text) && /^\+?\d+(?:\.\d{1,2})?$/.test(numbers[0]);
   const amount = exact ? Math.round(Number(numbers[0]) * 100) : null;
   const item = text.replace(NUMBER, " ").replace(FILLER, " ").replace(/\s+/g, " ").trim().slice(0, 40) || null;
   return { item, amount: amount && amount > 0 ? amount : null, day: dayOf(text) };
@@ -74,8 +79,15 @@ export function numbersIn(text: string): number[] {
 
 // The AI only words the answer: every number it writes must be one the calculator gave it
 export function onlyKnownNumbers(text: string, known: number[]): boolean {
-  return numbersIn(text).every((n) => known.includes(n));
+  text = normalize(text);
+  // A matching digit with a changed sign, exponent, magnitude or unit is not the same amount.
+  if (/\d(?:\.\d+)?[eE][+-]?\d|0[xX][\da-fA-F]|NaN|Infinity|∞|\d\s*(?:ล้าน|แสน|หมื่น|พัน|hundred|thousand|million|[kKmM]\b)/i.test(text)) return false;
+  const allowed = new Set(known);
+  return numbersIn(text).every((n) => allowed.has(n));
 }
 
 // Never suggested by the AI, in any answer: cutting food or transport, or touching savings (card 15)
 export const FORBIDDEN = /ลดค่ากิน|ลดค่าอาหาร|ลดค่ารถ|ลดค่าเดินทาง|กินน้อยลง|อดข้าว|ถอนเงินออม|ใช้เงินออม/;
+
+// Shared normalization for grounded output checks; no locale-specific digit bypass.
+export const normalizeMoneyText = (text: string): string => normalize(text);

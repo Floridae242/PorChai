@@ -93,7 +93,6 @@ it("chat AI against the real Gemini", async () => {
   const facts = factsOf(summary);
   const errors: string[] = [];
   const orig = console.error;
-  console.error = (...a: unknown[]) => errors.push(a.map(String).join(" ").slice(0, 200));
 
   const rows: string[] = [];
   const tally: Record<string, number> = {};
@@ -103,17 +102,24 @@ it("chat AI against the real Gemini", async () => {
     ...CASES.map(([g, m, want]) => [g, [], m, want] as [string, ChatLine[], string, string]),
     ...WITH_HISTORY.map(([h, m, want]) => ["มีประวัติ", h, m, want] as [string, ChatLine[], string, string]),
   ];
-  const step = Math.max(1, Math.floor(every.length / Math.min(limit, every.length)));
-  const all = every.filter((_, i) => i % step === 0).slice(0, limit);
-  for (const [group, history, message, want] of all) {
-    errors.length = 0;
-    const t: TracedReading = await readChatTraced(message, history, facts);
-    tally[t.outcome] = (tally[t.outcome] ?? 0) + 1;
-    const why = t.outcome === "no_answer" ? errors.join(" · ") : "";
-    rows.push(`| ${group} | ${cell(message)} | ${want} | **${t.outcome}** | ${t.ms} | ${cell(t.aiReply)} ${cell(why)} |`);
-    await pause(1500); // free tier: stay under the per-minute limit
-  }
-  console.error = orig;
+  const selected = process.env.EVAL_CASES ? new Set(process.env.EVAL_CASES.split("|")) : null;
+  const candidates = selected ? every.filter(([, , message]) => selected.has(message)) : every;
+  const step = Math.max(1, Math.floor(candidates.length / Math.min(limit, candidates.length)));
+  const all = candidates.filter((_, i) => i % step === 0).slice(0, limit);
+  expect(all.length, "EVAL_CASES must select at least one fixture").toBeGreaterThan(0);
+  let completed = 0;
+  console.error = (...a: unknown[]) => errors.push(a.map(String).join(" ").slice(0, 200));
+  try {
+    for (const [group, history, message, want] of all) {
+      errors.length = 0;
+      const t: TracedReading = await readChatTraced(message, history, facts);
+      tally[t.outcome] = (tally[t.outcome] ?? 0) + 1;
+      const why = t.outcome === "no_answer" ? errors.join(" · ") : "";
+      rows.push(`| ${group} | ${cell(message)} | ${want} | **${t.outcome}** | ${t.ms} | ${cell(t.aiReply)} ${cell(why)} |`);
+      process.stdout.write(`eval ${++completed}/${all.length}: ${t.outcome} ${t.ms}ms\n`);
+      await pause(1500); // free tier: stay under the per-minute limit
+    }
+  } finally { console.error = orig; }
 
   const report = [
     `# Chat AI eval — ${new Date().toISOString()} · model ${process.env.GEMINI_MODEL || "gemini-3.1-flash-lite"}`,
@@ -126,4 +132,5 @@ it("chat AI against the real Gemini", async () => {
   ].join("\n");
   writeFileSync("scripts/chat-eval-report.md", report);
   console.log(report);
+  expect(all.length - (tally.no_answer ?? 0), "No usable response from Gemini; inspect the report").toBeGreaterThan(0);
 });

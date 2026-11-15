@@ -1,23 +1,30 @@
 import type { SimulateResponse } from "@/lib/api-types";
 import { tryOut } from "@/lib/calc/budget";
 import { heldThisCycle, reservedTotal, setAsideFits } from "@/lib/calc/inputs";
-import { basisOf, loadBudget } from "@/lib/db/budget";
+import { basisOf, loadBudget, type LoadedBudget } from "@/lib/db/budget";
 import { HttpError } from "@/lib/http";
 import { invalid, SET_ASIDE_OVER, type Trial } from "@/lib/validate";
 
 // Card 14: read-only. Builds a what-if input from the same loader as the summary; writes nothing.
 export async function simulate(userId: string, trial: Trial, now = new Date()): Promise<SimulateResponse> {
-  const { input, plans, cycle } = await loadBudget(userId, now);
+  return simulateLoaded(await loadBudget(userId, now), trial);
+}
+
+// Multiple alternatives share the same immutable financial snapshot and basis.
+export function simulateLoaded(loaded: LoadedBudget, trial: Trial): SimulateResponse {
+  const { input, plans, cycle } = loaded;
   // Card 23: with payday moved, plans due before the new payday are this cycle's
   const payday = trial.payday ?? cycle.payday;
   const held = plans.filter((p) => heldThisCycle({ status: p.status, dueOn: p.due_on }, payday));
-  const postponed = trial.postponePlanIds.map((id) => {
-    const plan = held.find((p) => p.id === id);
+  const heldById = new Map(held.map((p) => [p.id, p]));
+  const postponedIds = new Set(trial.postponePlanIds);
+  const postponed = [...postponedIds].map((id) => {
+    const plan = heldById.get(id);
     // Someone else's plan gets the same answer as one that holds nothing
     if (!plan) throw new HttpError(422, "invalid_input", "แผนที่จะลองเลื่อนไม่ได้กันเงินอยู่ในรอบนี้");
     return plan;
   });
-  const kept = held.filter((p) => !postponed.includes(p));
+  const kept = held.filter((p) => !postponedIds.has(p.id));
 
   const countsThisCycle = trial.dueOn === null || trial.dueOn <= payday;
   // An answer (essentials) counts before and after; a change (buffer) only after

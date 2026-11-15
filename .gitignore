@@ -48,3 +48,5 @@ scripts/chat-eval-report.md
 /test-results/
 /playwright-report/
 ~$*
+# Local performance output; never publish account data or machine-specific traces.
+scripts/scale-benchmark-report.json

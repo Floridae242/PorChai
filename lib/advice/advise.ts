@@ -1,11 +1,13 @@
+import { withAiScope } from "@/lib/ai/admission";
 import type { SimulateResponse, UserCategory } from "@/lib/api-types";
 import type { BudgetResult, TrialVerdict } from "@/lib/calc/budget";
 import { addDays, thaiDate } from "@/lib/calc/time";
 import { categoryOf } from "@/lib/chat/parse";
 import { generate } from "@/lib/ai/gemini";
 import { formatBaht } from "@/lib/format/money";
-import { listPlans } from "@/lib/db/plans";
-import { simulate } from "@/lib/db/simulate";
+import { heldThisCycle } from "@/lib/calc/inputs";
+import { loadBudget, type LoadedBudget } from "@/lib/db/budget";
+import { simulateLoaded } from "@/lib/db/simulate";
 import { FORBIDDEN, numbersIn, onlyKnownNumbers, readQuestion, type Day, type Question } from "@/lib/advice/question";
 
 // Card 15: «พรุ่งนี้กินชาบู 300 บาทไหวไหม». The AI reads the question and words the answer; every number
@@ -51,41 +53,12 @@ const DAY_LABEL: Record<Day, string> = { today: "วันนี้", tomorrow: 
 const baht = (satang: number) => Math.round(satang) / 100;
 const fmt = (satang: number) => formatBaht(Math.round(satang)); // same as the screens: 61.50
 
-// The AI reads the question (card 15), but only what is written counts: its amount is used only when it is
-// the one price written in the question, and the day comes from the words (วันนี้ / พรุ่งนี้ / มะรืน).
-// So a misread can make the bot ask, never change a number.
-async function read(question: string): Promise<Question> {
-  const rules = readQuestion(question);
-  const raw = await generate({
-    system:
-      "แยกข้อมูลจากคำถามเรื่องการใช้เงินของนักศึกษา ตอบเป็น JSON เท่านั้น item = สิ่งที่จะซื้อหรือกินแบบสั้น " +
-      "amount_baht = ราคาที่เขียนเป็นตัวเลขในคำถาม (ถ้าไม่มี มีหลายราคา หรือเป็นราคาประมาณ ให้เป็น null)",
-    input: question,
-    schema: {
-      type: "object",
-      properties: { item: { type: "string" }, amount_baht: { type: ["number", "null"] } },
-      required: ["item", "amount_baht"],
-    },
-    maxOutputTokens: 100,
-  });
-  let ai: { item?: unknown; amount_baht?: unknown } | null = null;
-  try {
-    ai = raw ? JSON.parse(raw) : null;
-  } catch {
-    ai = null;
-  }
-  if (!ai || typeof ai !== "object") return rules; // AI off, failed or unreadable: the rules' reading stands
-  // The AI and the written price must agree; if not (or it saw no clear price) the bot asks
-  const agrees = rules.amount !== null && ai.amount_baht === rules.amount / 100;
-  return {
-    item: typeof ai.item === "string" && ai.item.trim() ? ai.item.trim().slice(0, 40) : rules.item,
-    amount: agrees ? rules.amount : null,
-    day: rules.day,
-  };
-}
+// A literal amount/date is deterministic: a model cannot override it or invent a price.
+// Ambiguous/missing prices ask the user, without spending an extra model request.
+const read = (question: string): Question => readQuestion(question);
 
-function tryWith(userId: string, amount: number, dueOn: string | null, extra: Partial<Parameters<typeof simulate>[1]> = {}) {
-  return simulate(userId, {
+function tryWith(loaded: LoadedBudget, amount: number, dueOn: string | null, extra: Partial<Parameters<typeof simulateLoaded>[1]> = {}) {
+  return simulateLoaded(loaded, {
     amount,
     dueOn,
     postponePlanIds: [],
@@ -98,6 +71,10 @@ function tryWith(userId: string, amount: number, dueOn: string | null, extra: Pa
 }
 
 export async function advise(userId: string, question: string, now = new Date()): Promise<Advice> {
+  return withAiScope(userId, () => adviseScoped(userId, question, now));
+}
+
+async function adviseScoped(userId: string, question: string, now: Date): Promise<Advice> {
   const q = await read(question);
   const category = categoryOf(q.item ?? "");
   const blank = { item: q.item, amount: q.amount, category, before: null, after: null, options: [], basis: null };
@@ -106,14 +83,15 @@ export async function advise(userId: string, question: string, now = new Date())
   }
 
   const dueOn = dueOnOf(q.day, thaiDate(now));
-  const base = await tryWith(userId, q.amount, dueOn);
+  const loaded = await loadBudget(userId, now);
+  const base = tryWith(loaded, q.amount, dueOn);
   if (base.verdict === "ask") {
     const needs = base.needs as AdviceNeed[];
     return { ...blank, verdict: "ask", needs, dueOn, countsThisCycle: base.countsThisCycle, explanation: ASK[needs[0]], byAI: false, basis: base.basis };
   }
 
   const verdict = VERDICT[base.verdict];
-  const options = verdict === "enough" ? [] : await optionsFor(userId, q.amount, dueOn, base, verdict);
+  const options = verdict === "enough" ? [] : await optionsFor(loaded, q.amount, dueOn, base, verdict);
   const facts = factsOf(q, verdict, base, options);
   const { explanation, byAI } = await explain(facts);
   return {
@@ -133,7 +111,7 @@ export async function advise(userId: string, question: string, now = new Date())
 
 // ลดงบ / เลื่อนรายการที่เลื่อนได้ / ขอใช้เงินเผื่อ — never cutting food or transport (card 15)
 async function optionsFor(
-  userId: string,
+  loaded: LoadedBudget,
   amount: number,
   dueOn: string | null,
   base: SimulateResponse,
@@ -143,9 +121,9 @@ async function optionsFor(
   if (base.before?.kind === "ok" && (base.before.maxPurchase ?? 0) > 0) {
     options.push({ kind: "spend_less", maxAmount: base.before.maxPurchase! });
   }
-  const postponable = (await listPlans(userId)).filter((p) => p.kind === "purchase" && p.heldThisCycle);
+  const postponable = loaded.plans.filter((p) => p.kind === "purchase" && heldThisCycle({ status: p.status, dueOn: p.due_on }, loaded.cycle.payday));
   if (postponable.length > 0) {
-    const r = await tryWith(userId, amount, dueOn, { postponePlanIds: postponable.map((p) => p.id) });
+    const r = tryWith(loaded, amount, dueOn, { postponePlanIds: postponable.map((p) => p.id) });
     const v = VERDICT[r.verdict];
     if (r.after && RANK[v] > RANK[verdict]) {
       options.push({
@@ -158,7 +136,7 @@ async function optionsFor(
   }
   const buffer = base.checks?.emergencyBuffer ?? 0;
   if (buffer > 0) {
-    const r = await tryWith(userId, amount, dueOn, { emergencyBuffer: 0 });
+    const r = tryWith(loaded, amount, dueOn, { emergencyBuffer: 0 });
     const v = VERDICT[r.verdict];
     if (r.after && RANK[v] > RANK[verdict]) options.push({ kind: "use_buffer", buffer, after: r.after, verdict: v });
   }
@@ -233,7 +211,7 @@ async function explain(f: Facts): Promise<{ explanation: string; byAI: boolean }
   });
   const ok =
     text !== null &&
-    text.length <= 600 &&
+    text.trim().length > 0 && text.length <= 600 &&
     onlyKnownNumbers(text, knownNumbers(f)) &&
     !FORBIDDEN.test(text) &&
     (f.shortfall === null || numbersIn(text).includes(f.shortfall));

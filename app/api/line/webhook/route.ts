@@ -1,4 +1,6 @@
-import { forgetEvent, recordEvent } from "@/lib/db/line-events";
+import { runKeyed } from "@/lib/runtime/keyed-work";
+import { BodyLimitError, readBoundedBytes } from "@/lib/runtime/body";
+import { completeEvent, forgetEvent, recordEvent } from "@/lib/db/line-events";
 import { handleEvent } from "@/lib/line/handle-event";
 import { verifySignature } from "@/lib/line/signature";
 
@@ -9,7 +11,11 @@ export async function POST(request: Request): Promise<Response> {
   if (!secret) return Response.json({ error: "LINE webhook is not configured" }, { status: 503 });
 
   // Keep the original bytes: parsing/re-serializing JSON changes the signature.
-  const rawBody = new Uint8Array(await request.arrayBuffer());
+  let rawBody: Uint8Array;
+  try { rawBody = await readBoundedBytes(request, 1024 * 1024); }
+  catch (err) {
+    return Response.json({ error: err instanceof BodyLimitError ? "Payload too large" : "Invalid body" }, { status: err instanceof BodyLimitError ? 413 : 400 });
+  }
   if (!verifySignature(rawBody, request.headers.get("x-line-signature"), secret)) {
     return Response.json({ error: "Invalid signature" }, { status: 401 });
   }
@@ -23,23 +29,31 @@ export async function POST(request: Request): Promise<Response> {
   const events = (payload as { events?: unknown } | null)?.events;
   if (!Array.isArray(events)) return Response.json({ error: "Expected events array" }, { status: 400 });
 
+  if (events.length > 100) return Response.json({ error: "Too many events" }, { status: 413 });
+
   let failed = false;
-  for (const event of events) {
+  await runKeyed(events, (event, index) => {
+    const source = (event as { source?: { userId?: unknown } } | null)?.source;
+    return typeof source?.userId === "string" ? source.userId : `event:${index}`;
+  }, async (event) => {
     const id = (event as { webhookEventId?: unknown } | null)?.webhookEventId;
-    if (typeof id !== "string") continue;
-    // Dedupe first: LINE may redeliver the same event
-    if (!(await recordEvent(id))) continue;
+    if (typeof id !== "string" || id.length < 1 || id.length > 200) return;
+    const owner = crypto.randomUUID();
+    let claimed = false;
     try {
+      claimed = await recordEvent(id, owner);
+      if (!claimed) return;
       await handleEvent(event);
+      await completeEvent(id, owner);
     } catch (err) {
-      // Not handled: forget it so a redelivery is handled, keep going with the next event,
-      // and answer non-2xx so LINE redelivers (needs "Webhook redelivery" on in the console).
-      // Saving is idempotent per event, so a redelivery never saves twice. No private data logged.
       console.error("LINE event handler failed", err instanceof Error ? err.name : "");
-      await forgetEvent(id);
+      if (claimed) {
+        // Only this owner can release a claim; a late worker cannot delete another worker's lease.
+        try { await forgetEvent(id, owner); } catch { console.error("LINE event release failed"); }
+      }
       failed = true;
     }
-  }
+  });
   if (failed) return Response.json({ error: "retry" }, { status: 500 });
   return Response.json({ ok: true, received: events.length });
 }

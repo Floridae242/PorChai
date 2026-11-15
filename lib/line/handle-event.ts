@@ -1,9 +1,11 @@
+import { routineChat } from "@/lib/chat/routine";
+import { AiGate, withAiScope } from "@/lib/ai/admission";
 import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
 import { tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
 import { advise, dueOnOf } from "@/lib/advice/advise";
 import { findPriceHint } from "@/lib/advice/price-hint";
-import { isBalanceQuestion, isQuestion, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isPurchaseWish, isQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
   adviceCard,
@@ -111,10 +113,10 @@ export async function handleEvent(event: unknown): Promise<void> {
   try {
     if (e.type === "message" && e.message?.type === "text" && typeof e.message.text === "string") {
       said = e.message.text;
-      answer = await onText(userId, e.message.text, String(e.webhookEventId));
+      answer = await withAiScope(userId, () => onText(userId, e.message!.text as string, String(e.webhookEventId)));
     } else if (e.type === "message" && e.message?.type === "image" && typeof e.message.id === "string") {
       said = "(ส่งรูป)"; // the photo itself is never kept
-      answer = await onPhoto(userId, e.message.id);
+      answer = await withAiScope(userId, () => onPhoto(userId, e.message!.id as string));
     } else if (e.type === "postback" && typeof e.postback?.data === "string") {
       const tapped = await onPostback(userId, e.postback.data);
       if (tapped) [said, answer] = [`(กด ${tapped.label})`, tapped.answer];
@@ -246,6 +248,13 @@ async function converse(
   history: ChatLine[],
   { approximate, question }: { approximate: boolean; question: boolean },
 ): Promise<Answer> {
+  const routine = routineChat(body);
+  if (routine?.kind === "chat" && routine.reply) return say(chatMessage(routine.reply));
+  if (routine?.kind === "spend") {
+    if (question) return say(askPriceMessage(routine.item));
+    return say(askAmountMessage(routine.item, approximate), { kind: "amount", title: routine.item });
+  }
+  if (question && isPurchaseWish(body)) return say(askPriceMessage(readQuestion(body).item ?? "รายการนี้"));
   const summary = await loadSummary(userId).catch((err) => {
     if (err instanceof HttpError && err.code === "no_cycle") return null; // chatting works before setup
     throw err;
@@ -461,7 +470,14 @@ async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer>
 }
 
 // OCR (layer 4): read the slip, answer with the draft card. Nothing is recorded here (user's choice 13 Nov).
+const imageWork = new AiGate(2);
 async function onPhoto(userId: string, messageId: string): Promise<Answer> {
+  const release = imageWork.enter();
+  if (!release) return say(text("กำลังอ่านรูปหลายรายการ ลองส่งรูปใหม่อีกครั้งครับ"));
+  try { return await readPhoto(userId, messageId); } finally { release(true); }
+}
+
+async function readPhoto(userId: string, messageId: string): Promise<Answer> {
   await requireActiveCycle(userId); // no cycle → set up first, before using the AI
   const image = await messageImage(messageId);
   const reading = image && (await readSlip(image.bytes, image.mimeType, thaiDate(new Date())));

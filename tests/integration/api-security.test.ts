@@ -81,6 +81,8 @@ vi.mock("@/lib/db/line-events", () => {
       recorded.add(webhookEventId);
       return true;
     }),
+    completeEvent: vi.fn(async () => {}),
+    forgetEvent: vi.fn(async () => {}),
     __clearEvents: () => recorded.clear(),
   };
 });
@@ -228,9 +230,8 @@ describe("Integration Test: API Security & Concurrency", () => {
       expect(result.replyMessage).toContain("ระบุจำนวนเงิน");
     });
 
-    it.todo(
-      'P-14: เมื่อเชื่อมต่อ LINE AI Classifier ตัวจริง ส่ง "ข้าว 45 น้ำ 20" และ "อยากกินหมูกระทะวันศุกร์" ต้องสร้าง draft ใน chat_drafts และถามยืนยัน',
-    );
+    // P-14 persisted proposals and missing prices: lib/line/chat.db.test.ts.
+    // Current implementation stores pending in chat_messages, not obsolete chat_drafts.
   });
 
   // --------------------------------------------------------------------------
@@ -404,8 +405,6 @@ describe("Integration Test: API Security & Concurrency", () => {
       }
     });
 
-    it.todo(
-      "P-24: ทดสอบ Race Condition กับ PostgreSQL RPC Transaction จริง เมื่อสร้างตาราง rewards และ reward_claims ในฐานข้อมูล",
-    );
+    // P-24 actual PostgreSQL last-item race: lib/db/rewards.db.test.ts (not this illustrative mock).
   });
 });

@@ -547,7 +547,7 @@ export function PointsView() {
             </div>
           </dl>
           <p className="text-xs text-secondary">รหัสรับของ</p>
-          <p data-clarity-mask="true" className="font-mono text-3xl font-bold text-primary">
+          <p data-clarity-mask="true" className="max-w-full break-all font-mono text-3xl font-bold text-primary">
             {redeemed.code}
           </p>
         </section>
