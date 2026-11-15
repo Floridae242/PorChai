@@ -148,7 +148,6 @@ describe("createLiveApi", () => {
       () => api.shopRedeem("c"),
       () => api.dailySpend(),
       () => api.categoryTotals(),
-      () => api.deleteMyData(),
     ];
     for (const fn of calls) {
       await expect(fn()).rejects.toMatchObject({ status: 501, code: "not_implemented", message: "ฟีเจอร์นี้ยังไม่พร้อมใช้งาน" });
@@ -199,6 +198,20 @@ describe("createLiveApi", () => {
     }
     expect(JSON.parse(String(calls[10].init.body))).toEqual({ category: "food" });
     expect(calls[11].init.body).toBeUndefined();
+  });
+});
+
+describe("createLiveApi ลบข้อมูลของฉัน", () => {
+  it("deleteMyData is DELETE /api/me with no body, and resolves once the server confirms", async () => {
+    const { api, calls } = setup([json(200, { deleted: true })]);
+    await expect(api.deleteMyData()).resolves.toBeUndefined();
+    expect(calls.map((c) => `${c.init.method} ${c.url.replace("https://x.test", "")}`)).toEqual(["DELETE /api/me"]);
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
+  it("a failed delete is an error, so the screen keeps the data and says so", async () => {
+    const { api } = setup([json(500, { error: { code: "internal", message: "ลองใหม่" } })]);
+    await expect(api.deleteMyData()).rejects.toMatchObject({ status: 500, code: "internal" });
   });
 });
 

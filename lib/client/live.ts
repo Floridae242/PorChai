@@ -120,6 +120,10 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     claimPoints: (idempotencyKey) => request({ method: "POST", path: "/api/points/claim", idempotencyKey }),
     rewards: () => request({ method: "GET", path: "/api/rewards" }),
     redeemReward: (id, idempotencyKey) => request({ method: "POST", path: `/api/rewards/${seg(id)}/redeem`, idempotencyKey }),
+    // ตั้งค่า › ลบข้อมูลของฉัน: every row of the account; resolves only after the server confirms
+    deleteMyData: async () => {
+      await request({ method: "DELETE", path: "/api/me" });
+    },
 
     // --- NOT ON THE SERVER YET (backend-gaps 13-20): wire each to its route when it ships ---
     consent: notImplemented,
@@ -130,7 +134,6 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     shopRedeem: notImplemented,
     dailySpend: notImplemented,
     categoryTotals: notImplemented,
-    deleteMyData: notImplemented,
     // --- end not-implemented block ---
   };
 }
