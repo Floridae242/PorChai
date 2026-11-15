@@ -205,6 +205,7 @@ export interface TodayBudgetCardViewModel {
   daysRemaining: number;
   savingsReserved: Satang;
   bufferReserved: Satang;
+  balance: Satang; // all the money on hand now («เหลือเงินทั้งหมดเท่าไร»)
   appOrigin?: string;
 }
 

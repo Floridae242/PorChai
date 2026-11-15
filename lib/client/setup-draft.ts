@@ -18,7 +18,9 @@ export interface DraftBill {
 export interface SetupDraft {
   incomeSource: "family" | "side_job" | "other" | null;
   incomeFrequency: "monthly" | "weekly" | "irregular" | null;
-  payday: string; // YYYY-MM-DD, "" = not chosen
+  payday: string; // YYYY-MM-DD, "" = not chosen. Weekly/monthly: worked out from the two fields below
+  paydayWeekday: number | null; // weekly: 0 = Sunday .. 6 = Saturday
+  paydayDay: number | null; // monthly: day of the month 1..31
   balance: Satang | null;
   bills: DraftBill[];
   savingsMode: "percent" | "amount" | "none" | null;
@@ -37,6 +39,8 @@ export function createEmptySetupDraft(): SetupDraft {
     incomeSource: null,
     incomeFrequency: null,
     payday: "",
+    paydayWeekday: null,
+    paydayDay: null,
     balance: null,
     bills: [],
     savingsMode: null,

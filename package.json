@@ -12,7 +12,9 @@
     "typecheck": "next typegen && tsc --noEmit",
     "line:check": "node scripts/check-line.mjs",
     "test:db": "vitest run --config vitest.db.config.mts",
-    "eval:chat": "vitest run --config vitest.eval.config.mts"
+    "eval:chat": "vitest run --config vitest.eval.config.mts",
+    "eval:offline": "vitest run lib/ai/scenarios.test.ts lib/ai/gemini-resilience.test.ts lib/ai/admission.test.ts lib/line/id-token-cache.test.ts lib/calc/invariants.test.ts lib/chat/routine.test.ts lib/chat/grounding-boundaries.test.ts",
+    "bench:scale": "vitest run --config vitest.scale.config.mts"
   },
   "dependencies": {
     "@line/liff": "^2.32.0",

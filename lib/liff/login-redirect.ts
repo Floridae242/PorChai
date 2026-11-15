@@ -4,8 +4,6 @@ export function appReturnPath(value: string | null): string | null {
 }
 
 export function loginRedirectUri(origin: string, pathname: string): string {
-  const callback = new URL("/miniapp", origin);
-  const path = appReturnPath(pathname);
-  if (path) callback.searchParams.set("returnTo", path);
-  return callback.href;
+  // The canonical LINE Developers endpoint is /app. All financial screens are beneath it.
+  return new URL(appReturnPath(pathname) ?? "/app", origin).href;
 }

@@ -101,7 +101,7 @@ export interface PorchaiApi {
   plans(): Promise<PlansResponse>;
   addPlan(req: NewPlanRequest, idempotencyKey: string): Promise<PlanResponse>;
   planAction(id: string, action: PlanActionName, body?: PayPlanRequest): Promise<PlanResponse>;
-  // Not on the backend yet: live throws ApiError('not_implemented'); mock implements them.
+  // Consent and promo endpoints remain mock-only; points/rewards use authenticated server routes.
   consent(): Promise<{ accepted: boolean; version: string | null }>;
   acceptConsent(version: string): Promise<void>;
   points(): Promise<{ balance: number; claimedToday: boolean }>;

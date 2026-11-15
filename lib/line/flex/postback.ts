@@ -22,6 +22,7 @@ export const POSTBACK_ACTIONS = [
   "pay_real",
   "postpone_next",
   "try_other",
+  "try_hint", // price_hints: [ใช้ราคานี้ลอง] (a text quick reply, not a card)
   "try_cancel",
   "ask_date_today",
   "ask_date_tomorrow",

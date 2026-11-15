@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { baht, type Satang } from "@/lib/calc/money";
+import { baht } from "@/lib/calc/money";
 import {
   computeBudget,
   simulatePurchase,
   type BudgetInput,
-  type BudgetResult,
 } from "@/lib/calc/budget";
 import { parseNewEntry, parseBalanceCheck } from "@/lib/validate";
 import { HttpError } from "@/lib/http";
@@ -114,9 +113,7 @@ describe("2. [TC-04] เคสแยก 700 บาท บิล 0 บาท เ�
     daysLeft: 3,
   });
 
-  // หมายเหตุ: โค้ดปัจจุบันใช้ floorToBaht ปัดเศษลงเป็นเต็มบาท (ได้ 233 บ. = 23,300 สตางค์)
-  // เมื่อ dev แก้ไขให้รองรับการปัดเศษลงขั้น 25 สตางค์ (R3-quarter) ให้เปลี่ยน it.fails กลับเป็น it
-  it.fails(
+  it(
     "TC-04 (ก่อนลอง): 700 บ. 3 วัน ควรได้ 233.25 บ./วัน (23,325 สตางค์)",
     () => {
       const result = computeBudget(baseInput);
@@ -128,8 +125,7 @@ describe("2. [TC-04] เคสแยก 700 บาท บิล 0 บาท เ�
     },
   );
 
-  // เมื่อ dev แก้ไขให้รองรับการปัดเศษลงขั้น 25 สตางค์ (R3-quarter) ให้เปลี่ยน it.fails กลับเป็น it
-  it.fails(
+  it(
     "TC-04 (หลังลอง): ลอง 300 บ. เหลือ 400 บ. 3 วัน ควรได้ 133.25 บ./วัน (13,325 สตางค์)",
     () => {
       const tried = simulatePurchase(baseInput, baht(300));
@@ -306,8 +302,7 @@ describe("8. [TC-22, TC-23, TC-24, TC-25] ลองไม่สะสม, เก
     });
   });
 
-  // เมื่อ dev แก้ไขให้รองรับการปัดเศษลงขั้น 25 สตางค์ (R3-quarter) ให้เปลี่ยน it.fails กลับเป็น it
-  it.fails("TC-22 [R3-quarter]: ลอง 250 บ. ได้งบ 64.25 บ./วัน (6,425 สตางค์)", () => {
+  it("TC-22 [R3-quarter]: ลอง 250 บ. ได้งบ 64.25 บ./วัน (6,425 สตางค์)", () => {
     const base = createBudgetInput({
       balanceBaht: 1000,
       reservedBaht: 300,
@@ -376,4 +371,3 @@ describe("8. [TC-22, TC-23, TC-24, TC-25] ลองไม่สะสม, เก
     });
   });
 });
-

@@ -50,9 +50,9 @@ const advise = async (question: string) => {
   return res.json();
 };
 
-// The AI's two calls: reading the question, then wording the answer
-function aiSays(reading: object | null, wording: string | null) {
-  vi.mocked(generate).mockResolvedValueOnce(reading ? JSON.stringify(reading) : null).mockResolvedValueOnce(wording);
+// Only wording uses AI; literal prices/dates are read deterministically.
+function aiSays(wording: string | null) {
+  vi.mocked(generate).mockResolvedValueOnce(wording);
 }
 
 describe("card 15: POST /api/advice", () => {
@@ -136,7 +136,7 @@ describe("card 15: POST /api/advice", () => {
 
   it("AI on: its wording is used when every number in it came from the calculator", async () => {
     await figma();
-    aiSays({ item: "ชาบู", amount_baht: 300 }, "ไหวเลย ชาบู 300 บาทพรุ่งนี้ งบต่อวันจาก 120 เหลือ 95 ค่ากินค่ารถ 70 ยังพอ");
+    aiSays("ไหวเลย ชาบู 300 บาทพรุ่งนี้ งบต่อวันจาก 120 เหลือ 95 ค่ากินค่ารถ 70 ยังพอ");
     const a = await advise("พรุ่งนี้กินชาบู 300 บาทไหวไหม");
     expect(a).toMatchObject({ byAI: true, verdict: "enough" });
     expect(a.explanation).toContain("ไหวเลย");
@@ -144,7 +144,7 @@ describe("card 15: POST /api/advice", () => {
 
   it("AI invents a number (96) → the template is used instead", async () => {
     await figma();
-    aiSays({ item: "ชาบู", amount_baht: 300 }, "ไหว เหลือวันละ 96 บาท");
+    aiSays("ไหว เหลือวันละ 96 บาท");
     const a = await advise("พรุ่งนี้กินชาบู 300 บาทไหวไหม");
     expect(a.byAI).toBe(false);
     expect(a.explanation).toContain("เหลือ 95 บาท");
@@ -152,18 +152,19 @@ describe("card 15: POST /api/advice", () => {
 
   it("AI suggests cutting food, or leaves out the shortfall → the template", async () => {
     await figma();
-    aiSays({ item: "หูฟัง", amount_baht: 700 }, "ตึงนิดหน่อย ลองลดค่ากินวันละ 9 ดู");
+    aiSays("ตึงนิดหน่อย ลองลดค่ากินวันละ 9 ดู");
     expect((await advise("ซื้อหูฟัง 700 ได้มั้ย")).byAI).toBe(false);
-    aiSays({ item: "โน้ตบุ๊ก", amount_baht: 2000 }, "ไม่พอนะ ลองเก็บเงินก่อน");
+    aiSays("ไม่พอนะ ลองเก็บเงินก่อน");
     const short = await advise("ซื้อโน้ตบุ๊ก 2000 ไหวไหม");
     expect(short.byAI).toBe(false);
     expect(short.explanation).toContain("ขาด 560 บาท");
   });
 
-  it("AI reads a price that is not the one written → asks instead of using it", async () => {
+  it("AI cannot override a literal price; one call only for wording", async () => {
     await figma();
-    aiSays({ item: "ชาบู", amount_baht: 500 }, null);
-    expect(await advise("พรุ่งนี้กินชาบู 300 บาทไหวไหม")).toMatchObject({ verdict: "ask", needs: ["amount"] });
+    aiSays(null);
+    expect(await advise("พรุ่งนี้กินชาบู 300 บาทไหวไหม")).toMatchObject({ verdict: "enough", amount: 30000 });
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it("the AI is sent the question and numbers only — no LINE id or user id", async () => {

@@ -72,7 +72,7 @@ describe("Phase 2 Core Flows (G05–G12)", () => {
     expect(screen.getByText("120")).toBeTruthy();
     unmount();
 
-    currentSearch = "title=หูฟัง&amount=700";
+    saveTryDraft({ title: "หูฟัง", amount: 70000, dueOn: null }); // the URL carries no price
     render(
       <ApiContext.Provider value={api}>
         <TryResultView />

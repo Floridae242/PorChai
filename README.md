@@ -15,9 +15,9 @@ npm run test:watch           # รันเทสต์ทุกครั้ง�
 
 `npm test` ไม่แตะฐานข้อมูล (ข้ามไฟล์ `*.db.test.ts`) เปิดฐานข้อมูลหรือไม่ก็ผ่าน
 
-Frontend foundation อยู่ที่ `/app` และตัวอย่าง UI ที่ `/app/demo/ui` มี shell, consent gate และ API client; หน้าสรุปยังเป็น placeholder. โหมดพัฒนาใช้ mock เป็นค่าเริ่มต้น ส่วน production ใช้ live เว้นแต่กำหนด `NEXT_PUBLIC_API_MODE` ชัดเจน.
+MINI App หลักอยู่ที่ `/app` บน `https://porchai.vercel.app` มีหน้าแผน จดรายจ่าย ลองก่อนจ่าย และตั้งค่า ส่วน `/miniapp` เป็นหน้าแนะนำแบบการ์ดพร้อมมาสคอต. โหมดพัฒนาใช้ mock เป็นค่าเริ่มต้น ส่วน production ใช้ live เสมอ.
 
-เมื่อใช้ Developing MINI App ชุดนี้ ให้ตั้ง `NEXT_PUBLIC_LIFF_ID` และ `LINE_LOGIN_CHANNEL_ID` ตาม `.env.example`. หน้า `/app` ล็อกอินผ่าน callback `/miniapp` ซึ่งตรงกับ Console endpoint แล้วกลับเฉพาะ path ภายใน `/app` หลังตรวจ ID token ฝั่งเซิร์ฟเวอร์สำเร็จ. หน้า `/miniapp` เดิมยังเปิดได้ตามปกติ; การใช้ API ข้อมูลส่วนตัวต้องตั้งค่า Supabase ฝั่งเซิร์ฟเวอร์ด้วย.
+ตั้ง `NEXT_PUBLIC_LIFF_ID` และ channel audience ตาม `.env.example`. LINE Developers Developing Endpoint ใช้ `https://porchai.vercel.app/app`; ปุ่ม OA ใช้ permanent links ที่สัมพันธ์กับ endpoint นี้. ล็อกอินใน browser กลับไปยัง path ที่ตรวจแล้วภายใต้ `/app` โดยตรง และ API ตรวจ ID token ฝั่งเซิร์ฟเวอร์. ดู [การ์ด OA และ LIFF](docs/LINE-CARDS.md) สำหรับรูปมาสคอตบน Vercel และวิธีทดสอบ.
 
 ## ฐานข้อมูลบนเครื่อง (Supabase)
 
@@ -29,7 +29,7 @@ supabase db reset   # สร้างตารางใหม่จาก supaba
 supabase stop
 ```
 
-ข้อมูลทดสอบ (`supabase/seed.sql`) มีผู้ใช้เดโม 3 คนตามตัวเลข Figma: `U_demo_try` (ลอง), `U_demo_plan` (เลือกแผน), `U_demo_paid` (จ่ายจริง) · ใส่เฉพาะบนเครื่อง `supabase db push` ไม่ส่งขึ้น cloud · วันที่อิงวันที่ reset ถ้าเทสต์ข้ามวันให้ `supabase db reset` ใหม่ก่อน
+ข้อมูลทดสอบ (`supabase/seed.sql`) มีผู้ใช้เดโม 3 คนตามตัวเลข Figma: `U_demo_try` (ลอง), `U_demo_plan` (เลือกแผน), `U_demo_paid` (จ่ายจริง) · ใส่เฉพาะบนเครื่อง `supabase db push` ไม่ส่งขึ้น cloud · วันที่อิงวันที่ reset; เทสต์ seed อ่านตามวันของเดโมที่บันทึกไว้ จึงรันข้ามวันได้โดยไม่ต้อง reset ฐานข้อมูล
 
 เทสต์ฐานข้อมูล (`npm run test:db`) อ่านค่าจาก `.env.test.local` (ถูก `.gitignore` กันไว้ ห้าม commit)
 สร้างไฟล์นี้เองจากผล `supabase status -o env` ตามนี้:
@@ -63,6 +63,7 @@ supabase stop
 2. ใส่ env ใน Vercel (Project Settings > Environment Variables) ห้ามใส่ในไฟล์ใน repo ชื่อตัวแปรตาม `.env.example`:
    `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `NEXT_PUBLIC_LIFF_ID`, `LINE_LOGIN_CHANNEL_ID`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
    (`SUPABASE_ANON_KEY` ใช้เฉพาะเทสต์ ไม่ต้องใส่)
+   Microsoft Clarity (ไม่บังคับ): `NEXT_PUBLIC_CLARITY_PROJECT_ID` ค่าว่าง = ปิด **ห้ามตั้งใน Production จนกว่ามินตราเซ็นผ่านการตรวจปิดบังข้อมูล** (ดูหัวข้อ Microsoft Clarity)
    AI (การ์ด 15): `GEMINI_API_KEY` (คีย์จาก Google AI Studio แผนฟรี พอถือ) · `GEMINI_MODEL` ไม่ใส่ก็ได้ (ค่าเริ่มต้น `gemini-3.5-flash-lite`) · ไม่มีคีย์ = ระบบตอบด้วยข้อความแม่แบบ ไม่พัง
 3. สร้างตารางบนโปรเจกต์จริง: `supabase link --project-ref <ref>` แล้ว `supabase db push`
 4. deploy preview บน Vercel (push branch) แล้วจดโดเมน
@@ -84,6 +85,16 @@ supabase stop
 
 หน้าจอเรียกข้อมูลผ่าน `app/api/` เท่านั้น ไม่ต่อฐานข้อมูลตรง
 
+## Microsoft Clarity (วัดการใช้งานหน้า MINI App)
+
+- โหลดเฉพาะหน้า `/app` เท่านั้น (ไม่โหลดที่ `/`, `/miniapp`, `/business`, `/shop`, หน้ายินยอม) และโหลดหลังผู้ใช้กดยอมรับ + LIFF พร้อมแล้ว โค้ดอยู่ที่ `lib/clarity/` ที่เดียว ห้ามเรียก `clarity(` ที่อื่น ห้ามส่ง identify/tag/event (มีเทสต์กันไว้)
+- เปิดใช้โดยตั้ง `NEXT_PUBLIC_CLARITY_PROJECT_ID` ค่านี้ฝังตอน build ต้อง deploy ใหม่เมื่อเปลี่ยน ค่าว่าง = ปิด
+- ต้องตั้ง **Masking เป็น Strict** ที่หน้า Settings > Masking ของโปรเจกต์ Clarity เอง (ตั้งจากโค้ดไม่ได้ มีผลกับการบันทึกใหม่ อาจใช้เวลาถึง 1 ชม.) ป้าย `data-clarity-mask="true"` ในโค้ดเป็นชั้นที่สอง
+- URL ถูกบันทึกและปิดบังไม่ได้: ห้ามใส่ยอด ชื่อ หรือข้อความส่วนตัวใน URL (ลิงก์โปรส่งแค่ `?promo=<id>` วันเงินเข้าใหม่เก็บในหน่วยความจำ ไม่ใส่ `?payday=`) มีเทสต์ตรวจ
+- ทดสอบในเครื่อง: ใส่ Project ID ใน `.env.local` รัน `npm run dev` แล้วเปิด `/app/consent?scenario=fresh` กดยอมรับ เดินหน้าด้วยข้อมูลสมมติ ให้ผู้ตรวจดูภาพบันทึกว่าข้อความ ตัวเลข และช่องกรอกเป็นบล็อกทึบ
+- ปิดฉุกเฉิน: ลบ `NEXT_PUBLIC_CLARITY_PROJECT_ID` จาก Vercel แล้ว deploy ใหม่
+- เอกสาร Clarity ระบุว่าไม่ควรใช้กับผู้ใช้อายุต่ำกว่า 18 ปี ต้องให้ทีมหรืออาจารย์ตัดสินก่อนเปิดกับผู้ใช้จริง
+
 ## กฎของ repo
 
 - repo นี้เป็น public: ห้าม commit `.env.local` หรือ key ใดๆ (`.gitignore` กันไว้แล้ว ยกเว้น `.env.example` ที่มีแค่ชื่อตัวแปร)
@@ -103,12 +114,12 @@ supabase stop
 หน้า `/` เป็นหน้าแนะนำ ส่วน `/miniapp` เริ่ม LIFF และส่ง ID token ไป `POST /api/line/verify`.
 เซิร์ฟเวอร์ส่ง token ไป LINE พร้อม `LINE_MINIAPP_CHANNEL_ID` และตรวจ issuer,
 audience, expiry และ subject ก่อนคืนชื่อที่ยืนยันแล้ว ไม่เชื่อ profile ที่ client ส่งมา.
-ยังไม่สร้าง session: API ข้อมูลส่วนตัวในอนาคตต้องตรวจ token หรือ session ของตัวเองทุกครั้ง.
+API ข้อมูลส่วนตัวตรวจ ID token ทุกครั้งผ่าน `requireUser()` และใช้เฉพาะ user ID ที่เซิร์ฟเวอร์ยืนยัน.
 
 `POST /api/line/webhook` ตรวจ `x-line-signature` ด้วย HMAC-SHA256 บน raw bytes
 ก่อน parse JSON. ลายเซ็นผิด/หายได้ 401, JSON หรือ events ผิดรูปแบบได้ 400,
 ไม่ตั้ง secret ได้ 503 และ `events: []` ที่เซ็นถูกได้ 200.
-รุ่น Developing ตอบข้อความต้อนรับเมื่อเพิ่มเพื่อนและข้อความช่วยเหลือเมื่อได้รับข้อความตัวอักษร พร้อมปุ่มเปิด MINI App. ยังไม่บันทึกรายจ่าย. เมื่อส่งล้มเหลว redelivery ลองส่งใหม่ได้ภายในข้อจำกัด reply token ของ LINE; มี cache คำตอบที่สำเร็จใน process เพื่อลดการตอบซ้ำ แต่ไม่มีคิวถาวรหรือ cache ร่วมข้าม instance. รายละเอียดใน [คู่มือ LINE OA](docs/LINE-OA-DEVELOPING.md).
+OA แสดง Flex carousel เมื่อเพิ่มเพื่อนหรือส่งคำสั่งเมนู และรับรายจ่ายทีละรายการผ่านแชต. หลังบันทึกสำเร็จแสดงใบเสร็จพร้อมลิงก์ดู/แก้ไขรายการใน LIFF. การรับ event ซ้ำใช้ Supabase และ financial idempotency key; เมื่อประมวลผลไม่สำเร็จคืน marker และตอบ non-2xx เพื่อให้ LINE ส่งซ้ำ. หากบันทึกแล้วแต่ส่งคำตอบล้มเหลวจะไม่บันทึกรายจ่ายซ้ำ. ดู [คู่มือ LINE OA](docs/LINE-OA-DEVELOPING.md).
 
 ### Environment
 
@@ -127,6 +138,10 @@ LIFF ID เป็นค่า build-time จึงต้อง build ใหม�
 
 Webhook จะบันทึก event ID และเชื่อมตัวตนผ่าน Backend เมื่อกำหนด Supabase URL และ service role key ครบ. ถ้าทั้งสองค่าว่าง ยังทดสอบ OA/LIFF โดยไม่ต่อ DB ได้; ถ้าขาดค่าใดค่าหนึ่งตอบ 503. การกัน event ซ้ำของ DB ไม่ขวางการ retry ส่ง OA reply ที่ครั้งแรกส่งไม่สำเร็จ.
 
+แต้ม/ของรางวัล: หน้า MINI App เชื่อม `GET /api/points`, `POST /api/points/claim`, `GET /api/rewards` และ `POST /api/rewards/:id/redeem` แล้ว ต้อง apply migration `20261115000000_points_rewards.sql` ก่อนใช้ ระบบจริงเริ่ม 0 แต้มและ catalog ว่าง รายละเอียด transaction และ idempotency อยู่ใน [Frontend API](docs/frontend-api.md).
+
+รูปแบบแชต: คำตอบ AI คำถามกลับ และข้อความแจ้งผลใช้ Flex Card เป็นหลักแล้ว โดยคงการ์ดจดรายจ่ายเดิมและคำสั่งปุ่มเดิมไว้ ดูขอบเขต ข้อยกเว้น และวิธีพรีวิวใน [Flex-first replies](docs/LINE-FLEX-REPLIES.md).
+
 ### LINE Developers Console (ทำเมื่อมี HTTPS endpoint พร้อมแล้ว)
 
 สถานะการตั้งค่าและผลตรวจจริงรอบล่าสุดอยู่ใน [LINE live setup](docs/LINE-LIVE-SETUP.md). ปัจจุบันใช้ HTTPS tunnel ชั่วคราว ไม่ใช่ hosting ถาวร. ตรวจซ้ำได้ด้วย `npm run line:check -- --url https://<dev-host> --live` โดยไม่แสดง credential.
@@ -135,7 +150,7 @@ Webhook จะบันทึก event ID และเชื่อมตัว�
    localhost อย่างเดียวใช้ทดสอบจาก LINE ไม่ได้. ใช้ dev tunnel ที่ทีมอนุมัติหรือ
    dev hosting ที่มีอยู่และรันโค้ดชุดนี้. ถ้าใช้ tunnel เครื่องและ process ต้องเปิดอยู่ตลอดการทดสอบ.
 2. เปิด MINI App channel **2012545254** → Web app settings → **Developing**.
-   ตั้ง Endpoint URL เป็น `https://<dev-host>/miniapp` และตรวจ LIFF ID ว่าตรงกับ
+   ตั้ง Endpoint URL เป็น `https://<dev-host>/app` และตรวจ LIFF ID ว่าตรงกับ
    `2012545254-6025ZG1r`. แอปใช้ `openid` และ `profile` เพื่อรับ ID token และชื่อ
    (MINI App มีค่า scope ตามที่แพลตฟอร์มกำหนด ไม่ได้ปรับแยกแต่ละ internal channel แบบ LINE Login LIFF).
    บัญชีทดสอบต้องมีสิทธิ์ใน channel สำหรับ Developing.
@@ -177,6 +192,18 @@ npm run build
 
 อ้างอิงดีไซน์เพิ่มเติมจาก Figma หน้า Conversation; เฟรมที่ตรวจและส่วนที่นำมาใช้ระบุใน [Design references](docs/DESIGN-REFERENCES.md).
 
-หน้าแนะนำมี desktop scroll showcase 6 ฉาก, ตัวเลือกบนมือถือ, การ์ดเลื่อนแนวนอน, สลับข้อมูลนักศึกษา/ร้านค้า, สถานการณ์สมมติ, FAQ และปุ่มกลับด้านบน. รองรับ reduced motion โดยปิด animation และช่วง pinned. `/miniapp` มีหน้าล็อกอิน สถานะเชื่อมต่อ และหน้าหลัก/โปร/เกี่ยวกับหลังตรวจตัวตนสำเร็จ.
+หน้าแนะนำมี desktop scroll showcase 6 ฉาก, ตัวเลือกบนมือถือ, การ์ดเลื่อนแนวนอน, สลับข้อมูลนักศึกษา/ร้านค้า, สถานการณ์สมมติ, FAQ และปุ่มกลับด้านบน. รองรับ reduced motion โดยปิด animation และช่วง pinned. `/miniapp` มีหน้าแนะนำแบบการ์ด มาสคอตเคลื่อนไหว สถานะ LINE และปุ่มเปิดหน้าการเงินจริงใน `/app`.
 
-`/` คือหน้าแนะนำ PorChai พร้อมแชตตัวอย่างแบบสลับได้และ FAQ. `/miniapp` คือหน้าทดสอบที่ตรวจตัวตน LINE; `/business/demo` คือรายงานธุรกิจสมมติ. ตั้ง Console Endpoint URL เป็น `https://<dev-host>/miniapp` เพื่อให้ LIFF เริ่มและรับ redirect ที่หน้าเดียวกันทุกครั้ง รวมถึงการเปิด MINI App URL ที่ไม่มีพารามิเตอร์. หากเคยตั้งเป็น root ให้เปลี่ยนก่อนทดสอบรอบนี้. ยังไม่ใช่การรับรอง MINI App หรือหลักฐานทดสอบ LINE จริง.
+`/` คือหน้าแนะนำ PorChai พร้อมแชตตัวอย่างแบบสลับได้และ FAQ. `/miniapp` คือหน้าทดสอบที่ตรวจตัวตน LINE; `/business/demo` คือรายงานธุรกิจสมมติ. ตั้ง Console Endpoint URL เป็น `https://<dev-host>/app` เพื่อให้ LIFF เริ่มและรับ redirect ภายใต้ `/app` รวมถึงการเปิด MINI App URL ที่ไม่มีพารามิเตอร์. หากเคยตั้งเป็น root ให้เปลี่ยนก่อนทดสอบรอบนี้. ยังไม่ใช่การรับรอง MINI App หรือหลักฐานทดสอบ LINE จริง.
+
+## รองรับโหลดและประเมิน AI
+
+งานปรับระบบเป้าหมาย 1,000 คนพร้อมกันและขอบเขตผลวัดอยู่ใน [Scale and AI validation](docs/SCALE-AND-AI.md).
+
+```bash
+npm run eval:offline  # guard, fault injection, 1,000-call admission tests, 5,000 generated money cases; no key/cost
+npm run test:db       # local Supabase only, including >1,000 rows and concurrent event leases
+npm run bench:scale   # creates 1,000 temporary local accounts, runs budget requests, cleans up, writes ignored JSON
+```
+
+ก่อนนำโค้ดนี้ขึ้น hosting ต้องใช้ migrations ใหม่ทั้งสองไฟล์ก่อน; งานรอบนี้ใช้กับฐานข้อมูล local เท่านั้น. ตั้ง limits ตาม `.env.example` และโควตาจริงของ LINE/Gemini/Supabase. บัญชีออนไลน์พร้อมกัน 1,000 คนไม่ได้แปลว่าส่งเข้า Gemini ได้ 1,000 งานพร้อมกัน: งาน AI เกินโควตาตอบด้วย template จากสูตรเงินจริง.

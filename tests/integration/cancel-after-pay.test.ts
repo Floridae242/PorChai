@@ -1,38 +1,17 @@
-import { test, expect } from 'vitest';
-import { getDb } from '@/lib/db/client';
-import { PlanService } from '@/services/plan-service';
+import { describe, expect, it } from "vitest";
+import { createMockApi } from "@/lib/client/mock";
 
-/**
- * Integration test for TC-25 – Cancel after Pay.
- * Ensures that once a plan is marked as paid, invoking cancel does not restore the reserved amount
- * and the balance remains reduced.
- */
-
-test.describe('TC-25 Cancel After Pay', () => {
-  test('cancelling a paid plan does not restore balance', async () => {
-    const db = await getDb();
-    const planService = new PlanService(db);
-
-    // Setup a plan with initial balance 1000 baht.
-    const userId = 'user-xyz';
-    await db.user.create({ id: userId, balance: 1000 });
-
-    // Create a plan that reserves 200 baht.
-    const plan = await planService.createPlan({ userId, amount: 200, days: 7 });
-    // Simulate payment of the plan.
-    await planService.payPlan(plan.id);
-
-    // Capture balance after payment.
-    const balanceAfterPay = await db.user.findUnique({ where: { id: userId } });
-    const expectedAfterPay = 800; // 1000 - 200
-    expect(balanceAfterPay?.balance).toBe(expectedAfterPay);
-
-    // Attempt to cancel the paid plan.
-    await planService.cancelPlan(plan.id);
-
-    // Verify balance unchanged.
-    const balanceAfterCancel = await db.user.findUnique({ where: { id: userId } });
-    expect(balanceAfterCancel?.balance).toBe(expectedAfterPay);
+// Client contract: a paid plan must be unpaid before it can be cancelled.
+// Real database transitions are covered by app/api/plans/*.db.test.ts.
+describe("TC-25 Cancel After Pay (mock client contract)", () => {
+  it("rejects cancelling a paid plan without restoring its balance", async () => {
+    const api = createMockApi();
+    const before = await api.summary();
+    const { plan } = await api.addPlan({ title: "หนังสือ", amount: 20000 }, "tc25");
+    await api.planAction(plan.id, "pay", { category: "supplies" });
+    expect((await api.summary()).balance).toBe(before.balance - 20000);
+    await expect(api.planAction(plan.id, "cancel")).rejects.toMatchObject({ status: 409, code: "plan_status" });
+    expect((await api.summary()).balance).toBe(before.balance - 20000);
+    expect((await api.plans()).plans.find((p) => p.id === plan.id)?.status).toBe("paid");
   });
 });
-

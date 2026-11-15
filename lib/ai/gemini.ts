@@ -1,3 +1,7 @@
+import { positiveLimit } from "@/lib/runtime/limits";
+import { AiGate, admitAi, aiDeadline } from "./admission";
+import { readBoundedBytes } from "@/lib/runtime/body";
+
 // Gemini (team choice, free tier, key held by Por). Interactions API per the official docs
 // (aistudio.google.com/docs/text-generation, /structured-output). Free tier: Google may use what is sent
 // to improve its models and people may read it, so callers send the question and computed numbers only —
@@ -8,7 +12,7 @@ const URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
 // gemini-3.5-flash-lite, which was mostly 503 "high demand"; gemini-2.5-flash-lite is closed to new keys
 const MODEL = () => process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 // The user would rather wait than get the template (13 Nov); LINE answered after 13 s in production
-const BUDGET_MS = 15_000;
+const gate = new AiGate(positiveLimit(process.env.AI_MAX_CONCURRENT, 8, 128));
 const RETRY_AFTER_MS = 500;
 
 export interface GenerateOptions {
@@ -24,12 +28,13 @@ interface Step {
 }
 
 export async function generate(opts: GenerateOptions): Promise<string | null> {
+  if (opts.input.length > 24_000 || opts.system.length > 16_000) return null;
   const body = await postWithRetry(URL, {
     model: MODEL(),
     input: opts.input,
     system_instruction: opts.system,
     store: false, // nothing kept server-side for a later turn
-    generation_config: { max_output_tokens: opts.maxOutputTokens ?? 400 },
+    generation_config: { max_output_tokens: Math.max(1, Math.min(1000, opts.maxOutputTokens ?? 400)) },
     ...(opts.schema && { response_format: { type: "text", mime_type: "application/json", schema: opts.schema } }),
   });
   return body ? textOf(body as { status?: string; output_text?: string; steps?: Step[] }) : null;
@@ -45,7 +50,8 @@ export interface ImageOptions {
 }
 
 export async function generateFromImage(opts: ImageOptions): Promise<string | null> {
-  const body = (await postWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL()}:generateContent`, {
+  if (opts.image.byteLength > 8 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(opts.mimeType)) return null;
+  const body = (await postWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL()}:generateContent`, () => ({
     contents: [
       {
         role: "user",
@@ -53,49 +59,75 @@ export async function generateFromImage(opts: ImageOptions): Promise<string | nu
       },
     ],
     generationConfig: { responseMimeType: "application/json", responseSchema: opts.schema, maxOutputTokens: 400 },
-  })) as { candidates?: { content?: { parts?: { text?: string }[] } }[] } | null;
-  const text = body?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
-  return text || null;
+  }))) as { candidates?: { content?: { parts?: { text?: string }[] } }[] } | null;
+  const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
+  const parts = candidates[0]?.content?.parts;
+  const text = Array.isArray(parts) ? parts.filter((p) => p && typeof p.text === "string").map((p) => p.text).join("") : "";
+  return text && text.length <= 16_000 ? text : null;
 }
 
-// Google busy (503) gets one more try within the same 15 s; any other failure is final (null)
-async function postWithRetry(url: string, payload: object): Promise<unknown | null> {
+// At most two transient attempts, within the original request deadline. Never log response bodies.
+async function postWithRetry(url: string, payload: object | (() => object)): Promise<unknown | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
-  const deadline = Date.now() + BUDGET_MS;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const left = deadline - Date.now();
-    if (left <= 0) return null;
-    try {
+  const deadline = aiDeadline();
+  const release = gate.enter();
+  if (!release) { console.info("ai outcome=overloaded"); return null; }
+  let success: boolean | null = null;
+  const started = Date.now();
+  try {
+    const body = JSON.stringify(typeof payload === "function" ? payload() : payload); // Encode once, not once per retry.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const left = deadline - Date.now();
+      if (left <= 0 || !(await admitAi())) return null;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return null;
+      success = false;
       const res = await fetch(url, {
         method: "POST",
         headers: { "x-goog-api-key": key, "Content-Type": "application/json", "Api-Revision": "2026-05-20" },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(left),
+        body,
+        signal: AbortSignal.timeout(remaining),
       });
-      if (res.status === 503 && attempt === 1) {
-        console.error("Gemini 503: busy, trying once more");
-        await new Promise((r) => setTimeout(r, RETRY_AFTER_MS));
+      if ([429, 500, 502, 503, 504].includes(res.status) && attempt === 1) {
+        const retryAfter = res.headers.get("retry-after");
+        const requested = retryAfter === null ? 0 : /^\d+(?:\.\d+)?$/.test(retryAfter)
+          ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - Date.now();
+        const delay = Math.max(RETRY_AFTER_MS + Math.floor(Math.random() * 250), Number.isFinite(requested) ? requested : 0);
+        await res.body?.cancel();
+        if (delay + 50 >= deadline - Date.now()) return null;
+        console.info(`ai outcome=retry status=${res.status}`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
       if (!res.ok) {
-        console.error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
+        await res.body?.cancel();
+        console.info(`ai outcome=provider_error status=${res.status}`);
         return null;
       }
-      return await res.json();
-    } catch (err) {
-      console.error(err);
-      return null;
+      const bytes = await readBoundedBytes(res, 64 * 1024);
+      const result = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+      success = true;
+      return result;
     }
+    return null;
+  } catch {
+    console.info("ai outcome=transport_error");
+    return null;
+  } finally {
+    release(success);
+    console.info(`ai outcome=${success ? "completed" : "fallback"} ms=${Date.now() - started}`);
   }
-  return null;
 }
 
-function textOf(body: { status?: string; output_text?: string; steps?: Step[] }): string | null {
-  if (body.status && body.status !== "completed") return null;
-  if (typeof body.output_text === "string") return body.output_text;
-  // The text of the last model output step
-  const last = [...(body.steps ?? [])].reverse().find((s) => s.type === "model_output");
-  const text = last?.content?.filter((c) => c.type === "text" && typeof c.text === "string").map((c) => c.text).join("");
-  return text || null;
+function textOf(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const value = body as { status?: unknown; output_text?: unknown; steps?: unknown };
+  if (value.status && value.status !== "completed") return null;
+  if (typeof value.output_text === "string") return value.output_text.length <= 16_000 ? value.output_text : null;
+  const steps = Array.isArray(value.steps) ? value.steps : [];
+  const last = steps.findLast((s) => s && typeof s === "object" && s.type === "model_output") as Step | undefined;
+  const text = (Array.isArray(last?.content) ? last.content : [])
+    .filter((c) => c && c.type === "text" && typeof c.text === "string").map((c) => c.text).join("");
+  return text && text.length <= 16_000 ? text : null;
 }

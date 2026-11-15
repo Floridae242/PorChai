@@ -1,6 +1,9 @@
 import { buildRichMenuSpec } from "@/lib/line/flex";
 import { refuseWithoutSecret } from "@/lib/ops-secret";
 
+// Since 13 Nov the menu is made in LINE OA Manager (the team edits it there, no deploy). A default set
+// through the API wins over OA Manager's, so DELETE takes ours off; POST is kept to go back if needed.
+//
 // Rich menu setup, run once after a deploy that changes it: โฟรวิว's spec (buildRichMenuSpec) and image
 // (public/richmenu.png, 2500×1686). Postback areas need the Messaging API — LINE OA Manager's editor
 // cannot send them. The LINE token is only on Vercel, so this runs there, behind CRON_SECRET.
@@ -49,6 +52,29 @@ export async function POST(request: Request): Promise<Response> {
     });
     await line("set default", `${API}/user/all/richmenu/${richMenuId}`, { method: "POST", headers: auth });
     return Response.json({ richMenuId, replaced: old.length });
+  } catch (err) {
+    if (err instanceof LineError) return Response.json({ error: err.message }, { status: 502 });
+    throw err;
+  }
+}
+
+// Hand the menu over to LINE OA Manager: take our default off everyone, then delete our menu (same name)
+export async function DELETE(request: Request): Promise<Response> {
+  const refused = refuseWithoutSecret(request);
+  if (refused) return refused;
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token) return Response.json({ error: "Missing LINE_CHANNEL_ACCESS_TOKEN" }, { status: 503 });
+  const auth = { Authorization: `Bearer ${token}` };
+  const { name } = buildRichMenuSpec();
+
+  try {
+    await line("clear default", `${API}/user/all/richmenu`, { method: "DELETE", headers: auth });
+    const list = (await (await line("list menus", `${API}/richmenu/list`, { headers: auth })).json()) as {
+      richmenus: { richMenuId: string; name: string }[];
+    };
+    const ours = list.richmenus.filter((m) => m.name === name);
+    for (const m of ours) await line("delete menu", `${API}/richmenu/${m.richMenuId}`, { method: "DELETE", headers: auth });
+    return Response.json({ removed: ours.length });
   } catch (err) {
     if (err instanceof LineError) return Response.json({ error: err.message }, { status: 502 });
     throw err;

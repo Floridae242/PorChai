@@ -27,6 +27,21 @@ function setup(responses: Array<Response | Error>) {
 const hdr = (c: Call, k: string) => new Headers(c.init.headers).get(k);
 
 describe("createLiveApi", () => {
+  it("connects points and rewards with authentication and stable idempotency headers", async () => {
+    const { api, calls } = setup([json(200, { balance: 0, claimedToday: false }), json(201, { balance: 1, claimedToday: true }),
+      json(200, []), json(201, { balance: 0, code: "RW-test" })]);
+    expect(await api.points()).toEqual({ balance: 0, claimedToday: false });
+    expect(await api.claimPoints("daily-k")).toEqual({ balance: 1, claimedToday: true });
+    expect(await api.rewards()).toEqual([]);
+    expect(await api.redeemReward("r 1", "reward-k")).toEqual({ balance: 0, code: "RW-test" });
+    expect(calls.map((c) => [c.url, c.init.method])).toEqual([
+      ["https://x.test/api/points", "GET"], ["https://x.test/api/points/claim", "POST"],
+      ["https://x.test/api/rewards", "GET"], ["https://x.test/api/rewards/r%201/redeem", "POST"],
+    ]);
+    expect(hdr(calls[1], "Idempotency-Key")).toBe("daily-k");
+    expect(hdr(calls[3], "Idempotency-Key")).toBe("reward-k");
+    expect(calls.every((c) => hdr(c, "Authorization") === "Bearer tok-1")).toBe(true);
+  });
   it("(a) sends Bearer token on every request", async () => {
     const { api, calls } = setup([json(200, { userId: "u", hasActiveCycle: true }), json(200, { entries: [] })]);
     expect(await api.me()).toEqual({ hasActiveCycle: true });
@@ -91,13 +106,9 @@ describe("createLiveApi", () => {
     const calls: Array<() => Promise<unknown>> = [
       () => api.consent(),
       () => api.acceptConsent("v1"),
-      () => api.points(),
-      () => api.claimPoints("k"),
       () => api.promos(),
       () => api.promo("p"),
       () => api.claimPromo("p"),
-      () => api.rewards(),
-      () => api.redeemReward("r", "k"),
       () => api.shopRedeem("c"),
       () => api.dailySpend(),
       () => api.categoryTotals(),

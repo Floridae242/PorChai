@@ -1,32 +1,23 @@
-import { test, expect, vi } from 'vitest';
-import { RewardRedemptionService } from '@/services/reward-redemption';
-import { getDb } from '@/lib/db/client';
+import { describe, expect, it, vi } from "vitest";
+import { createMockApi } from "@/lib/client/mock";
 
-/**
- * Integration test for TC-24 – Reward claim race condition.
- * Simulates two concurrent calls to claim the same reward and asserts that only one succeeds.
- */
-
-test.describe('TC-24 Reward Race Condition', () => {
-  test('only one of concurrent reward claims succeeds', async () => {
-    // Setup mock DB or use in‑memory DB (implementation depends on project).
-    const db = await getDb();
-    const service = new RewardRedemptionService(db);
-
-    // Prepare a reward that can be claimed once.
-    const rewardId = 'reward-123';
-    await db.reward.create({ id: rewardId, quantity: 1 });
-
-    // Simulate two concurrent claims.
-    const claim1 = service.claimReward({ rewardId, userId: 'user-A' });
-    const claim2 = service.claimReward({ rewardId, userId: 'user-B' });
-    const results = await Promise.allSettled([claim1, claim2]);
-
-    // Exactly one should be fulfilled, the other should be rejected.
-    const fulfilled = results.filter(r => r.status === 'fulfilled');
-    const rejected = results.filter(r => r.status === 'rejected');
-    expect(fulfilled).toHaveLength(1);
-    expect(rejected).toHaveLength(1);
-  });
+vi.mock("@/lib/client/mock-fixtures", async (importOriginal) => {
+  const fixtures = await importOriginal<typeof import("@/lib/client/mock-fixtures")>();
+  return { ...fixtures, REWARD_FIXTURES: [{ id: "last-reward", name: "ของชิ้นสุดท้าย", cost: 1, stock: 1 }] };
 });
 
+// In-memory demo contract only; this is not evidence of cross-user database locking.
+describe("TC-24 Reward race (mock client contract)", () => {
+  it("allows only one redemption of the last item and deducts points once", async () => {
+    const api = createMockApi();
+    const before = await api.points();
+    const results = await Promise.allSettled([
+      api.redeemReward("last-reward", "claim-a"),
+      api.redeemReward("last-reward", "claim-b"),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toMatchObject([{ reason: { code: "out_of_stock" } }]);
+    expect((await api.points()).balance).toBe(before.balance - 1);
+    expect((await api.rewards())[0].stock).toBe(0);
+  });
+});

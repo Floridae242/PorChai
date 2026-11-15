@@ -1,8 +1,8 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-vi.mock("@/lib/db/line-events", () => ({ recordEvent: vi.fn(), forgetEvent: vi.fn() }));
+vi.mock("@/lib/db/line-events", () => ({ recordEvent: vi.fn(), forgetEvent: vi.fn(), completeEvent: vi.fn() }));
 vi.mock("@/lib/line/handle-event", () => ({ handleEvent: vi.fn() }));
-import { forgetEvent, recordEvent } from "@/lib/db/line-events";
+import { completeEvent, forgetEvent, recordEvent } from "@/lib/db/line-events";
 import { handleEvent } from "@/lib/line/handle-event";
 let POST: typeof import("./route").POST;
 
@@ -26,6 +26,7 @@ beforeEach(async () => {
   ({ POST } = await import("./route"));
   vi.stubEnv("LINE_CHANNEL_SECRET", secret);
   vi.mocked(recordEvent).mockReset().mockResolvedValue(true);
+  vi.mocked(completeEvent).mockReset().mockResolvedValue(undefined);
   vi.mocked(forgetEvent).mockReset().mockResolvedValue(undefined);
   vi.mocked(handleEvent).mockReset().mockResolvedValue(undefined);
 });
@@ -81,11 +82,27 @@ describe("LINE webhook", () => {
   });
   it("a failed event is forgotten and answered 500 so LINE redelivers it; the rest still run", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(handleEvent).mockRejectedValueOnce(new Error("db down"));
+    vi.mocked(handleEvent).mockImplementation(async (event) => {
+      if ((event as { webhookEventId?: string }).webhookEventId === "bad") throw new Error("db down");
+    });
     const body = JSON.stringify({ events: [{ webhookEventId: "bad" }, { webhookEventId: "good" }] });
     expect((await POST(request(body))).status).toBe(500);
-    expect(forgetEvent).toHaveBeenCalledWith("bad");
+    expect(forgetEvent).toHaveBeenCalledWith("bad", expect.any(String));
     expect(handleEvent).toHaveBeenCalledTimes(2);
     vi.mocked(console.error).mockRestore();
   });
+  it("does not acknowledge a busy claim as complete or release another owner's work", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(recordEvent).mockRejectedValueOnce(new Error("busy"));
+    expect((await POST(request(JSON.stringify({ events: [{ webhookEventId: "busy" }] })))).status).toBe(500);
+    expect(handleEvent).not.toHaveBeenCalled();
+    expect(forgetEvent).not.toHaveBeenCalled();
+    vi.mocked(console.error).mockRestore();
+  });
+  it("rejects excessive bytes and event counts before any database work", async () => {
+    expect((await POST(request("x".repeat(1024 * 1024 + 1)))).status).toBe(413);
+    expect((await POST(request(JSON.stringify({ events: Array.from({ length: 101 }, (_, i) => ({ webhookEventId: `e${i}` })) })))).status).toBe(413);
+    expect(recordEvent).not.toHaveBeenCalled();
+  });
+
 });

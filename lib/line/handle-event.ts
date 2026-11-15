@@ -1,8 +1,12 @@
+import { routineChat } from "@/lib/chat/routine";
+import { conversationBoundary } from "@/lib/chat/intent";
+import { AiGate, withAiScope } from "@/lib/ai/admission";
 import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
 import { tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
-import { advise } from "@/lib/advice/advise";
-import { isQuestion, readQuestion } from "@/lib/advice/question";
+import { advise, dueOnOf } from "@/lib/advice/advise";
+import { findPriceHint } from "@/lib/advice/price-hint";
+import { isBalanceQuestion, isPurchaseWish, isQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
   adviceCard,
@@ -31,6 +35,7 @@ import {
   notWiredMessage,
   notYetMessage,
   postponedMessage,
+  priceHintMessage,
   tryAskAmountMessage,
   tryCard,
   welcomeCard,
@@ -71,12 +76,14 @@ import { addEntry, cancelEntry, editEntry, entryExists, entryForChat, sameAmount
 import { messageImage } from "@/lib/line/content";
 import { readSlip } from "@/lib/ocr/slip";
 import { addIncome } from "@/lib/db/income";
+import { activePriceHints } from "@/lib/db/price-hints";
 import { actOnPlan, addPlan, planIdByKey } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
 import { userIdForLine } from "@/lib/db/users";
 import { HttpError } from "@/lib/http";
 import { decodePostback, type DecodedPostback } from "@/lib/line/flex/postback";
 import { reply, text, withAppButton, type ReplyMessage } from "@/lib/line/reply";
+import { presentReply } from "@/lib/line/presentation";
 
 interface LineEvent {
   type?: unknown;
@@ -108,10 +115,10 @@ export async function handleEvent(event: unknown): Promise<void> {
   try {
     if (e.type === "message" && e.message?.type === "text" && typeof e.message.text === "string") {
       said = e.message.text;
-      answer = await onText(userId, e.message.text, String(e.webhookEventId));
+      answer = await withAiScope(userId, () => onText(userId, e.message!.text as string, String(e.webhookEventId)));
     } else if (e.type === "message" && e.message?.type === "image" && typeof e.message.id === "string") {
       said = "(ส่งรูป)"; // the photo itself is never kept
-      answer = await onPhoto(userId, e.message.id);
+      answer = await withAiScope(userId, () => onPhoto(userId, e.message!.id as string));
     } else if (e.type === "postback" && typeof e.postback?.data === "string") {
       const tapped = await onPostback(userId, e.postback.data);
       if (tapped) [said, answer] = [`(กด ${tapped.label})`, tapped.answer];
@@ -132,7 +139,7 @@ export async function handleEvent(event: unknown): Promise<void> {
   }
   if (typeof e.replyToken === "string") {
     // The spend is already saved; a failed answer must not make LINE send the event again
-    await reply(e.replyToken, [withAppButton(answer.message)]).catch((err) => console.error(err));
+    await reply(e.replyToken, [presentReply(withAppButton(answer.message))]).catch((err) => console.error(err));
   }
 }
 
@@ -147,6 +154,12 @@ function record(userId: string, d: Draft) {
 }
 
 // Card 09 / Figma L2 + L6, card 15. The rules read first; the AI only when they cannot.
+// What the OA Manager menu's buttons send («วันนี้ใช้ได้เท่าไหร่» is already a balance question)
+const MENU_TEXTS: Record<string, () => ReplyMessage> = {
+  วิธีจดรายการ: howToRecordMessage,
+  ลองก่อนจ่าย: howToTryMessage,
+};
+
 async function onText(userId: string, body: string, eventId: string): Promise<Answer> {
   const history = await recentChat(userId);
   const last = history.at(-1);
@@ -162,6 +175,14 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     const demo = await demoReminder(userId);
     return say(demo ? reminderCard(demo.log, demo.time) : demoNoHabitMessage());
   }
+  // The rich menu made in LINE OA Manager sends texts, not postbacks (it has no postback buttons)
+  const menu = MENU_TEXTS[body.trim()];
+  if (menu) return say(menu());
+  const clarification = conversationBoundary(body);
+  if (clarification) return converse(userId, body, history, { approximate: false, question: false, clarification });
+  // A social response ends the previous question; it is never the title of a pending amount.
+  const routine = routineChat(body);
+  if (routine?.kind === "chat" && routine.reply) return say(chatMessage(routine.reply));
   const amount = amountOnly(body);
   // Try card [ลองยอดอื่น] → «250»: try the new price (a new draft: paying it is a new spend)
   if (pending?.kind === "try" && pending.awaiting === "amount" && amount !== null) {
@@ -188,11 +209,21 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     return spend(userId, { title, amount: pending.amount, category: categoryOf(title), key: eventId });
   }
 
+  // «เหลือเท่าไร», «งบเหลือป่ะ»: the budget card, its numbers from the calculator (the AI is never asked)
+  if (isBalanceQuestion(body)) return say(todayCard(await loadSummary(userId)));
+
   // Card 15: «พรุ่งนี้กินชาบู 300 ไหวไหม» is a question, not a spend — answer it, save nothing.
   // Without one clear price («เหลือกี่บาท?», «ชาบู 150 หรือ 200 ดี») it is chat. A question never
   // reaches a path that records (bug 13 Nov: a what-if was saved as a spend).
   if (isQuestion(body)) {
     if (readQuestion(body).amount !== null) return adviceAnswer(userId, body, eventId);
+    // «ถ้ากินตี๋น้อยจะเหลือเท่าไร»: a shop in the team's price table → its usual price, to try only
+    const hint = findPriceHint(body, await activePriceHints());
+    if (hint) {
+      const dueOn = dueOnOf(readQuestion(body).day, thaiDate(new Date()));
+      const draft: TryDraft = { id: crypto.randomUUID(), title: hint.name, amount: hint.price, category: hint.category, key: eventId, dueOn };
+      return say(priceHintMessage(hint, draft), { kind: "try", draft, awaiting: "amount" });
+    }
     return converse(userId, body, history, { approximate: false, question: true });
   }
   // «รับ 500»: income, saved once under this message (a redelivery adds nothing)
@@ -222,21 +253,29 @@ async function converse(
   userId: string,
   body: string,
   history: ChatLine[],
-  { approximate, question }: { approximate: boolean; question: boolean },
+  { approximate, question, clarification }: { approximate: boolean; question: boolean; clarification?: string },
 ): Promise<Answer> {
+  const routine = routineChat(body);
+  if (routine?.kind === "chat" && routine.reply) return say(chatMessage(routine.reply));
+  if (routine?.kind === "spend") {
+    if (question) return say(askPriceMessage(routine.item));
+    return say(askAmountMessage(routine.item, approximate), { kind: "amount", title: routine.item });
+  }
+  if (question && isPurchaseWish(body)) return say(askPriceMessage(readQuestion(body).item ?? "รายการนี้"));
   const summary = await loadSummary(userId).catch((err) => {
     if (err instanceof HttpError && err.code === "no_cycle") return null; // chatting works before setup
     throw err;
   });
   const reading = await readChat(body, history, factsOf(summary));
   if (reading?.kind === "spend") {
+    if (clarification) return say(chatMessage(clarification));
     // «ถ้ากินชาบูจะเหลือเท่าไร»: ask the price to try it, never «จ่ายไปกี่บาท?» (whose answer is recorded)
     if (question) return say(askPriceMessage(reading.item));
     return say(askAmountMessage(reading.item, approximate), { kind: "amount", title: reading.item });
   }
   if (reading?.kind === "off_topic") return say(offTopicMessage());
   if (reading?.kind === "chat" && reading.reply) return say(chatMessage(reading.reply));
-  return say(approximate ? askMessage("approximate") : chatFallbackMessage(summary));
+  return say(clarification ? chatMessage(clarification) : approximate ? askMessage("approximate") : chatFallbackMessage(summary));
 }
 
 // L6: more than what is left today → ask first, the user decides (never decided for them)
@@ -356,11 +395,14 @@ async function onTryButton(userId: string, p: DecodedPostback): Promise<Answer> 
   const draft: Draft = { title: d.title, amount: d.amount, category: d.category, key: d.key, dueOn: d.dueOn };
   if (p.action === "try_cancel") return say(notBuyingMessage(d), { kind: "try", draft: d, closed: true });
   if (p.action === "try_other") return say(tryAskAmountMessage(d), { kind: "try", draft: d, awaiting: "amount" });
+  if (p.action === "try_hint") return tryAnswer(userId, d);
   if (p.action === "keep_plan") return say(await keepDraft(userId, draft));
   if (p.action === "postpone_next") {
     const answer = await keepDraft(userId, { ...draft, dueOn: null }, "postponed");
-    return say(answer.type === "text" && answer.text.startsWith("เก็บไว้ในแผนแล้ว") ? postponedMessage(d) : answer);
+    return say((answer.type === "text" ? answer.text : answer.altText).startsWith("เก็บไว้ในแผนแล้ว") ? postponedMessage(d) : answer);
   }
+  // Only [ยืนยันจ่ายจริง] pays: a button added here but not wired must never record money (R01)
+  if (p.action !== "pay_real") return say(notWiredMessage());
   // pay_real: another day's item is kept, not paid, until that day
   if (d.dueOn && d.dueOn > thaiDate(new Date())) return say(notYetMessage(d));
   return say(await payDraft(userId, draft));
@@ -382,6 +424,7 @@ const FLEX_LABEL: Partial<Record<DecodedPostback["action"], string>> = {
   keep_plan: "เก็บไว้ในแผน",
   pay_real: "ยืนยันจ่ายจริง",
   try_other: "ลองยอดอื่น",
+  try_hint: "ใช้ราคานี้ลอง",
   try_cancel: "ไม่ซื้อ",
   postpone_next: "เลื่อนไปรอบหน้า",
   ocr_save: "บันทึก",
@@ -410,7 +453,7 @@ async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer>
   if (p.action === "menu_try") return say(howToTryMessage());
   if (p.action.startsWith("rem_")) return onReminderButton(userId, p);
   if (p.action.startsWith("ocr_")) return onOcrButton(userId, p);
-  if (["keep_plan", "pay_real", "try_other", "try_cancel", "postpone_next"].includes(p.action)) return onTryButton(userId, p);
+  if (["keep_plan", "pay_real", "try_other", "try_hint", "try_cancel", "postpone_next"].includes(p.action)) return onTryButton(userId, p);
   if (!["entry_edit", "entry_cat", "entry_cat_set", "entry_del", "entry_del_ok"].includes(p.action)) return say(notWiredMessage());
   try {
     const { entry, cancelled } = await entryForChat(userId, p.id);
@@ -435,7 +478,14 @@ async function onCardButton(userId: string, p: DecodedPostback): Promise<Answer>
 }
 
 // OCR (layer 4): read the slip, answer with the draft card. Nothing is recorded here (user's choice 13 Nov).
+const imageWork = new AiGate(2);
 async function onPhoto(userId: string, messageId: string): Promise<Answer> {
+  const release = imageWork.enter();
+  if (!release) return say(text("กำลังอ่านรูปหลายรายการ ลองส่งรูปใหม่อีกครั้งครับ"));
+  try { return await readPhoto(userId, messageId); } finally { release(true); }
+}
+
+async function readPhoto(userId: string, messageId: string): Promise<Answer> {
   await requireActiveCycle(userId); // no cycle → set up first, before using the AI
   const image = await messageImage(messageId);
   const reading = image && (await readSlip(image.bytes, image.mimeType, thaiDate(new Date())));

@@ -98,17 +98,17 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     // Card 58: แอป › ตั้งค่า › การเตือน
     reminderSettings: () => request({ method: "GET", path: "/api/reminders" }),
     saveReminderSettings: (req) => request({ method: "PUT", path: "/api/reminders", body: req }),
+    points: () => request({ method: "GET", path: "/api/points" }),
+    claimPoints: (idempotencyKey) => request({ method: "POST", path: "/api/points/claim", idempotencyKey }),
+    rewards: () => request({ method: "GET", path: "/api/rewards" }),
+    redeemReward: (id, idempotencyKey) => request({ method: "POST", path: `/api/rewards/${seg(id)}/redeem`, idempotencyKey }),
 
     // --- NOT ON THE SERVER YET (backend-gaps 13-20): wire each to its route when it ships ---
     consent: notImplemented,
     acceptConsent: notImplemented,
-    points: notImplemented,
-    claimPoints: notImplemented,
     promos: notImplemented,
     promo: notImplemented,
     claimPromo: notImplemented,
-    rewards: notImplemented,
-    redeemReward: notImplemented,
     shopRedeem: notImplemented,
     dailySpend: notImplemented,
     categoryTotals: notImplemented,

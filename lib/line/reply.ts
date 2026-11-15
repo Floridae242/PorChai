@@ -1,5 +1,7 @@
+import type { FlexMessage as BrandedFlexMessage } from "./branded-flex";
 import type { FlexMessage, TextReplyMessage } from "@/lib/line/flex/types";
 import { appUrl } from "@/lib/liff/config";
+import { presentReply } from "./presentation";
 
 // LINE Messaging API reply. A reply costs no quota (a push does), so chat answers always use this.
 
@@ -20,7 +22,8 @@ export function text(body: string, actions: QuickReplyAction[] = []): TextMessag
 }
 
 // Text, or a Flex card from lib/line/flex (โฟรวิว's cards)
-export type ReplyMessage = TextMessage | TextReplyMessage | FlexMessage;
+export type ReplyMessage = TextMessage | TextReplyMessage | FlexMessage | BrandedFlexMessage;
+export type LineMessage = TextMessage | BrandedFlexMessage;
 
 // Every answer keeps [เปิดแอป] above the keyboard (phone 13 Nov: it came with some answers only). Added
 // here, where answers leave, so a new message cannot forget it. LINE allows 13 quick replies.
@@ -37,7 +40,8 @@ export async function reply(replyToken: string, messages: ReplyMessage[]): Promi
   const res = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ replyToken, messages }),
+    body: JSON.stringify({ replyToken, messages: messages.map((m) => presentReply(withAppButton(m))) }),
+    signal: AbortSignal.timeout(10_000),
   });
-  if (!res.ok) throw new Error(`LINE reply ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`LINE reply failed (${res.status})`);
 }

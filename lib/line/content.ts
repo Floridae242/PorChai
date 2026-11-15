@@ -1,3 +1,4 @@
+import { readBoundedBytes } from "@/lib/runtime/body";
 // A photo the user sent (OCR). LINE keeps message content for a limited time; it is read once and
 // passed on, never stored.
 export async function messageImage(messageId: string): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
@@ -12,5 +13,7 @@ export async function messageImage(messageId: string): Promise<{ bytes: Uint8Arr
     return null;
   }
   const mimeType = res.headers.get("content-type")?.split(";")[0] ?? "image/jpeg";
-  return { bytes: new Uint8Array(await res.arrayBuffer()), mimeType };
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) { await res.body?.cancel(); return null; }
+  try { return { bytes: await readBoundedBytes(res, 8 * 1024 * 1024), mimeType }; }
+  catch { console.info("LINE content rejected"); return null; }
 }

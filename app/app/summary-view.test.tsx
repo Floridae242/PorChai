@@ -177,17 +177,21 @@ describe("SummaryView (G04: B1, B1m, B1k, S4, S10)", () => {
     expect(await screen.findByText("120")).toBeTruthy();
   });
 
-  it("has no mascot in the B1 body when there are entries and the budget is fine", async () => {
+  it("shows the supplied mascot and real receipt links with recorded entries", async () => {
     const api = createMockApi({ scenario: "midCycle" });
     const { container } = renderSummary(api);
     await screen.findByText("75");
-    expect(container.querySelectorAll("img").length).toBe(0);
+    expect(container.querySelector('img[src="/mascot/budgetOk.png"]')).not.toBeNull();
+    const { entries } = await api.entries();
+    for (const entry of entries.slice(0, 5)) {
+      expect(container.querySelector(`a[href="/app/record/${entry.id}"]`)).not.toBeNull();
+    }
   });
 
   it("shows the empty-state greeting mascot (S1) when there are no entries", async () => {
     const api = createMockApi({ scenario: "default" });
     const { container } = renderSummary(api);
     await screen.findByText(/วันนี้ยังไม่มีรายการจด/);
-    expect(container.querySelectorAll("img").length).toBe(1);
+    expect(container.querySelector('img[src="/mascot/greeting.png"]')).not.toBeNull();
   });
 });

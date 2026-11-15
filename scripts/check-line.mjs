@@ -86,7 +86,7 @@ export async function checkLine({
   );
   await probe(
     "MINI App endpoint",
-    `${base}/miniapp`,
+    `${base}/app`,
     { headers: { "ngrok-skip-browser-warning": "1" } },
     async (response) =>
       response.ok && (await response.text()).includes("PorChai"),

@@ -39,8 +39,9 @@ export function RecordNewView() {
   const { submit, busy } = useSubmit<"linked" | "saved">();
 
   const [type, setType] = useState<"expense" | "income">(initialType);
-  const [amountText, setAmountText] = useState(() => searchParams?.get("amount") ?? "");
-  const [note, setNote] = useState(() => searchParams?.get("note") ?? "");
+  // Typed values stay in state: the URL carries no amount or note (Clarity records URLs).
+  const [amountText, setAmountText] = useState("");
+  const [note, setNote] = useState("");
   const [category, setCategory] = useState<UserCategory>("food");
   const [spentOn, setSpentOn] = useState(() => thaiDate(new Date()));
   const dateTouched = useRef(false);

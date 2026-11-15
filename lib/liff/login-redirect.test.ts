@@ -2,12 +2,20 @@ import { describe, expect, it } from "vitest";
 import { appReturnPath, loginRedirectUri } from "./login-redirect";
 
 describe("MINI App login callback", () => {
-  it("uses the approved endpoint and retains the app destination", () => {
+  it("falls back to the canonical endpoint for an unsafe or unrelated path", () => {
+    expect(
+      loginRedirectUri("https://example.com", "https://evil.example"),
+    ).toBe("https://example.com/app");
+    expect(loginRedirectUri("https://example.com", "/miniapp")).toBe(
+      "https://example.com/app",
+    );
+  });
+  it("logs in directly beneath the canonical /app endpoint", () => {
     const url = new URL(
       loginRedirectUri("https://example.com", "/app/consent"),
     );
-    expect(url.pathname).toBe("/miniapp");
-    expect(url.searchParams.get("returnTo")).toBe("/app/consent");
+    expect(url.pathname).toBe("/app/consent");
+    expect(url.search).toBe("");
   });
   it.each([
     null,

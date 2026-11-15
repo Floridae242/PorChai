@@ -12,6 +12,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
 }));
 
+vi.mock("./clarity-loader", () => ({ ClarityLoader: () => null }));
+
 import { ConsentGate } from "./consent-gate";
 
 function spied(consented: boolean) {

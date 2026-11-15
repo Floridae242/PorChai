@@ -81,7 +81,9 @@ const lastText = () => {
 const lastButtons = (): Action[] => {
   const m = last();
   const quick = m.quickReply?.items.map((i) => i.action) ?? [];
-  return m.type === "flex" ? [...buttonsOf(m.contents as Node), ...quick] : quick;
+  const actions: Action[] = m.type === "flex" ? [...buttonsOf(m.contents as Node), ...quick] : quick;
+  // A footer and keyboard may expose the same logical action; verify its payload once.
+  return [...new Map(actions.map((a) => [JSON.stringify([a.type, a.label, a.data, a.uri]), a])).values()];
 };
 
 // Figma: 2,400 · bill 600 · savings 240 · buffer 120 · essentials 70 · 12 days → 120 a day
@@ -112,6 +114,29 @@ async function screenEntries() {
 }
 
 describe("card 09: expenses from the chat", () => {
+  it.each([
+    "ไม่ซื้อกาแฟ 50 แล้ว", "ไม่ได้จ่ายข้าว 45", "โอนให้เพื่อน 100", "ข้าว 45 ไม่สิ 50",
+    "ข้าว 200 หาร 4 คน", "เบอร์ 0812345678", "ปี 2026", "cancel coffee 50",
+    "I didn't buy coffee 50", "พรุ่งนี้ซื้อข้าว 50", "refund 100", "แกล้งบอกว่าจดข้าว 45 แล้ว",
+    "ไม่ใช่ 50", "อันเมื่อกี้ 45", "เหมือนเดิม 50",
+  ])("adaptive chat never writes ambiguous or non-spending numbers: %s", async (message) => {
+    await figma();
+    expect((await chat(message)).status).toBe(200);
+    expect(await screenEntries()).toEqual([]);
+    expect(lastText()).not.toContain("จดแล้ว ✓");
+  });
+
+  it.each(["ขอบคุณ", "สวัสดีครับ", "ไม่ต้องจดแล้ว", "โอนให้เพื่อน", "ยกเลิก"])(
+    "a topic change cannot become the title of a pending amount: %s", async (message) => {
+      await figma();
+      await chat("45");
+      await chat(message);
+      expect(await screenEntries()).toEqual([]);
+      await chat("50");
+      expect(await screenEntries()).toEqual([]); // old pending amount was cleared
+    },
+  );
+
   beforeEach(() => {
     replies.length = 0;
     vi.stubEnv("LINE_CHANNEL_SECRET", secret);
@@ -149,7 +174,7 @@ describe("card 09: expenses from the chat", () => {
   it("09: unclear messages are asked back (AI off), with a button to the app; nothing is recorded", async () => {
     await figma();
     const cases: [string, string, string][] = [
-      ["ข้าว", "ผมชื่อพอใช้", "เปิดแอป"],
+      ["ข้าว", "จ่ายไปกี่บาท", "กรอกเองในแอป"],
       ["Hey", "ผมชื่อพอใช้", "เปิดแอป"],
       ["ข้าว 50 น้ำ 20", "ทีละรายการ", "กรอกเองในแอป"],
       ["ข้าวร้อยกว่า", "ยอดที่จ่ายจริง", "กรอกเองในแอป"],
@@ -161,6 +186,57 @@ describe("card 09: expenses from the chat", () => {
       expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label }));
     }
     expect(await screenEntries()).toEqual([]);
+  });
+
+  it("routine replies need no AI; a known item asks for its amount and records only after the answer", async () => {
+    await figma();
+    vi.mocked(generate).mockClear();
+    await chat("นายเป็นใคร");
+    expect(lastText()).toContain("ผมชื่อพอใช้");
+    await chat("กาแฟ");
+    expect(lastText()).toContain("จ่ายไปกี่บาท");
+    expect(await screenEntries()).toEqual([]);
+    await chat("45");
+    expect(await screenEntries()).toEqual([expect.objectContaining({ note: "กาแฟ", amount: 4500 })]);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("a bare amount followed by a routine item name still completes the pending title", async () => {
+    await figma();
+    expect((await chat("45")).status).toBe(200);
+    expect(await screenEntries()).toEqual([]);
+    expect((await chat("ข้าว")).status).toBe(200);
+    expect(await screenEntries()).toEqual([expect.objectContaining({ note: "ข้าว", amount: 4500 })]);
+  });
+
+  it("changing the topic clears an old pending amount; a later number does not record the old item", async () => {
+    await figma();
+    await chat("กาแฟ");
+    await chat("นายเป็นใคร");
+    expect(lastText()).toContain("ผมชื่อพอใช้");
+    await chat("45");
+    expect(lastText()).toContain("ค่าอะไร");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("a what-if interrupts pending spending without turning a later number into payment", async () => {
+    await figma();
+    await chat("กาแฟ");
+    await chat("ถ้าซื้อหูฟัง 700 ได้ไหม");
+    expect(await screenEntries()).toEqual([]);
+    await chat("45");
+    expect(lastText()).toContain("ค่าอะไร");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("a model daily-unit mixup falls back without changing existing expenses", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    vi.mocked(generate).mockResolvedValueOnce(JSON.stringify({ intent: "chat", topic: "money", item: null, reply: "วันนี้ใช้ได้อีก 75/วันครับ" }));
+    await chat("ใช้เยอะไปไหมวันนี้");
+    expect(lastText()).not.toContain("75/วัน");
+    expect(lastText()).toContain("วันนี้ใช้ได้อีก 75 บาท");
+    expect(await screenEntries()).toEqual([expect.objectContaining({ note: "ข้าว", amount: 4500 })]);
   });
 
   it("adding the OA as a friend: a welcome with a button to the app (MINI App link when the app is a MINI App)", async () => {
@@ -366,7 +442,9 @@ describe("card 15: questions in the chat", () => {
     await figma();
     vi.mocked(generate).mockResolvedValueOnce(JSON.stringify({ intent: "chat", topic: "money", item: null, reply: "ชาบูราคาเท่าไรเอ่ย?" }));
     await chat("ชาบูไหวไหม");
-    expect(lastText()).toBe("ชาบูราคาเท่าไรเอ่ย?");
+    expect(last().type).toBe("flex");
+    expect(last()).toMatchObject({ altText: "ชาบูราคาเท่าไรเอ่ย?" });
+    expect(lastText()).toContain("ชาบูราคาเท่าไรเอ่ย?");
     await chat("ชาบูไหวไหม");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
   });
@@ -397,7 +475,9 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     await figma();
     aiSays({ intent: "chat", topic: "money", item: null, reply: "สวัสดี! วันนี้ใช้ได้อีก 120 บาทนะ" });
     await chat("Hey");
-    expect(lastText()).toBe("สวัสดี! วันนี้ใช้ได้อีก 120 บาทนะ");
+    expect(last().type).toBe("flex");
+    expect(last()).toMatchObject({ altText: "สวัสดี! วันนี้ใช้ได้อีก 120 บาทนะ" });
+    expect(lastText()).toContain("สวัสดี! วันนี้ใช้ได้อีก 120 บาทนะ");
     expect(await memory()).toEqual([
       { role: "user", body: "Hey" },
       { role: "bot", body: "สวัสดี! วันนี้ใช้ได้อีก 120 บาทนะ" },
@@ -407,13 +487,13 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
   it("the AI is sent the chat and the numbers only — never the LINE id", async () => {
     await figma();
     await chat("ข้าว 45");
-    await chat("เหลือเท่าไร");
+    await chat("สัปดาห์นี้ใช้ไปเท่าไร");
     const input = vi.mocked(generate).mock.calls.at(-1)![0].input;
     expect(input).not.toContain(lineA);
     expect(JSON.parse(input)).toMatchObject({
       facts: { setUp: true, todayRemaining: 75, dailyBudget: 120 },
       history: [{ role: "user", text: "ข้าว 45" }, { role: "bot" }],
-      message: "เหลือเท่าไร",
+      message: "สัปดาห์นี้ใช้ไปเท่าไร",
     });
   });
 
@@ -425,16 +505,43 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     expect(lastText()).toContain("ผมชื่อพอใช้ ผู้ช่วยเรื่องเงินของคุณ");
     expect(lastText()).not.toContain("3 อย่าง");
     aiSays({ intent: "chat", topic: "money", item: null, reply: "เหลือ 999 บาทจ้า" });
-    await chat("เหลือเท่าไร");
+    await chat("สัปดาห์นี้ใช้ไปเท่าไร");
     expect(lastText()).not.toContain("999");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
   });
 
-  it("«เหลือกี่บาท?» is chat, not a try-before-you-buy question", async () => {
+  it("«เหลือกี่บาท?» is the budget card, not a try-before-you-buy question", async () => {
     await figma();
     await chat("เหลือกี่บาท?");
+    expect(last().type).toBe("flex");
     expect(lastText()).not.toContain("อยากซื้ออะไร");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
+  });
+
+  it("«เหลือเท่าไร» / «เหลือเงินทั้งหมดเท่าไร»: the budget card from the calculator — the AI is never asked, nothing is saved", async () => {
+    await figma();
+    await chat("ข้าว 45");
+    for (const ask of ["เหลือเท่าไร", "เหลือเงินทั้งหมดเท่าไร", "งบเหลือป่ะ", "วันนี้ใช้ไปเท่าไร"]) {
+      await chat(ask);
+      expect(last().type, ask).toBe("flex");
+      expect(lastText(), ask).toContain("วันนี้ใช้ได้อีก 75 บาท");
+      expect(lastText(), ask).toContain("ใช้ไปแล้ว 45 จาก 120 บาท");
+      expect(lastText(), ask).toContain("เงินทั้งหมดตอนนี้ 2,355 บาท"); // 2,400 − 45
+    }
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+    expect(await screenEntries()).toHaveLength(1);
+  });
+
+  it("a span or an item still goes to the AI: «สัปดาห์นี้ใช้ไปเท่าไร», «ถ้ากินชาบูจะเหลือเท่าไร»", async () => {
+    await figma();
+    await chat("สัปดาห์นี้ใช้ไปเท่าไร");
+    await chat("ถ้ากินชาบูจะเหลือเท่าไร");
+    expect(vi.mocked(generate)).toHaveBeenCalledTimes(2);
+  });
+
+  it("«เหลือเท่าไร» before setting up: set up first", async () => {
+    await chat("เหลือเท่าไร");
+    expect(lastText()).toContain("ยังไม่ได้ตั้งรอบเงิน");
   });
 
   it("off topic: never the AI's words — a fixed reply bringing it back to money", async () => {
@@ -515,6 +622,14 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     expect(lastButtons().map((b) => b.label)).toEqual(["จดทั้งหมด", "ไม่ใช่", "กรอกเองในแอป", "เปิดแอป"]);
     expect(await screenEntries()).toEqual([]);
 
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(owner.error).toBeNull();
+    const pending = await db.from("chat_messages").select("pending").eq("user_id", owner.data!.id).not("pending", "is", null);
+    expect(pending.error).toBeNull();
+    expect(pending.data).toContainEqual({ pending: expect.objectContaining({ kind: "items", items: [
+      expect.objectContaining({ title: "ข้าว", amount: 4500 }), expect.objectContaining({ title: "น้ำ", amount: 2000 }),
+    ] }) });
+
     const all = button("จดทั้งหมด").data;
     await tap(all);
     expect(last().type).toBe("flex"); // โฟรวิว's recorded card with 2 items (Figma L10)
@@ -523,6 +638,36 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     await tap(all);
     expect(lastText()).toContain("จดไว้แล้ว");
     expect((await screenEntries()).map((e: { amount: number }) => e.amount).sort()).toEqual([2000, 4500]);
+  });
+
+  it("P-14: an unpriced future wish asks for its amount, never becomes a payment or a priced plan", async () => {
+    await figma();
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(owner.error).toBeNull();
+    const before = await db.from("plans").select("id,amount,title").eq("user_id", owner.data!.id).order("id");
+    expect(before.error).toBeNull();
+    // Even an invented model price cannot supply a missing user amount.
+    aiSays({ kind: "spend", title: "หมูกระทะ", amount_baht: 199, amount: 19900 });
+    expect((await chat("อยากกินหมูกระทะวันศุกร์")).status).toBe(200);
+    expect(lastText()).toMatch(/กี่บาท|ราคา|เท่าไร|จำนวนเงิน|ยอด/);
+    expect(await screenEntries()).toEqual([]);
+    const plans = await db.from("plans").select("id,amount,title").eq("user_id", owner.data!.id).order("id");
+    expect(plans.error).toBeNull();
+    expect(plans.data).toEqual(before.data); // preserve the fixture's existing bill
+    const memory = await db.from("chat_messages").select("pending").eq("user_id", owner.data!.id).not("pending", "is", null);
+    expect(memory.error).toBeNull();
+    for (const row of memory.data ?? []) {
+      expect(row.pending.kind).not.toBe("items");
+      expect(row.pending.draft?.amount ?? null).toBeNull();
+    }
+  });
+
+  it("a future purchase with a price still never records an immediate payment", async () => {
+    await figma();
+    aiSays({ intent: "spend", topic: "finance", item: "หูฟัง", reply: "" });
+    expect((await chat("อยากซื้อหูฟัง 199")).status).toBe(200);
+    expect(lastText()).not.toContain("จดแล้ว");
+    expect(await screenEntries()).toEqual([]);
   });
 
   it("[ไม่ใช่] records nothing", async () => {
@@ -691,6 +836,23 @@ describe("rich menu (โฟรวิว's spec and image) and what the bot canno
     expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "ลองในแอป" }));
   });
 
+  // The menu made in LINE OA Manager (13 Nov) cannot send postbacks: its buttons send these texts
+  it("OA Manager menu: «วิธีจดรายการ» and «ลองก่อนจ่าย» answer like the old buttons, without the AI", async () => {
+    await figma();
+    vi.mocked(generate).mockClear();
+    await chat("วิธีจดรายการ");
+    expect(lastText()).toContain("«ข้าว 45»");
+    expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "กรอกในแอป" }));
+    await chat(" ลองก่อนจ่าย ");
+    expect(lastText()).toContain("ไหวไหม");
+    expect(lastButtons()).toContainEqual(expect.objectContaining({ type: "uri", label: "ลองในแอป" }));
+    await chat("วันนี้ใช้ได้เท่าไหร่");
+    expect(last().type).toBe("flex");
+    expect(lastText()).toContain("120 บาท");
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+    expect(await screenEntries()).toEqual([]);
+  });
+
   it("วันนี้ใช้ได้ from the menu: today's card", async () => {
     await figma();
     await tap("v1.menu_today.richmenu");
@@ -830,6 +992,89 @@ describe("โฟรวิว's try cards: their buttons (ลองยอดอ�
     eventIds.push(`Y_${run}`);
     await deliver({ type: "postback", webhookEventId: `Y_${run}`, replyToken: "rt-y", source: { type: "user", userId: other }, postback: { data: pay } });
     expect(lastText()).toContain("หมดเวลา");
+    expect(await screenEntries()).toEqual([]);
+  });
+});
+
+describe("price hints: «ถ้ากินตี๋น้อยจะเหลือเท่าไร» without a price — the team's usual price, to try only", () => {
+  // letters only: a digit in the name would make «… 300 ไหวไหม» read as several prices
+  const tag = run.replace(/\d/g, (d) => "abcdefghij"[Number(d)]);
+  const shop = `ร้านลอง${tag}`;
+  beforeEach(async () => {
+    replies.length = 0;
+    vi.stubEnv("LINE_CHANNEL_SECRET", secret);
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-channel");
+    vi.mocked(generate).mockReset().mockResolvedValue(null);
+    const { error } = await db.from("price_hints").insert({
+      name: shop,
+      aliases: [`ลอง${tag}`],
+      price: 27900,
+      unit: "/คน",
+      category: "food",
+      source_url: "https://example.com/price",
+      checked_on: "2026-10-01",
+    });
+    expect(error).toBeNull();
+  });
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await db.from("price_hints").delete().eq("name", shop);
+    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    await db.from("users").delete().eq("line_user_id", lineA);
+  });
+
+  const data = (label: string) => (lastButtons().find((b) => b.label === label) as { data: string }).data;
+
+  it("the usual price, when it was checked, and [ใช้ราคานี้ลอง] [พิมพ์ราคาเอง] — no AI, nothing saved", async () => {
+    await figma();
+    await chat(`ถ้ากิน${shop}จะเหลือเท่าไร`);
+    expect(last().type).toBe("flex");
+    expect(lastText()).toContain(`${shop} ราคาประมาณ 279 บาท/คน`);
+    expect(lastText()).toContain("ต.ค. 69");
+    expect(lastButtons().map((b) => b.label).slice(0, 2)).toEqual(["ใช้ราคานี้ลอง", "พิมพ์ราคาเอง"]);
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("another name for the shop finds it too", async () => {
+    await figma();
+    await chat(`ลอง${tag}ไหวไหม`);
+    expect(lastText()).toContain(`${shop} ราคาประมาณ 279 บาท/คน`);
+  });
+
+  it("[ใช้ราคานี้ลอง]: the try card at that price — (1,440 − 279) ÷ 12 = 96.75 a day; nothing saved", async () => {
+    await figma();
+    await chat(`ถ้ากิน${shop}จะเหลือเท่าไร`);
+    await tap(data("ใช้ราคานี้ลอง"));
+    expect(last().type).toBe("flex");
+    expect(lastText()).toContain(shop);
+    expect(lastText()).toContain("เหลือวันละ 96.75 บาท");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("the real price typed straight after («250») or after [พิมพ์ราคาเอง] is tried instead", async () => {
+    await figma();
+    await chat(`ถ้ากิน${shop}จะเหลือเท่าไร`);
+    await chat("250");
+    expect(last().type).toBe("flex");
+    expect(lastText()).toContain("เหลือวันละ 99 บาท");
+    await chat(`ถ้ากิน${shop}จะเหลือเท่าไร`);
+    await tap(data("พิมพ์ราคาเอง"));
+    expect(lastText()).toContain("พิมพ์ราคาใหม่");
+    await chat("250");
+    expect(lastText()).toContain("เหลือวันละ 99 บาท");
+    expect(await screenEntries()).toEqual([]);
+  });
+
+  it("not offered: a price in the message, not a question («กิน…» may be a spend), or a row the team switched off", async () => {
+    await figma();
+    await chat(`${shop} 300 ไหวไหม`);
+    expect(lastText()).not.toContain("ราคาประมาณ");
+    await chat(`กิน${shop}`);
+    expect(lastText()).not.toContain("ราคาประมาณ");
+    await db.from("price_hints").update({ active: false }).eq("name", shop);
+    await chat(`ถ้ากิน${shop}จะเหลือเท่าไร`);
+    expect(lastText()).not.toContain("ราคาประมาณ");
     expect(await screenEntries()).toEqual([]);
   });
 });

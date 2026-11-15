@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/shell/toast";
 import { TodayHero } from "@/components/summary/today-hero";
+import { RecentEntryCard } from "@/components/summary/recent-entry-card";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonClass } from "@/components/ui/button";
-import { ListRow } from "@/components/ui/list-row";
 import { Mascot } from "@/components/ui/mascot";
 import type { Entry, Summary } from "@/lib/api-types";
 import { CATEGORY_LABELS } from "@/lib/client/category-labels";
@@ -15,7 +15,7 @@ import { ApiError } from "@/lib/client/errors";
 import type { CategoryTotals, DailySpend } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
-import { formatThaiDate, formatThaiTime } from "@/lib/format/date";
+import { formatThaiTime } from "@/lib/format/date";
 import { formatBaht } from "@/lib/format/money";
 
 const TIGHT_THRESHOLD_SATANG = 5000;
@@ -55,7 +55,10 @@ export function SummaryView() {
     let cancelled = false;
     (async () => {
       try {
-        const [sumRes, entRes] = await Promise.all([api.summary(), api.entries()]);
+        const [sumRes, entRes] = await Promise.all([
+          api.summary(),
+          api.entries(),
+        ]);
         const [ptsRes, dailyRes, catRes] = await Promise.all([
           api.points().catch(() => null),
           api.dailySpend().catch(() => null),
@@ -99,10 +102,14 @@ export function SummaryView() {
   }, [searchParams, toast]);
 
   async function handleClaimPoints() {
-    const result = await claim.submit("claim-daily-points", (key) => api.claimPoints(key));
+    const result = await claim.submit("claim-daily-points", (key) =>
+      api.claimPoints(key),
+    );
     if (result.ok) {
       setPoints(result.value);
-      toast.show(`รับแต้มฟรีแล้ว +1 · รวม ${result.value.balance} แต้ม`, { mascot: "reward" });
+      toast.show(`รับแต้มฟรีแล้ว +1 · รวม ${result.value.balance} แต้ม`, {
+        mascot: "reward",
+      });
       return;
     }
     if ("skipped" in result) return;
@@ -118,9 +125,14 @@ export function SummaryView() {
 
   if (loading) {
     return (
-      <main className="flex min-h-[60dvh] flex-col items-center justify-center gap-3 py-12 font-body" aria-busy="true">
+      <main
+        className="flex min-h-[60dvh] flex-col items-center justify-center gap-3 py-12 font-body"
+        aria-busy="true"
+      >
         <Mascot pose="thinking" size={72} />
-        <p className="text-sm font-medium text-secondary">กำลังคำนวณเงินที่ใช้ได้วันนี้…</p>
+        <p className="text-sm font-medium text-secondary">
+          กำลังคำนวณเงินที่ใช้ได้วันนี้…
+        </p>
       </main>
     );
   }
@@ -128,7 +140,10 @@ export function SummaryView() {
   if (failed || !summary) {
     return (
       <main className="flex flex-col gap-4 py-8 font-body">
-        <Banner kind="error" text="เชื่อมต่อไม่ได้ ตรวจสอบสัญญาณอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง" />
+        <Banner
+          kind="error"
+          text="เชื่อมต่อไม่ได้ ตรวจสอบสัญญาณอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง"
+        />
         <Button
           variant="primary"
           onClick={() => {
@@ -179,11 +194,16 @@ export function SummaryView() {
         </div>
       ) : null}
 
-      <TodayHero summary={summary} daily={daily} initialView={isMidCycle ? "cycle" : "today"} />
+      <TodayHero
+        summary={summary}
+        daily={daily}
+        initialView={isMidCycle ? "cycle" : "today"}
+      />
 
       <div className="flex items-center justify-between rounded-md border border-line bg-card px-4 py-2.5 text-xs">
         <span className="text-secondary">
-          อัปเดตยอดล่าสุด {formatThaiTime(summary.balanceAsOf)} น. · คงเหลือจริง {formatBaht(summary.balance)} บาท
+          อัปเดตยอดล่าสุด {formatThaiTime(summary.balanceAsOf)} น. · คงเหลือจริง{" "}
+          {formatBaht(summary.balance)} บาท
         </span>
         <Link href="/app/balance/adjust" className="font-semibold text-link">
           ปรับยอด ›
@@ -193,12 +213,17 @@ export function SummaryView() {
       <section className="flex items-center justify-between gap-3 rounded-md border border-line bg-reward-bg p-4">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-primary">สะสมแต้มรายวัน</span>
+            <span className="text-sm font-semibold text-primary">
+              สะสมแต้มรายวัน
+            </span>
             <span className="rounded-pill bg-reward px-2 py-0.5 text-xs font-bold text-primary">
               {points.balance} แต้ม
             </span>
           </div>
-          <Link href="/app/points" className="text-xs font-semibold text-link underline underline-offset-4">
+          <Link
+            href="/app/points"
+            className="text-xs font-semibold text-link underline underline-offset-4"
+          >
             ดูแต้มและแลกของรางวัล ›
           </Link>
         </div>
@@ -207,7 +232,11 @@ export function SummaryView() {
             รับแต้มฟรีแล้ววันนี้ ✓
           </span>
         ) : (
-          <Button variant="primary" busy={claim.busy} onClick={handleClaimPoints}>
+          <Button
+            variant="primary"
+            busy={claim.busy}
+            onClick={handleClaimPoints}
+          >
             รับแต้มฟรี
           </Button>
         )}
@@ -217,8 +246,13 @@ export function SummaryView() {
         {categories ? (
           <section className="flex flex-col justify-between gap-3 rounded-md border border-line bg-card p-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-primary">ใช้ไปกับอะไร</h2>
-              <Link href="/app/summary/categories" className="text-xs font-semibold text-link">
+              <h2 className="text-base font-semibold text-primary">
+                ใช้ไปกับอะไร
+              </h2>
+              <Link
+                href="/app/summary/categories"
+                className="text-xs font-semibold text-link"
+              >
                 ดูสรุปหมวด ›
               </Link>
             </div>
@@ -227,11 +261,16 @@ export function SummaryView() {
             ) : (
               <ul className="flex flex-col gap-2 text-sm">
                 {categories.items.slice(0, 3).map((cat) => (
-                  <li key={cat.category} className="flex items-center justify-between">
+                  <li
+                    key={cat.category}
+                    className="flex items-center justify-between"
+                  >
                     <span className="text-secondary">
                       {CATEGORY_LABELS[cat.category]} ({cat.count})
                     </span>
-                    <span className="font-semibold tabular-nums text-primary">{formatBaht(cat.amount)} บาท</span>
+                    <span className="font-semibold tabular-nums text-primary">
+                      {formatBaht(cat.amount)} บาท
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -250,7 +289,10 @@ export function SummaryView() {
       <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-primary">รายการล่าสุด</h2>
-          <Link href="/app/plan?tab=list" className="text-xs font-semibold text-link">
+          <Link
+            href="/app/plan?tab=list"
+            className="text-xs font-semibold text-link"
+          >
             ดูทั้งหมด ›
           </Link>
         </div>
@@ -258,21 +300,20 @@ export function SummaryView() {
         {recentEntries.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-2 text-center">
             <Mascot pose="greeting" size={96} />
-            <p className="text-sm text-secondary">วันนี้ยังไม่มีรายการจด ลองบันทึกมื้อแรกของวันได้เลย</p>
-            <Link href="/app/record/new?type=expense" className={buttonClass("secondary")}>
+            <p className="text-sm text-secondary">
+              วันนี้ยังไม่มีรายการจด ลองบันทึกมื้อแรกของวันได้เลย
+            </p>
+            <Link
+              href="/app/record/new?type=expense"
+              className={buttonClass("secondary")}
+            >
               จดรายการแรก
             </Link>
           </div>
         ) : (
-          <div className="divide-y divide-line">
+          <div className="space-y-3">
             {recentEntries.map((entry) => (
-              <ListRow
-                key={entry.id}
-                title={entry.note ?? CATEGORY_LABELS[entry.category]}
-                subtitle={`${CATEGORY_LABELS[entry.category]} · ${formatThaiDate(entry.spentOn, "short")}`}
-                amount={`−${formatBaht(entry.amount)} บาท`}
-                href={`/app/record/${entry.id}`}
-              />
+              <RecentEntryCard key={entry.id} entry={entry} />
             ))}
           </div>
         )}

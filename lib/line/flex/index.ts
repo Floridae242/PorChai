@@ -7,8 +7,11 @@ export * from "./cards/ai-compare";
 export * from "./cards/core-cards";
 export * from "./cards/extras";
 export * from "./cards/chat-extras";
+export * from "./cards/conversation";
 
 import { buildRecordedCard } from "./cards/recorded";
+import { buildConversationCard } from "./cards/conversation";
+import { miniAppUrl } from "./format";
 import {
   buildHabitEditAskMessage,
   buildHabitReminderCard,
@@ -302,6 +305,16 @@ export function buildDemoScenarios(appOrigin?: string): FlexDemoScenario[] {
     },
 
     // --- Batch C3: Core & Rich Menu ---
+    ...[
+      { id: "chat-ai", code: "CHAT-AI", title: "AI ตอบเป็นการ์ด", userPrompt: "ขอสั้นลง แล้วให้ทางเลือกหน่อย", text: "วันนี้ใช้ได้อีก 75 บาทครับ\nลองเช็กราคาจริง หรือเลือกลองยอดอื่นก่อนจ่ายได้ครับ" },
+      { id: "chat-clarify", code: "CHAT-ASK", title: "ถามเพิ่มก่อนจด", userPrompt: "เพื่อนโอนคืน 100", text: "เงินนี้คืนที่คุณจ่ายแทน รับเงินจริง หรือโอนระหว่างบัญชีตัวเองครับ?" },
+      { id: "chat-status", code: "CHAT-STATUS", title: "แจ้งผลในแชต", userPrompt: "สลิปอ่านไม่ชัด", text: "อ่านรูปนี้ยังไม่ชัดครับ ส่งใหม่หรือกรอกเองในแอปได้เลยครับ" },
+    ].map((item): FlexDemoScenario => ({
+      id: item.id, batch: "C3", code: item.code, title: item.title, userPrompt: item.userPrompt,
+      message: buildConversationCard({ type: "text", text: item.text, quickReply: { items: [
+        { type: "action", action: { type: "uri", label: "เปิดแอป", uri: miniAppUrl("/app", appOrigin) } },
+      ] } }),
+    })),
     {
       id: "c1-welcome",
       batch: "C3",
@@ -323,6 +336,7 @@ export function buildDemoScenarios(appOrigin?: string): FlexDemoScenario[] {
         daysRemaining: 12,
         savingsReserved: 24000,
         bufferReserved: 12000,
+        balance: 235500,
         appOrigin,
       }),
       nextOnAction: {

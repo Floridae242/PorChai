@@ -42,7 +42,7 @@ describe("chat memory", () => {
     expect(count).toBe(10); // deleted, not just hidden
   });
 
-  it("forgets everyone's lines older than 30 minutes when anyone writes", async () => {
+  it("hides expired lines immediately; indexed maintenance cleans quiet users without global deletes on each write", async () => {
     const quiet = await makeUser();
     const other = await makeUser();
     // As if written 31 minutes ago, before the trigger ran on a newer line
@@ -50,7 +50,11 @@ describe("chat memory", () => {
     await db.from("chat_messages").update({ created_at: minutesAgo(31) }).eq("user_id", quiet);
     await remember(other, [{ role: "user", body: "hi" }]);
     const { data } = await db.from("chat_messages").select("body").eq("user_id", quiet);
-    expect(data).toEqual([]);
+    expect(data).toEqual([{ body: "old" }]);
+    expect(await recentChat(quiet)).toEqual([]);
+    expect((await db.rpc("cleanup_runtime_windows")).error).toBeNull();
+    const cleaned = await db.from("chat_messages").select("id").eq("user_id", quiet);
+    expect(cleaned.data).toEqual([]);
   });
 
   it("a line just under 30 minutes old is still remembered", async () => {

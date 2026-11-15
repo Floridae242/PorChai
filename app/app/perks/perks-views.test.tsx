@@ -145,11 +145,11 @@ describe("P2 detail", () => {
     expect(loadClaimedCode("p1")).toBeNull();
   });
 
-  it("the try link carries the price as plain baht text", async () => {
+  it("the try link carries only the promo id, no price or title", async () => {
     currentParams = { id: "p1" };
     renderWith(apiWith({ promo: async () => PROMO }), <PerkDetailView />);
     const link = await screen.findByRole("link", { name: "ลองก่อนจ่ายด้วยราคานี้" });
-    expect(link.getAttribute("href")).toContain("amount=129");
+    expect(link.getAttribute("href")).toBe("/app/try/result?promo=p1");
   });
 });
 

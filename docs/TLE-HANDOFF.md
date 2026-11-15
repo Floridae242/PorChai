@@ -67,11 +67,11 @@ Backend ต้องนับตาม campaign และช่วงวัน�
 
 ## เชื่อม LINE MINI App บน Tle
 
-- หน้า `/` เป็นหน้าแนะนำสาธารณะ ส่วน `/miniapp` เริ่ม LIFF และตรวจ ID token ที่ `/api/line/verify` ก่อนแสดงหน้าโปร
+- หน้า `/` เป็นหน้าแนะนำสาธารณะ ส่วน `/miniapp` เริ่ม LIFF และตรวจ ID token ที่ `/api/line/verify` ก่อนแสดงชื่อที่ยืนยันแล้วและปุ่มเปิด `/app`
 - `/business/demo` เป็นข้อเสนอและรายงานธุรกิจสมมติแบบสาธารณะ ไม่ใช่หน้ารายงานของร้านจริงหรือพื้นที่ admin
 - ใช้ LIFF ID `2012545254-6025ZG1r` และ MINI App Channel ID `2012545254` จาก environment
 - คัดลอก `.env.example` ไป `.env.local` แล้วเติม secret/token ฝั่ง server ตาม README ก่อนทดสอบ LINE จริง
-- ใน Console เลือก Developing และกำหนด Endpoint URL เป็น `https://<dev-host>/miniapp` เปิดจาก MINI App URL/QR ที่ Console ให้
+- ใน Console เลือก Developing และกำหนด Endpoint URL เป็น `https://<dev-host>/app` เปิดจาก MINI App URL/QR ที่ Console ให้
 - ไม่มี mock login หรือปุ่มข้ามการยืนยันตัวตนในหน้าแอปจริง
 - ตัวตนที่ตรวจนี้ยังไม่เป็น session สำหรับ API อื่น ทุก API ข้อมูลส่วนตัวในอนาคตต้องตรวจ token และเจ้าของข้อมูลอีกครั้ง
 - ยังไม่ deploy และยังไม่ทดสอบบัญชี LINE จริง; หน้าโปรมีเพียงข้อเสนอสมมติ ไม่มีสิทธิ์ที่ออกใช้จริง

@@ -312,7 +312,7 @@ describe("demo command — the presenter cannot wait for 12:30", () => {
     await figma();
     await lunchHabit();
     await chat("เดโมเตือน");
-    expect(lastReply().type).toBe("text"); // DEMO_MODE off: just chat
+    expect(lastReply().type).toBe("flex"); // DEMO_MODE off: ordinary chat, also presented as Flex
 
     vi.stubEnv("DEMO_MODE", "1");
     await chat("เดโมเตือน");
