@@ -87,7 +87,7 @@ export function onlyKnownNumbers(text: string, known: number[]): boolean {
 }
 
 // Never suggested by the AI, in any answer: cutting food or transport, or touching savings (card 15)
-export const FORBIDDEN = /ลดค่ากิน|ลดค่าอาหาร|ลดค่ารถ|ลดค่าเดินทาง|กินน้อยลง|อดข้าว|ถอนเงินออม|ใช้เงินออม/;
+export const FORBIDDEN = /ลดค่ากิน|ลดค่าอาหาร|ลดค่ารถ|ลดค่าเดินทาง|ลดงบส่วนอื่น|กินน้อยลง|อดข้าว|ถอนเงินออม|ใช้เงินออม/;
 
 // Shared normalization for grounded output checks; no locale-specific digit bypass.
 export const normalizeMoneyText = (text: string): string => normalize(text);

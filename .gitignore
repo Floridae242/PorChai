@@ -50,3 +50,4 @@ scripts/chat-eval-report.md
 ~$*
 # Local performance output; never publish account data or machine-specific traces.
 scripts/scale-benchmark-report.json
+scripts/adaptive-eval-*.json
