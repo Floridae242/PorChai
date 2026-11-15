@@ -206,6 +206,7 @@ export interface TodayBudgetCardViewModel {
   savingsReserved: Satang;
   bufferReserved: Satang;
   balance: Satang; // all the money on hand now («เหลือเงินทั้งหมดเท่าไร»)
+  answer?: string; // «วันเงินเข้าเมื่อไร», «เงินพอไหม»: the answer, on top of the card (worded from the calculator)
   appOrigin?: string;
 }
 

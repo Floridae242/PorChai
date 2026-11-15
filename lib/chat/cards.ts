@@ -5,6 +5,8 @@ import type { ProposedItem } from "@/lib/db/chat-memory";
 import type { Advice } from "@/lib/advice/advise";
 import type { PriceHint } from "@/lib/advice/price-hint";
 import { addDays } from "@/lib/calc/time";
+import { formatThaiDate } from "@/lib/format/date";
+import type { FinanceReport } from "@/lib/reports/types";
 import type { OcrDraft, TryDraft } from "@/lib/db/chat-memory";
 import type { Entry } from "@/lib/api-types";
 import type { ReminderLog } from "@/lib/db/reminders";
@@ -19,6 +21,7 @@ import {
   buildOcrDraftCard,
   buildTryBeforeBuyCard,
   buildRecordedCard,
+  buildReportCard,
   buildTodayBudgetCard,
   categoryLabel,
   encodePostback,
@@ -114,10 +117,11 @@ export const holdCard = (d: Draft, todayRemaining: number): ReplyMessage =>
   });
 
 // [วันนี้ใช้ได้]
-export function todayCard(s: Summary): ReplyMessage {
+export function todayCard(s: Summary, answer?: string): ReplyMessage {
   const b = s.budget;
-  if (b.kind !== "ok") return text(budgetLine(b, s.spentToday));
+  if (b.kind !== "ok") return text([answer, budgetLine(b, s.spentToday)].filter(Boolean).join("\n"));
   return buildTodayBudgetCard({
+    answer,
     todayRemaining: b.todayRemaining,
     spentToday: s.spentToday,
     dailyBudget: b.dailyBudget,
@@ -126,6 +130,59 @@ export function todayCard(s: Summary): ReplyMessage {
     savingsReserved: s.savings,
     bufferReserved: s.emergencyBuffer,
     balance: s.balance,
+  });
+}
+
+// «วันเงินเข้าเมื่อไร», «เงินพอถึงวันเงินเข้าไหม» (15 Nov): the answer on top of today's card. «สิ้นเดือน» is
+// answered against payday, the only date the calculator knows, and the line names that date.
+const short = (date: string) => formatThaiDate(date, "short");
+const paydayPassed = (s: Summary) => `เลยวันเงินเข้า ${short(s.payday)} มาแล้ว เงินเข้าหรือยัง? ตั้งรอบใหม่ในแอปได้เลยครับ`;
+
+export function paydayAnswer(s: Summary): string {
+  const b = s.budget;
+  if (b.kind === "payday-passed") return paydayPassed(s);
+  return `เงินเข้าวันที่ ${short(s.payday)} · อีก ${b.daysLeft} วัน`;
+}
+
+export function enoughAnswer(s: Summary): string {
+  const b = s.budget;
+  if (b.kind === "payday-passed") return paydayPassed(s);
+  if (b.kind === "shortfall") return `ไม่พอครับ ตอนนี้ขาดอยู่ ${baht(b.shortfall)} บาท (บิล เงินออม และเงินเผื่อมากกว่าเงินที่มี)`;
+  if (b.spare !== null && b.spare < 0 && s.essentialPerDay !== null) {
+    return `ยังไม่พอครับ ถ้าค่ากินค่ารถวันละ ${baht(s.essentialPerDay)} บาท จะขาด ${baht(-b.spare)} บาทก่อนเงินเข้า ${short(s.payday)}`;
+  }
+  return `พอครับ ถ้าใช้ไม่เกินวันละ ${baht(b.dailyBudget)} บาท ถึงวันเงินเข้า ${short(s.payday)}`;
+}
+
+// Payday passed has no today card: the answer alone says what to do
+export const paydayCard = (s: Summary): ReplyMessage =>
+  s.budget.kind === "payday-passed" ? text(paydayAnswer(s)) : todayCard(s, paydayAnswer(s));
+// Not a normal budget: the answer already says how short, without the budget line again
+export const enoughCard = (s: Summary): ReplyMessage =>
+  s.budget.kind === "ok" ? todayCard(s, enoughAnswer(s)) : text(enoughAnswer(s));
+
+// Reports in the chat (15 Nov): a card with Thai dates, named from today («สัปดาห์นี้», «เมื่อวาน»)
+function reportName(r: FinanceReport, today: string): string {
+  if (r.period === "day") return r.from === today ? "วันนี้" : r.from === addDays(today, -1) ? "เมื่อวาน" : `วันที่ ${short(r.from)}`;
+  if (r.period === "week") {
+    const monday = addDays(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
+    return r.from === monday ? "สัปดาห์นี้" : r.from === addDays(monday, -7) ? "สัปดาห์ที่แล้ว" : `สัปดาห์ของ ${short(r.from)}`;
+  }
+  if (r.from.slice(0, 7) === today.slice(0, 7)) return "เดือนนี้";
+  if (r.from === `${addDays(`${today.slice(0, 7)}-01`, -1).slice(0, 7)}-01`) return "เดือนที่แล้ว";
+  return `เดือน ${MONTHS[Number(r.from.slice(5, 7)) - 1]} ${(Number(r.from.slice(0, 4)) + 543) % 100}`;
+}
+
+export function reportCard(r: FinanceReport, today: string): ReplyMessage {
+  const last = addDays(r.until, -1) < r.asOf ? addDays(r.until, -1) : r.asOf; // up to today, never the future
+  return buildReportCard({
+    heading: `รายงาน${reportName(r, today)}`,
+    range: r.period === "day" ? formatThaiDate(r.from, "long") : `${short(r.from)} – ${short(last)}`,
+    spending: r.spending,
+    income: r.income,
+    entriesCount: r.entriesCount,
+    categories: r.categories.map((c) => ({ category: c.category as UserCategory | "bills", amount: c.amount })),
+    reportUrl: miniAppUrl("/app/reports"),
   });
 }
 

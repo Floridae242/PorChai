@@ -1,7 +1,7 @@
 import type { Category } from "@/lib/api-types";
 
 export interface FinanceReport {
-  period: "day" | "month";
+  period: "day" | "week" | "month";
   from: string;
   until: string; // exclusive calendar boundary
   asOf: string; // Thai date; future days have null amounts

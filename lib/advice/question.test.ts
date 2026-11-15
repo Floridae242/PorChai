@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBalanceQuestion, isQuestion, numbersIn, onlyKnownNumbers, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isQuestion, numbersIn, onlyKnownNumbers, readQuestion } from "@/lib/advice/question";
 
 it.each(["อยากกินหมูกระทะวันศุกร์", "อยากซื้อหูฟัง 199", "อยากดื่มกาแฟ 50", "อยากสั่งข้าว 45"])(
   "future purchase intent is a what-if, never an immediate payment: %s", (text) => expect(isQuestion(text)).toBe(true),
@@ -35,13 +35,18 @@ describe("isBalanceQuestion", () => {
       "ยอดเงิน",
       "งบวันนี้",
       "เหลือเท่าไร ?",
+      // 15 Nov: «ได้» on its own after «เงิน» was left over, so these went to the AI
+      "วันนี้ใช้เงินได้เท่าไร",
+      "ใช้เงินได้อีกเท่าไหร่",
+      "วันนี้ใช้เงินได้อีกกี่บาท",
+      "เหลือเงินใช้ได้เท่าไร",
     ];
     for (const t of asks) expect(isBalanceQuestion(t), t).toBe(true);
   });
 
   it("an item, a price, another day or another span is not this ask", () => {
     const others = [
-      "สัปดาห์นี้ใช้ไปเท่าไร", // the AI answers spans (agreed 13 Nov)
+      "สัปดาห์นี้ใช้ไปเท่าไร", // a span: the report card (15 Nov), not today's budget
       "เดือนนี้ใช้ไปเท่าไร",
       "เมื่อวานใช้ไปเท่าไร",
       "ถ้ากินชาบูจะเหลือเท่าไร", // an item: the AI asks its price
@@ -54,6 +59,8 @@ describe("isBalanceQuestion", () => {
       "เหลือ",
       "วันนี้",
       "ดูหน่อย", // asks to see, but not what is left
+      "ได้เงินเท่าไร", // income, not what is left
+      "ซื้อได้ไหม",
       "ไหม",
       "สวัสดี",
       "",
@@ -160,4 +167,24 @@ describe("onlyKnownNumbers — the AI may not invent numbers", () => {
     expect(onlyKnownNumbers("ไหว เหลือวันละ 96", known)).toBe(false);
     expect(onlyKnownNumbers("ไม่มีตัวเลขเลย", known)).toBe(true);
   });
+});
+
+// 15 Nov: these went to the AI (or the "cannot answer" template). Today's card answers them, its numbers
+// from the calculator. A message with an item or a price is not this ask.
+describe("isPaydayQuestion", () => {
+  it.each(["วันเงินเข้าเมื่อไร", "เงินเข้าวันไหน", "อีกกี่วันเงินเข้า", "วันรับเงินเมื่อไหร่ครับ", "อีกกี่วันจะถึงวันเงินเข้า", "เงินออกวันไหน", "เงินเข้าเมื่อไหร่?"])(
+    "«%s» asks when the money comes", (t) => expect(isPaydayQuestion(t)).toBe(true),
+  );
+  it.each(["เงินเข้าแล้ว", "รับเงิน 500", "วันนี้", "เมื่อไร", "ข้าว 45", "วันเกิดเมื่อไร", ""])(
+    "«%s» is not", (t) => expect(isPaydayQuestion(t)).toBe(false),
+  );
+});
+
+describe("isEnoughQuestion", () => {
+  it.each(["เงินพอถึงวันเงินเข้าไหม", "พอถึงสิ้นเดือนไหม", "เงินจะพอไหม", "เงินพอใช้ไหมครับ", "เงินพอไหม", "เงินจะไหวถึงสิ้นเดือนมั้ย", "พอใช้ถึงวันเงินเข้าป่ะ"])(
+    "«%s» asks if the money lasts", (t) => expect(isEnoughQuestion(t)).toBe(true),
+  );
+  it.each(["ถ้าซื้อข้าว 50 จะพอไหม", "ชาบู 300 พอไหม", "กินชาบูพอไหม", "พอ", "ไหวไหม", "พอใช้", "สวัสดี", ""])(
+    "«%s» is not (an item or a price is a try, a bare word says nothing)", (t) => expect(isEnoughQuestion(t)).toBe(false),
+  );
 });

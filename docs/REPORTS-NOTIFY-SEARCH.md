@@ -16,7 +16,7 @@ Existing Frontend theme tokens and navigation remain in use. The settings remind
 
 ## Real report data
 
-`GET /api/reports?period=day|month&date=YYYY-MM-DD` requires the verified LINE ID token. Date is optional and defaults to Thai today. Month selects the calendar month containing the date. Invalid/future dates fail with 422. Future days in the current month's chart are `null`, not zero. Past days with no recorded entries are zero.
+`GET /api/reports?period=day|week|month&date=YYYY-MM-DD` requires the verified LINE ID token. Date is optional and defaults to Thai today. Month selects the calendar month containing the date. Week (added 15 November for the chat) selects Monday to Sunday containing the date; days after today are `null`. Invalid/future dates fail with 422. Future days in the current month's chart are `null`, not zero. Past days with no recorded entries are zero.
 
 The server aggregates all matching uncancelled `entries`/`incomes` at one PostgreSQL statement snapshot, including records from closed cycles. Totals are not calculated from capped REST lists. Paid bills are counted once; paid purchases retain their stored category. `source=plan` alone does not mean bill: the existing plan-action transaction already stores category `bills` only for actual bill payments.
 

@@ -152,3 +152,62 @@ export function buildHoldCard(vm: HoldCardViewModel): FlexMessage {
     [vm.pay, vm.tryFirst],
   );
 }
+
+// «สัปดาห์นี้ใช้ไปเท่าไร», «ดูรายงานเดือนนี้» (15 Nov): recorded money in a span, from finance_report.
+// Recorded spending, not what is left: the card says so. Categories come sorted by amount.
+export interface ReportCardViewModel {
+  heading: string; // "รายงานสัปดาห์นี้"
+  range: string; // "9 พ.ย. – 15 พ.ย."
+  spending: number;
+  income: number;
+  entriesCount: number;
+  categories: { category: UserCategory | "bills"; amount: number }[];
+  reportUrl: string; // the report screen in the app
+}
+
+export function buildReportCard(vm: ReportCardViewModel): FlexMessage {
+  const empty = vm.entriesCount === 0 && vm.income === 0;
+  const head = header("thinking", vm.heading, vm.range, FLEX_COLORS.lime100);
+  return {
+    type: "flex",
+    altText: `${vm.heading} · ใช้ไป ${bahtText(vm.spending)}`,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: head,
+      body: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "16px",
+        backgroundColor: FLEX_COLORS.white,
+        contents: empty
+          ? [{ type: "text", text: "ยังไม่มีรายการในช่วงนี้", size: "sm", color: FLEX_COLORS.sage500, wrap: true }]
+          : [
+              { type: "text", text: "ใช้ไป", size: "xs", color: FLEX_COLORS.sage500 },
+              { type: "text", text: bahtText(vm.spending), size: "xxl", weight: "bold", color: FLEX_COLORS.green900 },
+              row("จำนวนรายการ", `${vm.entriesCount} รายการ`),
+              row("รับเข้า", bahtText(vm.income)),
+              ...(vm.categories.length > 0 ? [{ type: "separator" as const, margin: "md" as const, color: FLEX_COLORS.line200 }] : []),
+              ...vm.categories.map((c) => row(categoryLabel(c.category), bahtText(c.amount), { color: FLEX_COLORS.green900 })),
+              note("ยอดจากรายการที่จด ไม่ใช่เงินที่เหลือ"),
+            ],
+      },
+      footer: {
+        type: "box",
+        layout: "horizontal",
+        paddingAll: "12px",
+        backgroundColor: FLEX_COLORS.white,
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            color: FLEX_COLORS.green800,
+            height: "sm",
+            flex: 1,
+            action: { type: "uri", label: "ดูรายงานในแอป", uri: vm.reportUrl },
+          },
+        ],
+      },
+    },
+  };
+}
