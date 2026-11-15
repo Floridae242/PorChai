@@ -22,6 +22,7 @@ const INCOME = /^(ได้รับเงิน|เงินเดือนเ�
 const BACKDATED = /เมื่อวาน|วานนี้|เมื่อคืน/;
 const NUMBER = /\d+(?:\.\d{1,2})?/g;
 const CURRENCY = /บาท|฿|\.-/g;
+const SPENT = /\s*(?:จ่าย|หมด|ใช้)?ไป$/;
 
 // First match wins, so the more specific words come before the words they contain
 // (ค่าน้ำ before น้ำ, น้ำมัน before น้ำ)
@@ -39,7 +40,7 @@ const KEYWORDS: [UserCategory, string[]][] = [
     "food",
     ["ข้าว", "กาแฟ", "ชา", "น้ำ", "ขนม", "อาหาร", "เตี๋ยว", "หมู", "ไก่", "ชาบู", "ส้มตำ", "มื้อ", "นม", "ผลไม้", "ไอติม", "ไอศกรีม", "บุฟเฟ่ต์", "ปิ้งย่าง", "โกโก้", "สลัด", "ราเมง", "ซูชิ", "พิซซ่า", "ปลาหมึก",
       // 15 Nov: «ปลาหมึกย่าง» was «อื่น ๆ»
-      "ปลา", "กุ้ง", "ทะเล", "เนื้อ", "ไข่", "ผัด", "ทอด", "ต้ม", "แกง", "ยำ", "ลูกชิ้น", "หมาล่า", "โจ๊ก", "บะหมี่", "มาม่า",
+      "ปลา", "กุ้ง", "ทะเล", "เนื้อ", "ไข่", "ผัด", "ทอด", "ต้ม", "แกง", "ยำ", "ลูกชิ้น", "หมาล่า", "หม่าล่า", "โจ๊ก", "บะหมี่", "มาม่า",
       "เบอร์เกอร์", "สเต็ก", "ติ่มซำ", "บิงซู", "โรตี", "เครป"],
   ],
 ];
@@ -86,7 +87,9 @@ export function parseExpense(raw: string): ParsedExpense {
     return { kind: "income", amount, note: note.slice(0, MAX_TITLE) || null };
   }
 
-  const title = text.replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TITLE);
+  // «หม่าล่าไป 50», «ข้าวจ่ายไป 45»: «ไป» says it was spent, it is not part of the name (16 Nov)
+  const title = text.replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim()
+    .replace(SPENT, "").trim().slice(0, MAX_TITLE);
   if (!title) return { kind: "ask", reason: "no_title" };
   return { kind: "entry", title, amount, category: categoryOf(title) };
 }
