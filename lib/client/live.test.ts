@@ -27,6 +27,11 @@ function setup(responses: Array<Response | Error>) {
 const hdr = (c: Call, k: string) => new Headers(c.init.headers).get(k);
 
 describe("createLiveApi", () => {
+  it("keeps personal categories and optional AI analysis on the authenticated transport",async()=>{
+    const {api,calls}=setup([json(200,[]),json(200,{}),json(200,{}),json(200,{})]);
+    await api.spendingCategories();await api.saveSpendingCategory({label:"ชานม",parent:"food",monthlyBudget:50000});await api.spendingInsights();await api.spendingInsights(true);
+    expect(calls.map(c=>[c.url,c.init.method])).toEqual([["https://x.test/api/categories","GET"],["https://x.test/api/categories","PUT"],["https://x.test/api/insights","GET"],["https://x.test/api/insights?ai=1","GET"]]);expect(calls.every(c=>hdr(c,"Authorization")==="Bearer tok-1")).toBe(true);
+  });
   it("wires reports, opt-in settings and private/web lookup with the existing auth transport", async () => {
     const { api, calls } = setup([
       json(200, {}),

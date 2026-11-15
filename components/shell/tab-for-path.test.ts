@@ -4,6 +4,8 @@ import { hideNav, tabForPath } from "./tab-for-path";
 describe("tabForPath", () => {
   const cases: [string, ReturnType<typeof tabForPath>][] = [
     ["/app", "summary"],
+    ["/app/help", "settings"],
+    ["/app/insights", "summary"],
     ["/app/reports", "summary"],
     ["/app/search", "summary"],
     ["/app/promotions", "perks"],

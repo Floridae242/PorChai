@@ -18,7 +18,6 @@ import {
   buildProposalCard,
   buildOcrDraftCard,
   buildTryBeforeBuyCard,
-  buildWelcomeCard,
   buildRecordedCard,
   buildTodayBudgetCard,
   categoryLabel,
@@ -26,6 +25,7 @@ import {
   miniAppUrl,
 } from "@/lib/line/flex";
 import { text, type QuickReplyAction, type ReplyMessage, type TextMessage } from "@/lib/line/reply";
+import { buildOnboardingCarousel } from "@/lib/line/onboarding";
 
 // Card 10: what the bot says with โฟรวิว's Flex cards (lib/line/flex), and the answers to their buttons.
 // The cards only draw; every number comes from the summary (one calculator).
@@ -235,8 +235,8 @@ export const ocrTransferMessage = (): TextMessage =>
 
 export const ocrAlreadyMessage = (d: OcrDraft): TextMessage => text(`สลิปนี้บันทึกไปแล้วครับ ✓ ${d.merchant} ${baht(d.amount)} บาท`);
 
-// Someone adds the OA as a friend: โฟรวิว's welcome card (set up in the app first)
-export const welcomeCard = (): ReplyMessage => buildWelcomeCard();
+// Someone adds the OA: swipeable, read-only feature introduction.
+export const welcomeCard = (): ReplyMessage => buildOnboardingCarousel();
 
 const dueLabel = (dueOn: string | null, today: string) =>
   dueOn === null || dueOn === today ? "วันนี้" : dueOn === addDays(today, 1) ? "พรุ่งนี้" : dayLabel(dueOn, today);

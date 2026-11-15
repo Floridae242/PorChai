@@ -66,6 +66,12 @@ import { installmentSchedule, parseInstallment } from "./installments";
 import { addInstallments } from "@/lib/db/installments";
 import { isQuestion } from "@/lib/advice/question";
 import { simulatePurchase } from "@/lib/calc/budget";
+import { spendingInsights } from "@/lib/db/spending-insights";
+import { spendingCategories,saveSpendingCategory } from "@/lib/db/spending-categories";
+import { suggestSpending } from "@/lib/ai/spending-suggestions";
+import { addEntry } from "@/lib/db/entries";
+import { parseNewEntry } from "@/lib/validate";
+import { categoryCommand } from "./personal-categories";
 import type {
   ActionPending,
   CommandPending,
@@ -78,12 +84,14 @@ import type {
 interface Answer {
   message: ReplyMessage;
   pending?: Pending;
+  heading?:string;
 }
 const say = (
   body: string,
   pending?: ActionPending,
   actions: QuickReplyAction[] = [],
-): Answer => ({ message: text(body, actions), pending });
+  heading?:string,
+): Answer => ({ message: text(body, actions), pending,heading });
 const money = (n: number) => `${formatBaht(n)} บาท`;
 const action = (label: string, data: string): QuickReplyAction => ({
   type: "postback",
@@ -92,7 +100,7 @@ const action = (label: string, data: string): QuickReplyAction => ({
   displayText: label,
 });
 const help =
-  "ทำในแชตได้เลยครับ เช่น\n• ได้รับเงิน 1000 บาท / ข้าว 50\n• วันนี้ใช้ได้เท่าไหร่ / ดูรายงานวันนี้ / ดูรายงานเดือนนี้\n• ค้นรายจ่าย ข้าว / ดูรายการ\n• เพิ่มบิล ค่าหอ 500 บาท / ดูแผน / จ่ายบิล 1\n• ผ่อน โทรศัพท์ ยอดรวม 12000 บาท 12 งวด เริ่ม 2026-12-01\n• แก้รายการล่าสุด 60 บาท / ลบรายการล่าสุด\n• ปรับยอด 2000 บาท / กันเงินเผื่อ 100 บาท\n• เปลี่ยนวันรับเงิน 2026-12-01\n• ตั้งค่าอาหาร 50 ค่ารถ 20\n• เปิดสรุปรายวัน เวลา 20:00 / ปิดแจ้งเตือน\n• เปิดเตือนจด / ดูแต้ม / เช็กครบแล้ว / แลกของ\n• เริ่มรอบเงิน / ดูคูปอง\nส่งรูปใบเสร็จ หรือถามก่อนจ่ายได้ด้วยครับ";
+  "ทำในแชตได้เลยครับ เช่น\n• ได้รับเงิน 1000 บาท / ข้าว 50\n• วันนี้ใช้ได้เท่าไหร่ / ดูรายงานวันนี้ / ดูรายงานเดือนนี้\n• ค้นรายจ่าย ข้าว / ดูรายการ\n• เพิ่มบิล ค่าหอ 500 บาท / ดูแผน / จ่ายบิล 1\n• ผ่อน โทรศัพท์ ยอดรวม 12000 บาท 12 งวด เริ่ม 2026-12-01\n• แก้รายการล่าสุด 60 บาท / ลบรายการล่าสุด\n• ปรับยอด 2000 บาท / กันเงินเผื่อ 100 บาท\n• เปลี่ยนวันรับเงิน 2026-12-01\n• ตั้งค่าอาหาร 50 ค่ารถ 20\n• เปิดสรุปรายวัน เวลา 20:00 / ปิดแจ้งเตือน\n• เปิดเตือนจด / ดูแต้ม / เช็กครบแล้ว / แลกของ\n• เริ่มรอบเงิน / ดูคูปอง\n• ดูภาพรวม / วิเคราะห์ / AI วิเคราะห์ / ดูหมวด\n• เพิ่มหมวด ชานม กลุ่ม อาหาร งบ 500 บาท\nจดวันนี้รับแต้มอัตโนมัติวันละ 1 แต้ม\nส่งรูปใบเสร็จ หรือถามก่อนจ่ายได้ด้วยครับ";
 const expired = () => say("คำขอนี้หมดอายุหรือไม่ใช่ของบัญชีนี้แล้วครับ พิมพ์คำสั่งใหม่ได้เลย");
 
 async function preview(
@@ -126,6 +134,7 @@ async function preview(
     `ยืนยัน ${label}\nยังไม่ได้เปลี่ยนข้อมูล กดหรือพิมพ์ “ยืนยัน” หรือ “ยกเลิก” ครับ`,
     p,
     [action("ยืนยัน", `pc:yes:${p.key}`), action("ยกเลิก", `pc:no:${p.key}`)],
+    "ตรวจข้อมูลก่อนยืนยัน",
   );
 }
 const equal = (a: object, b: object) =>
@@ -142,6 +151,8 @@ async function execute(userId: string, p: CommandPending): Promise<string> {
   if (p.basis && a.op !== "installments")
     requireBasis(await loadBudget(userId), p.basis);
   switch (a.op) {
+    case "category_save": {const c=await saveSpendingCategory(userId,a.input);return `บันทึกหมวด ${c.label} · ${c.monthlyBudget===null?"ยังไม่ตั้งงบ":`${money(c.monthlyBudget)} ต่อเดือน`} แล้วครับ งบนี้ใช้ติดตามรายจ่าย ไม่ได้เพิ่มเงินที่ใช้ได้`;}
+    case "category_entry": {const {entry}=await addEntry(userId,parseNewEntry(a.input,today),`chat-category:${p.key}`,"chat");return `จด ${entry.note ?? "รายจ่าย"} ${money(entry.amount)} ในหมวดที่เลือกแล้วครับ จดวันนี้ได้รับแต้มอัตโนมัติวันละ 1 แต้ม`;}
     case "installments": {
       if (!p.basis) throw stale();
       await addInstallments(userId, a.input, p.key, p.basis);
@@ -267,6 +278,7 @@ async function confirm(
     owner = randomUUID();
   if (!(await recordEvent(id, owner))) return say("คำขอนี้จบแล้วครับ ไม่ได้ทำซ้ำ");
   let result: string;
+  let rejected=false;
   try {
     result = yes ? await execute(userId, p) : "ยกเลิกคำขอแล้วครับ";
   } catch (error) {
@@ -275,13 +287,14 @@ async function confirm(
       throw error;
     }
     result = error.message;
+    rejected=true;
   }
   // Persist closure before replying, including cancellation; a different webhook cannot replay it.
   await remember(userId, [
     { role: "bot", body: result, pending: { ...p, closed: true } },
   ]);
   await completeEvent(id, owner);
-  return say(result, { ...p, closed: true });
+  return say(result, { ...p, closed: true },[],rejected?"ตรวจคำขออีกครั้ง":yes?"ผลการทำรายการ":"ยกเลิกคำขอ");
 }
 
 function ask(
@@ -357,8 +370,23 @@ async function choose(
   );
 }
 
-async function run(userId: string, i: Intent): Promise<Answer> {
+const FEATURE_HEADINGS:Partial<Record<Intent["tool"],string>>={help:"เมนูช่วยเหลือ",setup:"เริ่มรอบเงิน",insights:"วิเคราะห์การใช้เงิน",categories:"หมวดและงบ",category_save:"หมวดและงบ",category_entry:"จดเข้าหมวด",installments:"แผนผ่อนสินค้า",report:"รายงานการใช้เงิน",search:"ค้นรายจ่าย",web:"ค้นเว็บพร้อมอ้างอิง",points:"แต้มของฉัน",claim_points:"เช็กแผนและแต้ม",entries:"รายการที่จด",plans:"แผนและบิล",rewards:"ของรางวัล",promos:"โปรตัวอย่าง",notifications:"สรุปและเตือนงบ",reminders:"เตือนจดรายการ",balance:"ปรับยอดเงินจริง",buffer:"เงินเผื่อ",payday:"วันรับเงิน",essentials:"ค่าใช้จ่ายจำเป็น",entry_edit:"แก้ไขรายการ",entry_delete:"ยกเลิกรายการ",plan_action:"จัดการแผน"};
+async function run(userId:string,i:Intent):Promise<Answer>{
+  const answer=await runFeature(userId,i);
+  return {...answer,heading:answer.heading??FEATURE_HEADINGS[i.tool]};
+}
+async function runFeature(userId: string, i: Intent): Promise<Answer> {
   switch (i.tool) {
+    case "categories": {const rows=await spendingCategories(userId);return say(`หมวดและงบรายเดือน\n${rows.slice(0,15).map(c=>`${c.label} (${CATEGORY_LABELS[c.parent]}) · ${c.monthlyBudget===null?"ยังไม่ตั้งงบ":money(c.monthlyBudget)}`).join("\n")}\nตั้งงบ อาหาร 2000 บาท\nเพิ่มหมวด ชานม กลุ่ม อาหาร งบ 500 บาท\nจด ชานม 50 หมวด ชานม\nหมวดหลักรวมหมวดย่อยแล้ว อย่านำยอดมาบวกซ้ำ`);}
+    case "category_save": case "category_entry": {
+      const result=await categoryCommand(userId,i.query??"",i.tool);
+      return preview(userId,result.label,result.mutation);
+    }
+    case "insights": {
+      const data=await spendingInsights(userId);
+      const ai=/^AI\s*(?:แนะนำ|วิเคราะห์)/iu.test(i.query??"")?await suggestSpending(data):undefined;
+      return say(`วิเคราะห์รายการที่จด ${data.from} ถึง ${data.until} (ไม่รวมวันสุดท้าย)\n${data.observations.slice(0,6).join("\n")}\n${data.suggestions.slice(0,3).map(s=>`จุดเริ่มงบ ${s.label}: ${money(s.amount)} จากยอดเดือนนี้ ยังไม่ใช่ประมาณการเต็มเดือน`).join("\n")}\n${ai??""}\nใช้ ตั้งงบ ชื่อหมวด จำนวนบาท เพื่อปรับหลังตรวจแผน หรือพิมพ์ AI วิเคราะห์ เพื่อขอคำแนะนำเพิ่มเติม`);
+    }
     case "installments": {
       const raw = i.query ?? "",
         question = isQuestion(raw);
@@ -746,7 +774,7 @@ export async function chatAction(
       error.code !== "no_cycle" &&
       error.status < 500
     )
-      return say(error.message);
+      return say(error.message,undefined,[],"ตรวจคำขออีกครั้ง");
     throw error;
   }
 }

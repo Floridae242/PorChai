@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { AppHeader } from "@/components/shell/app-header";
 import { useToast } from "@/components/shell/toast";
 import { Banner } from "@/components/ui/banner";
@@ -10,7 +16,11 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Mascot } from "@/components/ui/mascot";
 import { ApiError } from "@/lib/client/errors";
-import { loadClaimedCode, saveClaimedCode, type ClaimedCode } from "@/lib/client/claimed-code";
+import {
+  loadClaimedCode,
+  saveClaimedCode,
+  type ClaimedCode,
+} from "@/lib/client/claimed-code";
 import type { Promo, Reward } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
@@ -42,7 +52,10 @@ function errorText(err: unknown, fallback: string): string {
 // overBy when it does not. Anything unknown (null) means no comparison line at all.
 function budgetLine(promo: Promo): { fits: boolean; text: string } | null {
   if (promo.fitsBudget === true && promo.leftAfter !== null) {
-    return { fits: true, text: `ซื้อได้ · เหลือ ${formatBaht(promo.leftAfter)} บาท` };
+    return {
+      fits: true,
+      text: `ซื้อได้ · เหลือ ${formatBaht(promo.leftAfter)} บาท`,
+    };
   }
   if (promo.fitsBudget === false && promo.overBy !== null) {
     return { fits: false, text: `เกินงบวันนี้ ${formatBaht(promo.overBy)} บาท` };
@@ -114,20 +127,27 @@ export function PerksListView() {
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="สิทธิพิเศษ & แต้ม" tone="default" />
-      <Link href="/app/promotions" className={buttonClass("secondary")}>คูปอง โปรโมชัน และโฆษณาตัวอย่าง</Link>
+      <Link href="/app/promotions" className={buttonClass("secondary")}>
+        คูปอง โปรโมชัน และโฆษณาตัวอย่าง
+      </Link>
 
       <section className="flex flex-col gap-2 rounded-md border border-line bg-reward-bg p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-semibold text-secondary">แต้มของฉัน</span>
-            <span className="text-2xl font-bold tabular-nums text-primary">{points.balance} แต้ม</span>
+            <span className="text-xs font-semibold text-secondary">
+              แต้มของฉัน
+            </span>
+            <span className="text-2xl font-bold tabular-nums text-primary">
+              {points.balance} แต้ม
+            </span>
           </div>
           <Link href="/app/points" className={buttonClass("secondary")}>
             ดูของที่แลกได้ ›
           </Link>
         </div>
         <p className="text-xs text-secondary">
-          กด &quot;รับแต้มฟรี&quot; ในหน้าสรุป ได้วันละ 1 แต้ม{points.claimedToday ? " · วันนี้รับแล้ว" : ""}
+          จดรายการวันนี้สำเร็จ รับอัตโนมัติวันละ 1 แต้มตามเวลาไทย หรือกดรับในหน้าสรุปได้
+          รวมกันได้วันละครั้ง{points.claimedToday ? " · วันนี้รับแล้ว" : ""}
         </p>
       </section>
 
@@ -147,19 +167,30 @@ export function PerksListView() {
           {promos.value.map((promo) => {
             const line = budgetLine(promo);
             return (
-              <article key={promo.id} className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
+              <article
+                key={promo.id}
+                className="flex flex-col gap-3 rounded-md border border-line bg-card p-4"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <SponsoredTag />
-                  <span className="text-xs text-secondary">{promo.validDays}</span>
+                  <span className="text-xs text-secondary">
+                    {promo.validDays}
+                  </span>
                 </div>
 
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-medium text-secondary">{promo.shop}</p>
-                    <h2 className="text-base font-semibold text-primary">{promo.title}</h2>
+                    <p className="text-xs font-medium text-secondary">
+                      {promo.shop}
+                    </p>
+                    <h2 className="text-base font-semibold text-primary">
+                      {promo.title}
+                    </h2>
                   </div>
                   <div className="text-right">
-                    <span className="text-xl font-bold tabular-nums text-primary">{formatBaht(promo.price)}</span>
+                    <span className="text-xl font-bold tabular-nums text-primary">
+                      {formatBaht(promo.price)}
+                    </span>
                     <span className="ml-1 text-xs text-secondary">บาท</span>
                   </div>
                 </div>
@@ -174,7 +205,10 @@ export function PerksListView() {
                   </div>
                 ) : null}
 
-                <Link href={`/app/perks/${promo.id}`} className={buttonClass("secondary", true)}>
+                <Link
+                  href={`/app/perks/${promo.id}`}
+                  className={buttonClass("secondary", true)}
+                >
                   ดูรายละเอียดและรับสิทธิ์
                 </Link>
               </article>
@@ -182,9 +216,15 @@ export function PerksListView() {
           })}
         </div>
       ) : promos.state === "ok" ? (
-        <EmptyState title="ยังไม่มีข้อเสนอตอนนี้" body="เมื่อมีข้อเสนอจากผู้สนับสนุน จะแสดงที่นี่" />
+        <EmptyState
+          title="ยังไม่มีข้อเสนอตอนนี้"
+          body="เมื่อมีข้อเสนอจากผู้สนับสนุน จะแสดงที่นี่"
+        />
       ) : (
-        <EmptyState title={MSG_NOT_READY} body="ข้อเสนอจากผู้สนับสนุนจะแสดงที่นี่เมื่อระบบพร้อม" />
+        <EmptyState
+          title={MSG_NOT_READY}
+          body="ข้อเสนอจากผู้สนับสนุนจะแสดงที่นี่เมื่อระบบพร้อม"
+        />
       )}
     </main>
   );
@@ -224,7 +264,9 @@ export function PerkDetailView() {
     router.push(`/app/perks/${promoId}/code`);
   }
 
-  const header = <AppHeader title="รายละเอียดโปร" back="/app/perks" tone="default" />;
+  const header = (
+    <AppHeader title="รายละเอียดโปร" back="/app/perks" tone="default" />
+  );
 
   if (promo.state === "loading") {
     return (
@@ -259,14 +301,19 @@ export function PerkDetailView() {
     return (
       <main className="flex flex-col gap-4 py-2 font-body">
         {header}
-        <EmptyState title={MSG_NOT_READY} body="รายละเอียดโปรจะแสดงที่นี่เมื่อระบบพร้อม" />
+        <EmptyState
+          title={MSG_NOT_READY}
+          body="รายละเอียดโปรจะแสดงที่นี่เมื่อระบบพร้อม"
+        />
       </main>
     );
   }
 
   const p = promo.value;
   const line = budgetLine(p);
-  const claimError = claim.error ? errorText(claim.error, "รับรหัสไม่สำเร็จ ลองใหม่อีกครั้ง") : null;
+  const claimError = claim.error
+    ? errorText(claim.error, "รับรหัสไม่สำเร็จ ลองใหม่อีกครั้ง")
+    : null;
 
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
@@ -282,18 +329,26 @@ export function PerkDetailView() {
         </div>
 
         <div className="flex items-baseline gap-1.5 border-y border-line py-3">
-          <span className="text-3xl font-bold tabular-nums text-primary">{formatBaht(p.price)}</span>
-          <span className="text-sm font-semibold text-secondary">บาท · ใช้ได้ {p.validDays}</span>
+          <span className="text-3xl font-bold tabular-nums text-primary">
+            {formatBaht(p.price)}
+          </span>
+          <span className="text-sm font-semibold text-secondary">
+            บาท · ใช้ได้ {p.validDays}
+          </span>
         </div>
 
         {line ? (
-          <div className={`rounded-sm p-3 text-sm ${line.fits ? "bg-ok-bg text-ok" : "bg-warn-bg text-warn"}`}>
+          <div
+            className={`rounded-sm p-3 text-sm ${line.fits ? "bg-ok-bg text-ok" : "bg-warn-bg text-warn"}`}
+          >
             <p className="font-semibold">เทียบกับแผนของคุณ</p>
             <p>
               {line.fits ? "ผล " : ""}
               {line.text}
             </p>
-            <p className="pt-1 text-xs text-secondary">คำนวณจากแผนของคุณ ไม่ได้ส่งข้อมูลของคุณให้ร้าน</p>
+            <p className="pt-1 text-xs text-secondary">
+              คำนวณจากแผนของคุณ ไม่ได้ส่งข้อมูลของคุณให้ร้าน
+            </p>
           </div>
         ) : null}
 
@@ -309,7 +364,12 @@ export function PerkDetailView() {
         ) : null}
       </section>
 
-      {claimError ? <Banner kind={isCode(claim.error, "not_implemented") ? "info" : "error"} text={claimError} /> : null}
+      {claimError ? (
+        <Banner
+          kind={isCode(claim.error, "not_implemented") ? "info" : "error"}
+          text={claimError}
+        />
+      ) : null}
 
       <div className="flex flex-col gap-2">
         <Button variant="primary" block busy={claim.busy} onClick={handleClaim}>
@@ -335,7 +395,8 @@ function expiryText(expiresAt: string): string {
       return `หมดเขต ${expiresAt}`;
     }
   }
-  if (!Number.isNaN(Date.parse(expiresAt))) return `หมดอายุ ${formatThaiTime(expiresAt)} น.`;
+  if (!Number.isNaN(Date.parse(expiresAt)))
+    return `หมดอายุ ${formatThaiTime(expiresAt)} น.`;
   return `หมดอายุ ${expiresAt}`;
 }
 
@@ -346,7 +407,11 @@ function useStoredClaim(promoId: string): ClaimedCode | null | undefined {
     () => JSON.stringify(promoId ? loadClaimedCode(promoId) : null),
     () => undefined,
   );
-  return useMemo(() => (raw === undefined ? undefined : (JSON.parse(raw) as ClaimedCode | null)), [raw]);
+  return useMemo(
+    () =>
+      raw === undefined ? undefined : (JSON.parse(raw) as ClaimedCode | null),
+    [raw],
+  );
 }
 
 export function PerkCodeView() {
@@ -398,10 +463,15 @@ export function PerkCodeView() {
           </div>
         ) : null}
 
-        <p data-clarity-mask="true" className="font-mono text-4xl font-bold tracking-wider text-primary">
+        <p
+          data-clarity-mask="true"
+          className="font-mono text-4xl font-bold tracking-wider text-primary"
+        >
           {claim.code}
         </p>
-        <p className="text-sm text-secondary">แสดงให้พนักงานตอนจ่าย ร้านจะสแกนหรือพิมพ์รหัสนี้</p>
+        <p className="text-sm text-secondary">
+          แสดงให้พนักงานตอนจ่าย ร้านจะสแกนหรือพิมพ์รหัสนี้
+        </p>
       </section>
 
       <Banner kind="warn" text={`รอร้านยืนยัน · ${expiryText(claim.expiresAt)}`} />
@@ -431,17 +501,30 @@ export function PerkUsedView() {
 
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
-      <AppHeader title="รหัสโปร" back={`/app/perks/${promoId}/code`} tone="default" />
+      <AppHeader
+        title="รหัสโปร"
+        back={`/app/perks/${promoId}/code`}
+        tone="default"
+      />
       <EmptyState
         title={MSG_NOT_READY}
         body="สถานะการยืนยันจากร้านจะแสดงที่นี่เมื่อระบบพร้อม"
-        action={{ label: "กลับไปที่รหัส", href: `/app/perks/${promoId}/code`, variant: "secondary" }}
+        action={{
+          label: "กลับไปที่รหัส",
+          href: `/app/perks/${promoId}/code`,
+          variant: "secondary",
+        }}
       />
     </main>
   );
 }
 
-type RedeemedInfo = { rewardName: string; cost: number; code: string; balance: number };
+type RedeemedInfo = {
+  rewardName: string;
+  cost: number;
+  code: string;
+  balance: number;
+};
 
 export function PointsView() {
   const api = useApi();
@@ -452,7 +535,10 @@ export function PointsView() {
   const [rewards, setRewards] = useState<Load<Reward[]>>({ state: "loading" });
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [redeemed, setRedeemed] = useState<RedeemedInfo | null>(null);
-  const [message, setMessage] = useState<{ kind: "info" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    kind: "info" | "error";
+    text: string;
+  } | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   const loadAll = useCallback(() => {
@@ -482,10 +568,14 @@ export function PointsView() {
 
   async function handleClaim() {
     setMessage(null);
-    const result = await claim.submit("claim-daily-points", (key) => api.claimPoints(key));
+    const result = await claim.submit("claim-daily-points", (key) =>
+      api.claimPoints(key),
+    );
     if (result.ok) {
       setPoints(result.value);
-      toast.show(`รับแต้มฟรีแล้ว +1 · รวม ${result.value.balance} แต้ม`, { mascot: "reward" });
+      toast.show(`รับแต้มฟรีแล้ว +1 · รวม ${result.value.balance} แต้ม`, {
+        mascot: "reward",
+      });
       return;
     }
     if ("skipped" in result) return;
@@ -499,7 +589,9 @@ export function PointsView() {
   async function handleRedeem(reward: Reward) {
     setMessage(null);
     setRedeemingId(reward.id);
-    const result = await redeem.submit(reward.id, (key) => api.redeemReward(reward.id, key));
+    const result = await redeem.submit(reward.id, (key) =>
+      api.redeemReward(reward.id, key),
+    );
     if (result.ok) {
       setPoints((prev) => ({ ...prev, balance: result.value.balance }));
       setRedeemed({
@@ -536,19 +628,28 @@ export function PointsView() {
           <dl className="flex w-full flex-col gap-1 text-sm">
             <div className="flex justify-between">
               <dt className="text-secondary">ของที่แลก</dt>
-              <dd className="font-semibold text-primary">{redeemed.rewardName}</dd>
+              <dd className="font-semibold text-primary">
+                {redeemed.rewardName}
+              </dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-secondary">หักแต้ม</dt>
-              <dd className="font-semibold tabular-nums text-primary">{redeemed.cost} แต้ม</dd>
+              <dd className="font-semibold tabular-nums text-primary">
+                {redeemed.cost} แต้ม
+              </dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-secondary">เหลือ</dt>
-              <dd className="font-semibold tabular-nums text-primary">{redeemed.balance} แต้ม</dd>
+              <dd className="font-semibold tabular-nums text-primary">
+                {redeemed.balance} แต้ม
+              </dd>
             </div>
           </dl>
           <p className="text-xs text-secondary">รหัสรับของ</p>
-          <p data-clarity-mask="true" className="max-w-full break-all font-mono text-3xl font-bold text-primary">
+          <p
+            data-clarity-mask="true"
+            className="max-w-full break-all font-mono text-3xl font-bold text-primary"
+          >
             {redeemed.code}
           </p>
         </section>
@@ -567,10 +668,15 @@ export function PointsView() {
         <div>
           <span className="text-xs font-semibold text-secondary">แต้มสะสม</span>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-4xl font-bold tabular-nums text-primary">{points.balance}</span>
+            <span className="text-4xl font-bold tabular-nums text-primary">
+              {points.balance}
+            </span>
             <span className="text-sm font-semibold text-primary">แต้ม</span>
           </div>
-          <p className="mt-1 text-xs text-secondary">กด &quot;รับแต้มฟรี&quot; ได้วันละ 1 แต้ม</p>
+          <p className="mt-1 text-xs text-secondary">
+            จดรายการวันนี้สำเร็จ รับอัตโนมัติวันละ 1 แต้มตามเวลาไทย วันที่ไม่จดก็กดรับได้
+            รวมกันได้วันละครั้ง
+          </p>
         </div>
         <Mascot pose="reward" size={72} />
       </section>
@@ -607,14 +713,19 @@ export function PointsView() {
               className="flex items-center justify-between gap-3 rounded-md border border-line bg-card p-4"
             >
               <div className="flex flex-col gap-0.5">
-                <h3 className="text-sm font-semibold text-primary">{reward.name}</h3>
+                <h3 className="text-sm font-semibold text-primary">
+                  {reward.name}
+                </h3>
                 <p className="text-xs text-secondary">
                   {reward.stock > 0 ? `เหลือ ${reward.stock} ชิ้น` : "หมดแล้ว"}
                 </p>
               </div>
               <Button
                 variant="primary"
-                disabled={reward.stock <= 0 || (redeem.busy && redeemingId !== reward.id)}
+                disabled={
+                  reward.stock <= 0 ||
+                  (redeem.busy && redeemingId !== reward.id)
+                }
                 busy={redeem.busy && redeemingId === reward.id}
                 onClick={() => handleRedeem(reward)}
               >
@@ -625,7 +736,10 @@ export function PointsView() {
         ) : rewards.state === "ok" ? (
           <EmptyState title="ยังไม่มีของรางวัลให้แลก" />
         ) : (
-          <Banner kind="info" text={`${MSG_NOT_READY} — ของรางวัลจะแสดงที่นี่เมื่อระบบพร้อม`} />
+          <Banner
+            kind="info"
+            text={`${MSG_NOT_READY} — ของรางวัลจะแสดงที่นี่เมื่อระบบพร้อม`}
+          />
         )}
       </section>
     </main>

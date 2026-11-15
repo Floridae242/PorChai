@@ -84,6 +84,8 @@ import { decodePostback, type DecodedPostback } from "@/lib/line/flex/postback";
 import { reply, text, withAppButton, type ReplyMessage } from "@/lib/line/reply";
 import { presentReply } from "@/lib/line/presentation";
 import { chatAction, chatActionButton } from "@/lib/chat/actions";
+import { onboardingHelp } from "@/lib/line/onboarding";
+import { readHelpRequest } from "@/lib/line/help-request";
 
 interface LineEvent {
   type?: unknown;
@@ -98,8 +100,9 @@ interface LineEvent {
 interface Answer {
   message: ReplyMessage;
   pending?: Pending;
+  heading?:string;
 }
-const say = (message: ReplyMessage, pending?: Pending): Answer => ({ message, pending });
+const say = (message: ReplyMessage, pending?: Pending,heading?:string): Answer => ({ message, pending,heading });
 
 // The webhook verified LINE's signature before calling this, so source.userId is LINE's word, not the client's.
 // Throws only when a spend could not be saved: the webhook then lets LINE deliver the event again.
@@ -139,7 +142,7 @@ export async function handleEvent(event: unknown): Promise<void> {
   }
   if (typeof e.replyToken === "string") {
     // The spend is already saved; a failed answer must not make LINE send the event again
-    await reply(e.replyToken, [presentReply(withAppButton(answer.message))]).catch((err) => console.error(err));
+    await reply(e.replyToken, [presentReply(withAppButton(answer.message),answer.heading)]).catch((err) => console.error(err));
   }
 }
 
@@ -161,6 +164,8 @@ const MENU_TEXTS: Record<string, () => ReplyMessage> = {
 };
 
 async function onText(userId: string, body: string, eventId: string): Promise<Answer> {
+  const help=readHelpRequest(body);
+  if(help)return say(help.topic?onboardingHelp(`guide:${help.topic}`)!:welcomeCard(),undefined,"วิธีใช้พอใช้");
   const history = await recentChat(userId);
   const last = history.at(-1);
   const pending = last?.role === "bot" ? last.pending : null; // only the very next message answers it
@@ -300,6 +305,8 @@ const LABEL = { pay: "ยืนยันจ่ายจริง", try: "ลอ�
 
 // Buttons from holdMessage / tryMessage / adviceMessage / proposalMessage. Anything malformed is ignored.
 async function onPostback(userId: string, data: string): Promise<{ label: string; answer: Answer } | null> {
+  if(data==="guide:all")return {label:"วิธีใช้",answer:say(welcomeCard())};
+  if(data.startsWith("guide:"))return {label:"ดูคู่มือ",answer:say(onboardingHelp(data)??text("ไม่พบหัวข้อคู่มือนี้ครับ พิมพ์ คู่มือ เพื่อเลือกอีกครั้ง"),undefined,"วิธีใช้พอใช้")};
   const command = await chatActionButton(userId, data);
   if (command) return { label: "คำสั่งแชต", answer: command };
   const flex = decodePostback(data);

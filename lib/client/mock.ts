@@ -1,3 +1,6 @@
+import { mockSpendingInsights } from "./insights-mock";
+import { parseCategory } from "@/lib/insights/categories";
+import type { SpendingCategory } from "@/lib/insights/types";
 // In-memory PorchaiApi for building and demoing screens before the backend catches up.
 import { mockReport } from "./report-mock";
 import { DEFAULT_NOTIFICATIONS } from "@/lib/reports/types";
@@ -209,6 +212,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   }
 
   const publicEntry = (e: StoredEntry): Entry => ({
+    ...(e.categoryId ? {categoryId:e.categoryId}: {}),
     id: e.id,
     amount: e.amount,
     category: e.category,
@@ -237,6 +241,9 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   // ---- points / promos / rewards ----
   let points = START_POINTS;
   let claimedOn: string | null = null;
+  let spendingCats:SpendingCategory[] = Object.entries({food:"อาหาร",transport:"เดินทาง",supplies:"ของใช้",other:"อื่น ๆ",bills:"บิล"}).map(([id,label])=>({id,label,parent:id as SpendingCategory["parent"],monthlyBudget:null,version:now().toISOString()}));
+  function awardRecording(day:string){if(day===today && claimedOn!==today){points+=1;claimedOn=today;}}
+
   const stock = new Map(REWARD_FIXTURES.map((r) => [r.id, r.stock]));
   const redeemed = new Map<string, { balance: number; code: string }>(); // idempotency key -> result
   const claimedCodes = new Map<string, string>(); // code -> promo id
@@ -270,6 +277,17 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   let notifications = { ...DEFAULT_NOTIFICATIONS };
   const reportIncomes: { amount: number; receivedOn: string }[] = [];
   return {
+    async spendingCategories(){return spendingCats.map(c=>({...c}));},
+    async saveSpendingCategory(value){
+      const p=parseCategory(value),existing=spendingCats.find(c=>c.id===p.id);
+      if(!p.id && spendingCats.length>=100)throw new ApiError(422,"invalid_category","หมวดครบ 100 หมวดแล้ว");
+      if(p.id && (!existing || existing.version!==p.version))throw new ApiError(409,"stale",MSG_STALE);
+      if(existing && existing.parent!==p.parent)throw new ApiError(422,"invalid_category","เปลี่ยนกลุ่มหมวดเดิมไม่ได้");
+      if(spendingCats.some(c=>c.id!==p.id && c.label.toLowerCase()===p.label.toLowerCase()))throw new ApiError(422,"invalid_category","ชื่อหมวดซ้ำ");
+      const c:SpendingCategory={id:p.id??crypto.randomUUID(),label:p.label,parent:p.parent,monthlyBudget:p.monthlyBudget,version:new Date(Date.parse(existing?.version??now().toISOString())+1).toISOString()};
+      spendingCats=[...spendingCats.filter(x=>x.id!==c.id),c];return {...c};
+    },
+    async spendingInsights(){return mockSpendingInsights(entries.filter(e=>!e.cancelledAt).map(publicEntry),spendingCats,today);},
     async report(period, date) {
       return mockReport(
         period,
@@ -367,7 +385,10 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       const spentOn = req.spentOn ?? today;
       if (!(req.amount > 0)) throw new ApiError(422, "invalid_input", "จำนวนเงินไม่ถูกต้อง");
       if (spentOn > today) throw new ApiError(422, "invalid_input", "วันที่ใช้จ่ายต้องไม่เกินวันนี้");
+      if(req.categoryId){const cat=spendingCats.find(x=>x.id===req.categoryId);if(!cat || cat.parent!==req.category)throw new ApiError(422,"invalid_category","หมวดไม่ถูกต้อง");}
       const e = pushEntry(req.amount, req.category, req.note ?? null, spentOn, "form");
+      if(req.categoryId)e.categoryId=req.categoryId;
+      awardRecording(spentOn);
       entryKeys.set(key, e.id);
       return { entry: publicEntry(e), summary: summaryOf(c) };
     },
@@ -377,11 +398,13 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       const e = findEntry(id);
       if (e.source === "plan") {
         if (e.category === "bills") throw new ApiError(409, "plan_entry", "รายการจ่ายบิลเปลี่ยนหมวดไม่ได้");
-        if (Object.keys(req).some((k) => k !== "category")) {
+        if (Object.keys(req).some((k) => k !== "category" && k !== "categoryId")) {
           throw new ApiError(409, "plan_entry", "รายการนี้มาจากการจ่ายแผน เปลี่ยนได้แค่หมวด");
         }
       }
       if (e.cancelledAt) throw new ApiError(409, "entry_cancelled", "รายการนี้ถูกยกเลิกแล้ว");
+      if(req.categoryId){const cat=spendingCats.find(x=>x.id===req.categoryId);if(!cat || cat.parent!==(req.category??e.category))throw new ApiError(422,"invalid_category","หมวดไม่ถูกต้อง");}
+      if(req.categoryId!==undefined)e.categoryId=req.categoryId;else if(req.category!==undefined && req.category!==e.category)delete e.categoryId;
       if (req.amount !== undefined) e.amount = req.amount;
       if (req.category !== undefined) e.category = req.category;
       if (req.note !== undefined) e.note = req.note ?? null;
@@ -525,6 +548,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
         const category: Entry["category"] =
           p.kind === "bill" ? "bills" : ((body?.category ?? p.category ?? "other") as UserCategory);
         p.entryId = pushEntry(p.amount, category, p.title, today, "plan").id;
+        awardRecording(today);
         p.status = "paid";
       } else if (action === "unpay") {
         if (p.entryId) findEntry(p.entryId).cancelledAt = now();
@@ -600,6 +624,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       c.anchor = { ...c.anchor, amount: c.anchor.amount + req.amount };
       incomeKeys.add(key);
       reportIncomes.push({ amount: req.amount, receivedOn: req.receivedOn ?? today });
+      awardRecording(receivedOn);
       return { summary: summaryOf(c) };
     },
 
@@ -654,6 +679,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       incomeKeys.clear();
       reportIncomes.length = 0;
       notifications = { ...DEFAULT_NOTIFICATIONS };
+      spendingCats = spendingCats.filter(c=>c.id===c.parent).map(c=>({...c,label:({food:"อาหาร",transport:"เดินทาง",supplies:"ของใช้",other:"อื่น ๆ",bills:"บิล"})[c.parent],monthlyBudget:null,version:now().toISOString()}));
       reminders = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
       points = START_POINTS;
       claimedOn = null;

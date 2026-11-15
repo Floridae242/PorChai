@@ -26,6 +26,7 @@ const sizes: Record<string, number> = {
   xl: 20,
   xxl: 24,
 };
+const imageSizes:Record<string,number>={xxs:32,xs:48,sm:64,md:96,lg:128,xl:160};
 const length = (value?: string) =>
   value ? (spacing[value] ?? value) : undefined;
 
@@ -60,17 +61,17 @@ function Node({
   if (node.type === "image")
     return (
       <Image
-        src={node.url}
+        src={/\/mascot\/[a-zA-Z0-9_-]+\.png$/.test(node.url) ? `/mascot/${node.url.split("/").at(-1)}` : node.url}
         alt=""
         width={300}
         height={200}
         unoptimized
         loading="lazy"
         style={{
-          width: node.size === "full" ? "100%" : node.size,
+          width: node.size === "full" ? "100%" : (imageSizes[node.size]??72),
           height: "auto",
           flexShrink: 0,
-          aspectRatio: node.aspectRatio.replace(":", "/"),
+          aspectRatio: (node.aspectRatio??"1:1").replace(":", "/"),
           objectFit: "contain",
         }}
       />
@@ -94,7 +95,7 @@ function Node({
     );
   const style: CSSProperties = {
     display: "flex",
-    flexDirection: node.layout === "horizontal" ? "row" : "column",
+    flexDirection: node.layout === "horizontal" || (node.layout as string)==="baseline" ? "row" : "column",
     alignItems: node.layout === "horizontal" ? "center" : "stretch",
     gap: length(node.spacing),
     padding: length(node.paddingAll),
@@ -113,7 +114,7 @@ function Node({
   );
 }
 
-function Bubble({
+export function FlexBubblePreview({
   bubble,
   onAction,
 }: {
@@ -144,11 +145,11 @@ function Card({
   return message.contents.type === "carousel" ? (
     <div className={styles.carousel} aria-label="การ์ดต้อนรับ เลื่อนแนวนอนได้">
       {message.contents.contents.map((bubble, index) => (
-        <Bubble key={index} bubble={bubble} onAction={onAction} />
+        <FlexBubblePreview key={index} bubble={bubble} onAction={onAction} />
       ))}
     </div>
   ) : (
-    <Bubble bubble={message.contents} onAction={onAction} />
+    <FlexBubblePreview bubble={message.contents} onAction={onAction} />
   );
 }
 

@@ -87,6 +87,9 @@ export interface SaveReminderSettings {
 export type PlanActionName = "pay" | "unpay" | "cancel" | "postpone" | "keep";
 
 export interface PorchaiApi {
+  spendingCategories(): Promise<import("@/lib/insights/types").SpendingCategory[]>;
+  saveSpendingCategory(input: import("@/lib/insights/types").SaveCategory): Promise<import("@/lib/insights/types").SpendingCategory>;
+  spendingInsights(ai?: boolean): Promise<import("@/lib/insights/types").SpendingInsights>;
   report(period: "day" | "month", date?: string): Promise<FinanceReport>;
   notificationPreferences(): Promise<NotificationPreferences>;
   saveNotificationPreferences(

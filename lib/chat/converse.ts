@@ -1,7 +1,7 @@
 import type { Summary } from "@/lib/api-types";
 import { FORBIDDEN, normalizeMoneyText, numbersIn, onlyKnownNumbers } from "@/lib/advice/question";
 import { generate } from "@/lib/ai/gemini";
-import { categoryOf, MAX_AMOUNT, MAX_TITLE } from "@/lib/chat/parse";
+import { categoryOf, MAX_AMOUNT, MAX_TITLE, parseExpense } from "@/lib/chat/parse";
 import type { ChatLine, ProposedItem } from "@/lib/db/chat-memory";
 import { conversationBoundary, needsIntentClarification, referencesPrevious } from "./intent";
 
@@ -110,6 +110,13 @@ export function itemsFrom(ai: unknown, message: string): ProposedItem[] | null {
 }
 
 export async function splitItems(message: string): Promise<ProposedItem[] | null> {
+  const lines=message.split(/[\n;]/u).map(s=>s.trim()).filter(Boolean);
+  if(lines.length>1){
+    if(lines.length>MAX_ITEMS)return null;
+    const parsed=lines.map(parseExpense);
+    if(parsed.some(p=>p.kind!=="entry") || lines.some(line=>conversationBoundary(line) || /ไหวไหม|พรุ่งนี้|\?/u.test(line)))return null;
+    return parsed.filter((p):p is Extract<ReturnType<typeof parseExpense>,{kind:"entry"}>=>p.kind==="entry").map(p=>({title:p.title,amount:p.amount,category:p.category}));
+  }
   const raw = await generate({
     system:
       "แยกรายการรายจ่ายจากข้อความแชตของนักศึกษา ตอบเป็น JSON เท่านั้น แต่ละรายการ title = ชื่อสั้น ๆ ตามที่ผู้ใช้พิมพ์ " +

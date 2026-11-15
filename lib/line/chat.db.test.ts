@@ -115,6 +115,43 @@ async function screenEntries() {
 }
 
 describe("card 09: expenses from the chat", () => {
+  it.each(["ขอวิธีใช้","ขอวิธีจดรายรับ 1000 บาท","จดข้าว 50 ยังไงครับ","ขอวิธีผ่อนโทรศัพท์","ทำยังไงถึงได้แต้ม"])("asking how to use never records examples or awards points: %s",async body=>{
+    await figma();expect((await chat(body)).status).toBe(200);expect(last().type).toBe("flex");expect(await screenEntries()).toEqual([]);
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    expect((await db.from("incomes").select("id").eq("user_id",owner.data!.id)).data).toEqual([]);expect((await db.from("points_ledger").select("id").eq("user_id",owner.data!.id)).data).toEqual([]);
+  });
+  it("help interrupts pending expense amounts without allowing a later bare number to save the old item",async()=>{
+    await figma();await chat("ข้าว");expect(lastText()).toContain("กี่บาท");await chat("ขอวิธีจด");expect(lastText()).toContain("ยังไม่ได้บันทึกหรือเปลี่ยนข้อมูล");await chat("50");expect(await screenEntries()).toEqual([]);
+  });
+  it("help interrupts a pending bill form or confirmation without mutating either",async()=>{
+    await figma();await chat("เพิ่มบิล ค่าไฟ");await chat("ขอวิธีผ่อน");await chat("100");
+    await chat("กันเงินเผื่อ 200 บาท");await chat("ขอวิธีใช้เงินเผื่อ");await chat("ยืนยัน");
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();expect((await db.from("cycles").select("emergency_buffer").eq("user_id",owner.data!.id).single()).data!.emergency_buffer).toBe(12000);
+    expect((await db.from("plans").select("title").eq("user_id",owner.data!.id)).data).toEqual([{title:"ค่าหอ"}]);
+  });
+  it("help interrupts entry editing and the common help button reopens the carousel",async()=>{
+    await figma();await chat("ข้าว 45");const edit=lastButtons().find(b=>b.label==="แก้")!.data!;await tap(edit);await chat("ลบรายการยังไง");await chat("60");expect((await screenEntries())[0].amount).toBe(4500);
+    const help=lastButtons().find(b=>b.data==="guide:all")!.data!;await tap(help);const m=last();if(m.type!=="flex" || m.contents.type!=="carousel")throw Error("carousel required");expect(m.contents.contents).toHaveLength(10);
+  });
+  it("a daily expense automatically awards a point before any manual claim",async()=>{
+    await figma();await chat("ข้าว 45");await chat("ดูแต้ม");expect(lastText()).toContain("1 แต้ม");await chat("เช็กครบแล้ว");expect(lastText()).toContain("รับแต้มวันนี้ไปแล้ว");expect(lastText()).toContain("1 แต้ม");
+  });
+  it("creates a personal category and records into it only after confirmation",async()=>{
+    await figma();await chat("เพิ่มหมวด ชานม กลุ่ม อาหาร งบ 500 บาท");expect(lastText()).toContain("ยืนยัน");await chat("ยืนยัน");expect(lastText()).toContain("บันทึกหมวด ชานม");
+    await chat("จด ชานม 50 หมวด ชานม");expect(lastText()).toContain("ยืนยัน");expect(await screenEntries()).toEqual([]);await chat("ยืนยัน");
+    const entries=await screenEntries();expect(entries).toHaveLength(1);expect(entries[0]).toMatchObject({amount:5000,category:"food"});expect(entries[0].categoryId).toBeTruthy();
+    await chat("วิเคราะห์");expect(lastText()).toContain("1 รายการ");await chat("ดูภาพรวม");expect(lastText()).toContain("50 บาท");
+  });
+  it("clear newline-separated expenses need one confirmation and award one daily point",async()=>{
+    await figma();const calls=vi.mocked(generate).mock.calls.length;await chat("ข้าว 45\nรถเมล์ 20");
+    expect(vi.mocked(generate).mock.calls.length).toBe(calls);const button=lastButtons().find(b=>b.label === "จดทั้งหมด")!.data!;
+    await tap(button);await tap(button);expect((await screenEntries()).map((e:{amount:number})=>e.amount).sort()).toEqual([2000,4500]);
+    await chat("ดูแต้ม");expect(lastText()).toContain("1 แต้ม");
+  });
+  it("mixed income and expense lines are clarified instead of silently becoming expenses",async()=>{
+    await figma();await chat("รับเงิน 1000\nข้าว 50");expect(await screenEntries()).toEqual([]);
+  });
+
   it("creates installments only after confirmation and never books the purchase total as a spend",async()=>{
     await figma();await chat(`ผ่อน โทรศัพท์ ยอดรวม 1000.01 บาท 3 งวด เริ่ม ${today()}`);
     expect(lastText()).toContain("ยืนยัน");expect(lastText()).toContain("333.34 บาท");expect(await screenEntries()).toEqual([]);
@@ -382,17 +419,28 @@ describe("card 09: expenses from the chat", () => {
     await deliver({ type: "follow", webhookEventId: `F_${run}`, replyToken: "rt-f", source: { type: "user", userId: lineA } });
     expect(last().type).toBe("flex"); // โฟรวิว's welcome card
     expect(lastText()).toContain("สวัสดีครับ ฉันคือพอใช้");
-    expect(lastButtons()).toEqual([
-      { type: "uri", label: "เริ่มตั้งค่า ↗", uri: "https://miniapp.line.me/2012545254-6025ZG1r/consent" },
-      { type: "uri", label: "เปิดแอป", uri: "https://miniapp.line.me/2012545254-6025ZG1r" },
-    ]);
+    const message=last();if(message.type!=="flex" || message.contents.type!=="carousel")throw new Error("Expected onboarding carousel");
+    expect(message.contents.contents).toHaveLength(10);
+    expect(lastButtons()).toContainEqual(expect.objectContaining({type:"postback",data:"guide:start"}));
+    expect(lastButtons()).toContainEqual({type:"uri",label:"ตั้งค่าใน MINI App",uri:"https://miniapp.line.me/2012545254-6025ZG1r/setup/income"});
+  });
+
+  it("follow redelivery replies once; every onboarding topic stays read-only",async()=>{
+    const eventId=`guide-follow-${run}-${eventIds.length}`;eventIds.push(eventId);
+    const event={type:"follow",webhookEventId:eventId,replyToken:"guide-follow",source:{type:"user",userId:lineA}};
+    expect((await deliver(event)).status).toBe(200);const count=replies.length;expect((await deliver(event)).status).toBe(200);expect(replies).toHaveLength(count);
+    const guides=lastButtons().filter(b=>b.data?.startsWith("guide:") && b.data!=="guide:all");expect(guides).toHaveLength(10);
+    for(const guide of guides){expect((await tap(guide.data!)).status).toBe(200);expect(lastText()).toContain("ยังไม่ได้บันทึกหรือเปลี่ยนข้อมูล");expect(last().type).toBe("flex");}
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();expect(owner.error).toBeNull();
+    for(const table of ["entries","incomes","cycles","points_ledger"]){const r=await db.from(table).select("user_id").eq("user_id",owner.data!.id);expect(r.error).toBeNull();expect(r.data).toEqual([]);}
+    await chat("คู่มือ");const message=last();expect(message.type).toBe("flex");if(message.type!=="flex" || message.contents.type!=="carousel")throw Error("carousel required");expect(message.contents.contents).toHaveLength(10);
   });
 
   it("the app link stays a LIFF link when the app is the LIFF app", async () => {
     vi.stubEnv("NEXT_PUBLIC_LIFF_ID", "2012545176-udYyTUiA");
     vi.stubEnv("LINE_MINIAPP_CHANNEL_ID", "2012545254");
     await chat("Hey");
-    expect(lastButtons()).toEqual([expect.objectContaining({ uri: "https://liff.line.me/2012545176-udYyTUiA" })]);
+    expect(lastButtons()).toEqual([expect.objectContaining({ uri: "https://liff.line.me/2012545176-udYyTUiA" }),expect.objectContaining({data:"guide:all",label:"วิธีใช้"})]);
   });
 
   it("before setup: asks to set up the cycle first, records nothing", async () => {
@@ -405,7 +453,7 @@ describe("card 09: expenses from the chat", () => {
     await chat("ชาบู 350");
     expect(last().type).toBe("flex"); // hold card
     expect(lastText()).toContain("350 บาท สูงกว่างบที่เหลือวันนี้ (120 บาท)");
-    expect(lastButtons().map((b) => b.label)).toEqual(["ยืนยันจ่ายจริง", "ลองก่อนซื้อ", "เปิดแอป"]);
+    expect(lastButtons().map((b) => b.label)).toEqual(["ยืนยันจ่ายจริง", "ลองก่อนซื้อ", "เปิดแอป", "วิธีใช้"]);
     expect(await screenEntries()).toEqual([]);
   });
 
@@ -755,7 +803,7 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     expect(last().type).toBe("flex"); // proposal card
     expect(lastText()).toContain("เจอ 2 รายการ รวม 65 บาท");
     for (const t of ["ข้าว", "45 บาท", "น้ำ", "20 บาท", "อาหาร"]) expect(lastText()).toContain(t);
-    expect(lastButtons().map((b) => b.label)).toEqual(["จดทั้งหมด", "ไม่ใช่", "กรอกเองในแอป", "เปิดแอป"]);
+    expect(lastButtons().map((b) => b.label)).toEqual(["จดทั้งหมด", "ไม่ใช่", "กรอกเองในแอป", "เปิดแอป", "วิธีใช้"]);
     expect(await screenEntries()).toEqual([]);
 
     const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
@@ -859,7 +907,7 @@ describe("card 10: the recorded card's buttons (โฟรวิว's Flex card, 
     await figma();
     await chat("ข้าว 45");
     const [entry] = await screenEntries();
-    expect(lastButtons().map((b) => b.label)).toEqual(["แก้", "เปลี่ยนหมวด", "ลบ", "เปิดแผน", "วันนี้ใช้ได้", "เปิดแอป"]);
+    expect(lastButtons().map((b) => b.label)).toEqual(["แก้", "เปลี่ยนหมวด", "ลบ", "เปิดแผน", "วันนี้ใช้ได้", "เปิดแอป", "วิธีใช้"]);
     expect(data("ลบ")).toBe(`v1.entry_del.${entry.id}`);
   });
 
@@ -867,7 +915,7 @@ describe("card 10: the recorded card's buttons (โฟรวิว's Flex card, 
     await figma();
     await chat("ข้าว 45");
     await tap(data("เปลี่ยนหมวด"));
-    expect(lastButtons().map((b) => b.label)).toEqual(["อาหาร", "เดินทาง", "ของใช้", "อื่น ๆ", "เปิดแอป"]);
+    expect(lastButtons().map((b) => b.label)).toEqual(["อาหาร", "เดินทาง", "ของใช้", "อื่น ๆ", "เปิดแอป", "วิธีใช้"]);
     await tap(data("เดินทาง"));
     expect(lastText()).toContain("เปลี่ยนหมวดแล้วครับ ✓ ข้าว 45 บาท → เดินทาง");
     expect(await screenEntries()).toEqual([expect.objectContaining({ category: "transport" })]);
