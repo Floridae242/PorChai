@@ -165,14 +165,21 @@ describe("readChat: the AI reads, the code decides", () => {
 
 describe("splitItems", () => {
   beforeEach(() => ai.mockReset());
+  it("a plain «name amount name amount» line is split by rule, without the AI", async () => {
+    expect(await splitItems("ข้าว 45 น้ำ 20")).toEqual([
+      { title: "ข้าว", amount: 4500, category: "food" },
+      { title: "น้ำ", amount: 2000, category: "food" },
+    ]);
+    expect(ai).not.toHaveBeenCalled();
+  });
   it("asks the AI with only the message, and guards its answer", async () => {
     ai.mockResolvedValueOnce(JSON.stringify({ items: [{ title: "ข้าว", amount_baht: 45 }, { title: "น้ำ", amount_baht: 20 }] }));
-    expect(await splitItems("ข้าว 45 น้ำ 20")).toHaveLength(2);
-    expect(ai.mock.calls[0][0].input).toBe("ข้าว 45 น้ำ 20");
+    expect(await splitItems("ข้าวกับน้ำ 45 กับ 20")).toHaveLength(2);
+    expect(ai.mock.calls[0][0].input).toBe("ข้าวกับน้ำ 45 กับ 20");
     ai.mockResolvedValueOnce(JSON.stringify({ items: [{ title: "ข้าว", amount_baht: 65 }] }));
-    expect(await splitItems("ข้าว 45 น้ำ 20")).toBeNull();
+    expect(await splitItems("ข้าวกับน้ำ 45 กับ 20")).toBeNull();
     ai.mockResolvedValueOnce(null);
-    expect(await splitItems("ข้าว 45 น้ำ 20")).toBeNull();
+    expect(await splitItems("ข้าวกับน้ำ 45 กับ 20")).toBeNull();
   });
 });
 

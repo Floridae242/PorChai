@@ -4,6 +4,7 @@ import { generate } from "@/lib/ai/gemini";
 import { categoryOf, MAX_AMOUNT, MAX_TITLE, parseExpense } from "@/lib/chat/parse";
 import type { ChatLine, ProposedItem } from "@/lib/db/chat-memory";
 import { conversationBoundary, needsIntentClarification, referencesPrevious } from "./intent";
+import { splitLine } from "./split";
 
 // Chat with the AI (card 15 "AI เข้าใจคำถาม"), used only when the rules cannot read a message:
 // no amount («Hey», «ข้าว», «เหลือเท่าไร»), an approximate one («ข้าวร้อยกว่า») or several («ข้าว 45 น้ำ 20»).
@@ -117,6 +118,9 @@ export async function splitItems(message: string): Promise<ProposedItem[] | null
     if(parsed.some(p=>p.kind!=="entry") || lines.some(line=>conversationBoundary(line) || /ไหวไหม|พรุ่งนี้|\?/u.test(line)))return null;
     return parsed.filter((p):p is Extract<ReturnType<typeof parseExpense>,{kind:"entry"}>=>p.kind==="entry").map(p=>({title:p.title,amount:p.amount,category:p.category}));
   }
+  // «ข้าว 45 น้ำ 20» on one line: split by rule first, the AI only for what the rule cannot read (15 Nov)
+  const ruled = splitLine(message);
+  if (ruled) return ruled;
   const raw = await generate({
     system:
       "แยกรายการรายจ่ายจากข้อความแชตของนักศึกษา ตอบเป็น JSON เท่านั้น แต่ละรายการ title = ชื่อสั้น ๆ ตามที่ผู้ใช้พิมพ์ " +
