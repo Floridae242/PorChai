@@ -117,3 +117,21 @@ it.each(["ปลาหมึกย่าง", "กุ้งเผา", "หม�
   "«%s» is food", (title) => expect(categoryOf(title)).toBe("food"),
 );
 it("«อย่าง» is not «ย่าง»: «อย่างอื่น» stays other", () => expect(categoryOf("อย่างอื่น")).toBe("other"));
+
+// 16 Nov: «กิน ปลาหมึก 60 กับ หม่าล่าไป 50» gave «หม่าล่าไป · อื่น ๆ»
+it.each([
+  ["หม่าล่าไป 50", "หม่าล่า"],
+  ["ข้าวจ่ายไป 45", "ข้าว"],
+  ["ค่ารถหมดไป 30", "ค่ารถ"],
+  ["กาแฟใช้ไป 60 บาท", "กาแฟ"],
+  ["ข้าว ไป 45", "ข้าว"],
+])("«%s»: the name is «%s», without the trailing «ไป»", (text, title) => {
+  expect(parseExpense(text)).toMatchObject({ kind: "entry", title });
+});
+it("«จ่ายไป 50» has no name left: asked what it was for", () => {
+  expect(parseExpense("จ่ายไป 50")).toEqual({ kind: "ask", reason: "no_title" });
+});
+it("«ไปรษณีย์ 30» keeps its name: only a trailing «ไป» goes", () => {
+  expect(parseExpense("ไปรษณีย์ 30")).toMatchObject({ kind: "entry", title: "ไปรษณีย์" });
+});
+it.each(["หม่าล่า", "หมาล่า"])("«%s» is food, however it is spelt", (title) => expect(categoryOf(title)).toBe("food"));

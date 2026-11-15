@@ -15,6 +15,13 @@ describe("explicit expense lists without an AI service", () => {
   ])("reads complete name/price pairs: %s", (message) => {
     expect(splitExplicitExpenses(message)?.map(i=>i.amount)).toEqual([5000,2000]);
   });
+  // 16 Nov: the second item came out «หม่าล่าไป · อื่น ๆ»
+  it("«กิน ปลาหมึก 60 กับ หม่าล่าไป 50»: both food, no «ไป» in the name", () => {
+    expect(splitExplicitExpenses("กิน ปลาหมึก 60 กับ หม่าล่าไป 50")).toEqual([
+      {title:"ปลาหมึก",amount:6000,category:"food"},
+      {title:"หม่าล่า",amount:5000,category:"food"},
+    ]);
+  });
   it("keeps thousand separators and distinct categories", () => {
     expect(splitExplicitExpenses("ของใช้ 1,200.50 บาท รถเมล์ 20 บาท")?.map(i=>[i.amount,i.category])).toEqual([[120050,"supplies"],[2000,"transport"]]);
   });
