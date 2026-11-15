@@ -17,3 +17,9 @@ export async function userIdForLine(lineUserId: string): Promise<string> {
   if (error) throw error;
   return data.id as string;
 }
+
+// ลบข้อมูลของฉัน: one transaction in the database (delete_my_account) — every row of the account or none
+export async function deleteAccount(userId: string): Promise<void> {
+  const { error } = await getDb().rpc("delete_my_account", { p_user: userId });
+  if (error) throw error;
+}
