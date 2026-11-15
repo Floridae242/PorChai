@@ -74,6 +74,24 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
   const seg = encodeURIComponent;
 
   return {
+    spendingCategories: () => request({method:"GET",path:"/api/categories"}),
+    saveSpendingCategory: body => request({method:"PUT",path:"/api/categories",body}),
+    spendingInsights: (ai=false) => request({method:"GET",path:`/api/insights${ai?"?ai=1":""}`}),
+    report: (period, date) =>
+      request({
+        method: "GET",
+        path: `/api/reports?${new URLSearchParams({ period, ...(date ? { date } : {}) })}`,
+      }),
+    notificationPreferences: () =>
+      request({ method: "GET", path: "/api/notifications/preferences" }),
+    saveNotificationPreferences: (body) =>
+      request({ method: "PUT", path: "/api/notifications/preferences", body }),
+    search: (query, mode, period) =>
+      request({
+        method: "POST",
+        path: "/api/search",
+        body: { query, mode, period },
+      }),
     me: async () => {
       const r = await request<{ hasActiveCycle: boolean }>({ method: "GET", path: "/api/me" });
       return { hasActiveCycle: r.hasActiveCycle };
@@ -100,9 +118,18 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     saveReminderSettings: (req) => request({ method: "PUT", path: "/api/reminders", body: req }),
     points: () => request({ method: "GET", path: "/api/points" }),
     claimPoints: (idempotencyKey) => request({ method: "POST", path: "/api/points/claim", idempotencyKey }),
+    pointsHistory: () => request({ method: "GET", path: "/api/points/history" }),
     rewards: () => request({ method: "GET", path: "/api/rewards" }),
     redeemReward: (id, idempotencyKey) => request({ method: "POST", path: `/api/rewards/${seg(id)}/redeem`, idempotencyKey }),
+    // ตั้งค่า › ลบข้อมูลของฉัน: every row of the account; resolves only after the server confirms
+    deleteMyData: async () => {
+      await request({ method: "DELETE", path: "/api/me" });
+    },
 
+    pointsConnection: () => request({method:"GET",path:"/api/points/connection"}),
+    billSchedules: () => request({method:"GET",path:"/api/bills"}),
+    createBillSchedule: (body,idempotencyKey) => request({method:"POST",path:"/api/bills",body,idempotencyKey}),
+    updateBillSchedule: (id,body) => request({method:"PATCH",path:`/api/bills/${seg(id)}`,body}),
     // --- NOT ON THE SERVER YET (backend-gaps 13-20): wire each to its route when it ships ---
     consent: notImplemented,
     acceptConsent: notImplemented,
@@ -112,7 +139,6 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     shopRedeem: notImplemented,
     dailySpend: notImplemented,
     categoryTotals: notImplemented,
-    deleteMyData: notImplemented,
     // --- end not-implemented block ---
   };
 }

@@ -27,6 +27,42 @@ function setup(responses: Array<Response | Error>) {
 const hdr = (c: Call, k: string) => new Headers(c.init.headers).get(k);
 
 describe("createLiveApi", () => {
+  it("keeps personal categories and optional AI analysis on the authenticated transport",async()=>{
+    const {api,calls}=setup([json(200,[]),json(200,{}),json(200,{}),json(200,{})]);
+    await api.spendingCategories();await api.saveSpendingCategory({label:"ชานม",parent:"food",monthlyBudget:50000});await api.spendingInsights();await api.spendingInsights(true);
+    expect(calls.map(c=>[c.url,c.init.method])).toEqual([["https://x.test/api/categories","GET"],["https://x.test/api/categories","PUT"],["https://x.test/api/insights","GET"],["https://x.test/api/insights?ai=1","GET"]]);expect(calls.every(c=>hdr(c,"Authorization")==="Bearer tok-1")).toBe(true);
+  });
+  it("wires reports, opt-in settings and private/web lookup with the existing auth transport", async () => {
+    const { api, calls } = setup([
+      json(200, {}),
+      json(200, {}),
+      json(200, {}),
+      json(200, {}),
+    ]);
+    await api.report("month", "2026-11-01");
+    await api.notificationPreferences();
+    await api.saveNotificationPreferences({
+      daily: true,
+      monthly: false,
+      budget: false,
+      time: "20:00",
+    });
+    await api.search("ข้าว", "entries", "month");
+    expect(calls.map((c) => [c.url, c.init.method])).toEqual([
+      ["https://x.test/api/reports?period=month&date=2026-11-01", "GET"],
+      ["https://x.test/api/notifications/preferences", "GET"],
+      ["https://x.test/api/notifications/preferences", "PUT"],
+      ["https://x.test/api/search", "POST"],
+    ]);
+    expect(JSON.parse(calls[3].init.body as string)).toEqual({
+      query: "ข้าว",
+      mode: "entries",
+      period: "month",
+    });
+    expect(calls.every((c) => hdr(c, "Authorization") === "Bearer tok-1")).toBe(
+      true,
+    );
+  });
   it("connects points and rewards with authentication and stable idempotency headers", async () => {
     const { api, calls } = setup([json(200, { balance: 0, claimedToday: false }), json(201, { balance: 1, claimedToday: true }),
       json(200, []), json(201, { balance: 0, code: "RW-test" })]);
@@ -112,7 +148,6 @@ describe("createLiveApi", () => {
       () => api.shopRedeem("c"),
       () => api.dailySpend(),
       () => api.categoryTotals(),
-      () => api.deleteMyData(),
     ];
     for (const fn of calls) {
       await expect(fn()).rejects.toMatchObject({ status: 501, code: "not_implemented", message: "ฟีเจอร์นี้ยังไม่พร้อมใช้งาน" });
@@ -163,6 +198,20 @@ describe("createLiveApi", () => {
     }
     expect(JSON.parse(String(calls[10].init.body))).toEqual({ category: "food" });
     expect(calls[11].init.body).toBeUndefined();
+  });
+});
+
+describe("createLiveApi ลบข้อมูลของฉัน", () => {
+  it("deleteMyData is DELETE /api/me with no body, and resolves once the server confirms", async () => {
+    const { api, calls } = setup([json(200, { deleted: true })]);
+    await expect(api.deleteMyData()).resolves.toBeUndefined();
+    expect(calls.map((c) => `${c.init.method} ${c.url.replace("https://x.test", "")}`)).toEqual(["DELETE /api/me"]);
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
+  it("a failed delete is an error, so the screen keeps the data and says so", async () => {
+    const { api } = setup([json(500, { error: { code: "internal", message: "ลองใหม่" } })]);
+    await expect(api.deleteMyData()).rejects.toMatchObject({ status: 500, code: "internal" });
   });
 });
 

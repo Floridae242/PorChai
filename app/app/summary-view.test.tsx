@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+  fireEvent,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "@/components/shell/toast";
@@ -17,7 +24,8 @@ vi.mock("next/navigation", () => ({
 
 import { SummaryView } from "./summary-view";
 
-const notImplemented = () => new ApiError(501, "not_implemented", "ยังไม่พร้อมใช้งาน");
+const notImplemented = () =>
+  new ApiError(501, "not_implemented", "ยังไม่พร้อมใช้งาน");
 
 function renderSummary(api: PorchaiApi) {
   return render(
@@ -46,25 +54,52 @@ describe("SummaryView (G04: B1, B1m, B1k, S4, S10)", () => {
 
     await user.click(screen.getByRole("button", { name: "รับแต้มฟรี" }));
     expect(await screen.findByText("รับแต้มฟรีแล้ววันนี้ ✓")).toBeTruthy();
-    expect(screen.getByText("รับแต้มฟรีแล้ว +1 · รวม 12 แต้ม")).toBeTruthy();
+    expect(screen.getByText("อัปเดตแต้มแล้ว · รวม 12 แต้ม")).toBeTruthy();
     expect(screen.getByText("12 แต้ม")).toBeTruthy();
+  });
+
+  it("home order: today's budget first, then the dashboard, then points; the dashboard links to every tool", async () => {
+    renderSummary(createMockApi({ scenario: "default" }));
+    await screen.findByText("120");
+    const hero = screen.getByText("เหลือใช้วันนี้");
+    const dash = screen.getByRole("region", { name: "ภาพรวมรายงาน" });
+    const points = screen.getByText("สะสมแต้มรายวัน");
+    expect(hero.compareDocumentPosition(dash) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(dash.compareDocumentPosition(points) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // one main link to the report, the other tools as small links
+    expect(within(dash).getByRole("link", { name: /ดูรายงานวัน \/ เดือน/ }).getAttribute("href")).toBe("/app/reports");
+    const nav = within(dash).getByRole("navigation", { name: "เมนูรายงานและเครื่องมือ" });
+    expect(within(nav).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual([
+      "/app/insights",
+      "/app/search",
+      "/app/notifications",
+      "/app/help",
+    ]);
+    // the demo sponsor sits right under the points card, before the category summary
+    const banner = screen.getByLabelText("โฆษณาตัวอย่าง");
+    expect(points.compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("shows the server's number even when it is not previous + 1", async () => {
     const api = createMockApi({ scenario: "default" });
-    vi.spyOn(api, "claimPoints").mockResolvedValue({ balance: 40, claimedToday: true });
+    vi.spyOn(api, "claimPoints").mockResolvedValue({
+      balance: 40,
+      claimedToday: true,
+    });
     renderSummary(api);
-    await userEvent.setup().click(await screen.findByRole("button", { name: "รับแต้มฟรี" }));
-    expect(await screen.findByText("รับแต้มฟรีแล้ว +1 · รวม 40 แต้ม")).toBeTruthy();
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "รับแต้มฟรี" }));
+    expect(await screen.findByText("อัปเดตแต้มแล้ว · รวม 40 แต้ม")).toBeTruthy();
     expect(screen.getByText("40 แต้ม")).toBeTruthy();
   });
 
-  it("points that fail to load or are not implemented show 0 แต้ม, never a guess", async () => {
+  it("points that fail to load or are not implemented show unknown, never a fabricated zero", async () => {
     for (const rejection of [notImplemented(), new Error("down")]) {
       const api = createMockApi({ scenario: "default" });
       vi.spyOn(api, "points").mockRejectedValue(rejection);
       const { unmount } = renderSummary(api);
-      expect(await screen.findByText("0 แต้ม")).toBeTruthy();
+      expect(await screen.findByText("— แต้ม")).toBeTruthy();
       expect(screen.queryByText("11 แต้ม")).toBeNull();
       unmount();
     }
@@ -73,18 +108,23 @@ describe("SummaryView (G04: B1, B1m, B1k, S4, S10)", () => {
   it("claim on a not-implemented backend says ยังไม่พร้อมใช้งาน and leaves points unchanged", async () => {
     const api = createMockApi({ scenario: "default" });
     vi.spyOn(api, "points").mockRejectedValue(notImplemented());
-    const claimSpy = vi.spyOn(api, "claimPoints").mockRejectedValue(notImplemented());
+    const claimSpy = vi
+      .spyOn(api, "claimPoints")
+      .mockRejectedValue(notImplemented());
     renderSummary(api);
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "รับแต้มฟรี" }));
     expect(await screen.findByText("ยังไม่พร้อมใช้งาน")).toBeTruthy();
-    expect(screen.getByText("0 แต้ม")).toBeTruthy();
+    expect(screen.getByText("— แต้ม")).toBeTruthy();
     expect(screen.queryByText("รับแต้มฟรีแล้ววันนี้ ✓")).toBeNull();
 
     // retry reuses the same key (same payload)
     await waitFor(() =>
-      expect((screen.getByRole("button", { name: "รับแต้มฟรี" }) as HTMLButtonElement).disabled).toBe(false),
+      expect(
+        (screen.getByRole("button", { name: "รับแต้มฟรี" }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
     );
     await user.click(screen.getByRole("button", { name: "รับแต้มฟรี" }));
     await waitFor(() => expect(claimSpy).toHaveBeenCalledTimes(2));
@@ -95,9 +135,37 @@ describe("SummaryView (G04: B1, B1m, B1k, S4, S10)", () => {
     const api = createMockApi({ scenario: "default" });
     const spy = vi.spyOn(api, "claimPoints");
     renderSummary(api);
-    await userEvent.setup().dblClick(await screen.findByRole("button", { name: "รับแต้มฟรี" }));
+    await userEvent
+      .setup()
+      .dblClick(await screen.findByRole("button", { name: "รับแต้มฟรี" }));
     await screen.findByText("รับแต้มฟรีแล้ววันนี้ ✓");
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+  it("unlocks the daily claim after a refreshed server response reports a new day", async () => {
+    const api = createMockApi(),
+      read = vi
+        .spyOn(api, "points")
+        .mockResolvedValue({ balance: 11, claimedToday: false });
+    const claim = vi
+      .spyOn(api, "claimPoints")
+      .mockResolvedValue({ balance: 12, claimedToday: true });
+    renderSummary(api);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "รับแต้มฟรี" }),
+    );
+    await screen.findByText("รับแต้มฟรีแล้ววันนี้ ✓");
+    read.mockResolvedValue({ balance: 12, claimedToday: false });
+    fireEvent.focus(window);
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "รับแต้มฟรี" }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
+    claim.mockResolvedValue({ balance: 13, claimedToday: true });
+    await userEvent.click(screen.getByRole("button", { name: "รับแต้มฟรี" }));
+    await waitFor(() => expect(claim).toHaveBeenCalledTimes(2));
+    expect(claim.mock.calls[0][0]).not.toBe(claim.mock.calls[1][0]);
   });
 
   it("switches to the server's daily chart (B1m) and marks overspent day with เกิน", async () => {
@@ -115,11 +183,15 @@ describe("SummaryView (G04: B1, B1m, B1k, S4, S10)", () => {
     const api = createMockApi({ scenario: "midCycle" });
     const base = await api.dailySpend();
     vi.spyOn(api, "dailySpend").mockResolvedValue({
-      days: base.days.map((d, i) => (i === 0 ? { ...d, spent: 77700, over: true } : d)),
+      days: base.days.map((d, i) =>
+        i === 0 ? { ...d, spent: 77700, over: true } : d,
+      ),
     });
     renderSummary(api);
     await screen.findByText("75");
-    await userEvent.setup().click(screen.getByRole("tab", { name: "ใช้ไปแต่ละวัน" }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("tab", { name: "ใช้ไปแต่ละวัน" }));
     expect(screen.getByText("777")).toBeTruthy();
   });
 
@@ -153,7 +225,9 @@ describe("SummaryView (G04: B1, B1m, B1k, S4, S10)", () => {
   it("redirects to /app/setup/income on no_cycle without flashing an error", async () => {
     const api = createMockApi({ scenario: "fresh", consented: true });
     renderSummary(api);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/setup/income"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/app/setup/income"),
+    );
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByRole("button", { name: "ลองใหม่" })).toBeNull();
     expect(screen.getByText("กำลังคำนวณเงินที่ใช้ได้วันนี้…")).toBeTruthy();
@@ -181,10 +255,14 @@ describe("SummaryView (G04: B1, B1m, B1k, S4, S10)", () => {
     const api = createMockApi({ scenario: "midCycle" });
     const { container } = renderSummary(api);
     await screen.findByText("75");
-    expect(container.querySelector('img[src="/mascot/budgetOk.png"]')).not.toBeNull();
+    expect(
+      container.querySelector('img[src="/mascot/budgetOk.png"]'),
+    ).not.toBeNull();
     const { entries } = await api.entries();
     for (const entry of entries.slice(0, 5)) {
-      expect(container.querySelector(`a[href="/app/record/${entry.id}"]`)).not.toBeNull();
+      expect(
+        container.querySelector(`a[href="/app/record/${entry.id}"]`),
+      ).not.toBeNull();
     }
   });
 
@@ -192,6 +270,8 @@ describe("SummaryView (G04: B1, B1m, B1k, S4, S10)", () => {
     const api = createMockApi({ scenario: "default" });
     const { container } = renderSummary(api);
     await screen.findByText(/วันนี้ยังไม่มีรายการจด/);
-    expect(container.querySelector('img[src="/mascot/greeting.png"]')).not.toBeNull();
+    expect(
+      container.querySelector('img[src="/mascot/greeting.png"]'),
+    ).not.toBeNull();
   });
 });

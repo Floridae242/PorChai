@@ -1,4 +1,11 @@
+import { mockSpendingInsights } from "./insights-mock";
+import { monthDue, moveMonth, parseBillSchedule } from "@/lib/bills/calendar";
+import type { BillSchedule } from "@/lib/bills/types";
+import { parseCategory } from "@/lib/insights/categories";
+import type { SpendingCategory } from "@/lib/insights/types";
 // In-memory PorchaiApi for building and demoing screens before the backend catches up.
+import { mockReport } from "./report-mock";
+import { DEFAULT_NOTIFICATIONS } from "@/lib/reports/types";
 // Every number goes through lib/calc (computeBudget / tryOut); state transitions mirror lib/db.
 import type { Entry, NewCycleRequest, Plan, Summary, UserCategory } from "@/lib/api-types";
 import { computeBudget, tryOut, type BudgetInput } from "@/lib/calc/budget";
@@ -23,7 +30,7 @@ import {
   START_POINTS,
   type PromoFixture,
 } from "./mock-fixtures";
-import type { CategoryTotal, PlanActionName, PorchaiApi, Promo, ReminderSettings, Reward } from "./types";
+import type { CategoryTotal, PlanActionName, PointsHistoryItem, PorchaiApi, Promo, ReminderSettings, Reward } from "./types";
 
 // Card 23: the server sends a fingerprint of the numbers; the mock only needs it to change when they do
 const mockBasis = (input: object) => JSON.stringify(input);
@@ -100,6 +107,9 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   const plans: StoredPlan[] = [];
   const entryKeys = new Map<string, string>(); // idempotency key -> entry id
   const planKeys = new Map<string, string>();
+  const billSchedules: BillSchedule[]=[];
+  const billKeys=new Map<string,string>();
+  const billPlans=new Map<string,string[]>();
   const incomeKeys = new Set<string>();
   let reminders: ReminderSettings = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
 
@@ -207,6 +217,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   }
 
   const publicEntry = (e: StoredEntry): Entry => ({
+    ...(e.categoryId ? {categoryId:e.categoryId}: {}),
     id: e.id,
     amount: e.amount,
     category: e.category,
@@ -235,6 +246,13 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   // ---- points / promos / rewards ----
   let points = START_POINTS;
   let claimedOn: string | null = null;
+  let historyCount = 0;
+  const pointsLog: PointsHistoryItem[] = []; // newest first, like the server
+  const logPoints = (kind: PointsHistoryItem["kind"], delta: number, rewardName: string | null = null) =>
+    pointsLog.unshift({ id: `ph-${++historyCount}`, kind, delta, day: today, rewardName });
+  let spendingCats:SpendingCategory[] = Object.entries({food:"อาหาร",transport:"เดินทาง",supplies:"ของใช้",other:"อื่น ๆ",bills:"บิล"}).map(([id,label])=>({id,label,parent:id as SpendingCategory["parent"],monthlyBudget:null,version:now().toISOString()}));
+  function awardRecording(day:string){if(day===today && claimedOn!==today){points+=1;claimedOn=today;logPoints("daily",1);}}
+
   const stock = new Map(REWARD_FIXTURES.map((r) => [r.id, r.stock]));
   const redeemed = new Map<string, { balance: number; code: string }>(); // idempotency key -> result
   const claimedCodes = new Map<string, string>(); // code -> promo id
@@ -265,7 +283,65 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   }
   const rewardOf = (r: (typeof REWARD_FIXTURES)[number]): Reward => ({ ...r, stock: stock.get(r.id) ?? 0 });
 
+  let notifications = { ...DEFAULT_NOTIFICATIONS };
+  const reportIncomes: { amount: number; receivedOn: string }[] = [];
   return {
+    async spendingCategories(){return spendingCats.map(c=>({...c}));},
+    async saveSpendingCategory(value){
+      const p=parseCategory(value),existing=spendingCats.find(c=>c.id===p.id);
+      if(!p.id && spendingCats.length>=100)throw new ApiError(422,"invalid_category","หมวดครบ 100 หมวดแล้ว");
+      if(p.id && (!existing || existing.version!==p.version))throw new ApiError(409,"stale",MSG_STALE);
+      if(existing && existing.parent!==p.parent)throw new ApiError(422,"invalid_category","เปลี่ยนกลุ่มหมวดเดิมไม่ได้");
+      if(spendingCats.some(c=>c.id!==p.id && c.label.toLowerCase()===p.label.toLowerCase()))throw new ApiError(422,"invalid_category","ชื่อหมวดซ้ำ");
+      const c:SpendingCategory={id:p.id??crypto.randomUUID(),label:p.label,parent:p.parent,monthlyBudget:p.monthlyBudget,version:new Date(Date.parse(existing?.version??now().toISOString())+1).toISOString()};
+      spendingCats=[...spendingCats.filter(x=>x.id!==c.id),c];return {...c};
+    },
+    async spendingInsights(){return mockSpendingInsights(entries.filter(e=>!e.cancelledAt).map(publicEntry),spendingCats,today);},
+    async report(period, date) {
+      return mockReport(
+        period,
+        date,
+        today,
+        entries,
+        reportIncomes,
+      );
+    },
+    async notificationPreferences() {
+      return { ...notifications };
+    },
+    async saveNotificationPreferences(value) {
+      notifications = { ...value };
+      return { ...notifications };
+    },
+    async search(query, mode, period = "month") {
+      if (mode === "web")
+        return {
+          mode,
+          answer: "โหมดจำลองไม่ค้นเว็บจริง กรุณาใช้บัญชี LINE ในโหมดจริง",
+          sources: [],
+        };
+      const from =
+        period === "day"
+          ? today
+          : period === "year"
+            ? addDays(today, -365)
+            : `${today.slice(0, 7)}-01`;
+      const found = entries.filter(
+        (e) =>
+          !e.cancelledAt &&
+          e.spentOn >= from &&
+          e.spentOn <= today &&
+          (e.note ?? "").toLowerCase().includes(query.toLowerCase()),
+      );
+      return {
+        mode,
+        answer: `ข้อมูลจำลอง: พบ ${found.length} รายการ`,
+        sources: [],
+        count: found.length,
+        total: found.reduce((s, e) => s + e.amount, 0),
+        entries: found.slice(0, 50),
+      };
+    },
     async me() {
       return { hasActiveCycle: cycle !== null };
     },
@@ -285,6 +361,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       // The mock keeps one cycle; a new one starts clean
       entries.length = 0;
       plans.length = 0;
+      billSchedules.length=0;billKeys.clear();billPlans.clear();
       for (const b of req.bills ?? []) {
         const status = b.status === "separate" || b.status === "paid" ? b.status : "reserved";
         pushPlan({ kind: "bill", title: b.title, amount: b.amount, dueOn: b.dueOn ?? null, category: null, status });
@@ -318,7 +395,10 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       const spentOn = req.spentOn ?? today;
       if (!(req.amount > 0)) throw new ApiError(422, "invalid_input", "จำนวนเงินไม่ถูกต้อง");
       if (spentOn > today) throw new ApiError(422, "invalid_input", "วันที่ใช้จ่ายต้องไม่เกินวันนี้");
+      if(req.categoryId){const cat=spendingCats.find(x=>x.id===req.categoryId);if(!cat || cat.parent!==req.category)throw new ApiError(422,"invalid_category","หมวดไม่ถูกต้อง");}
       const e = pushEntry(req.amount, req.category, req.note ?? null, spentOn, "form");
+      if(req.categoryId)e.categoryId=req.categoryId;
+      awardRecording(spentOn);
       entryKeys.set(key, e.id);
       return { entry: publicEntry(e), summary: summaryOf(c) };
     },
@@ -328,11 +408,13 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       const e = findEntry(id);
       if (e.source === "plan") {
         if (e.category === "bills") throw new ApiError(409, "plan_entry", "รายการจ่ายบิลเปลี่ยนหมวดไม่ได้");
-        if (Object.keys(req).some((k) => k !== "category")) {
+        if (Object.keys(req).some((k) => k !== "category" && k !== "categoryId")) {
           throw new ApiError(409, "plan_entry", "รายการนี้มาจากการจ่ายแผน เปลี่ยนได้แค่หมวด");
         }
       }
       if (e.cancelledAt) throw new ApiError(409, "entry_cancelled", "รายการนี้ถูกยกเลิกแล้ว");
+      if(req.categoryId){const cat=spendingCats.find(x=>x.id===req.categoryId);if(!cat || cat.parent!==(req.category??e.category))throw new ApiError(422,"invalid_category","หมวดไม่ถูกต้อง");}
+      if(req.categoryId!==undefined)e.categoryId=req.categoryId;else if(req.category!==undefined && req.category!==e.category)delete e.categoryId;
       if (req.amount !== undefined) e.amount = req.amount;
       if (req.category !== undefined) e.category = req.category;
       if (req.note !== undefined) e.note = req.note ?? null;
@@ -435,6 +517,26 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       return { plans: plans.map((p) => publicPlan(c, p)) };
     },
 
+    async pointsConnection(){return {balance:points,accountCode:"DEMO-ACCOUNT",systemCode:"DEMO-SYSTEM",release:"mock"};},
+    async billSchedules(){return {schedules:structuredClone(billSchedules)};},
+    async createBillSchedule(req,key){
+      requireCycle();const known=billSchedules.find(s=>s.id===billKeys.get(key));if(known)return {...known};
+      const p=parseBillSchedule(req,today);const schedule:BillSchedule={...p,id:crypto.randomUUID(),enabled:true};
+      billSchedules.push(schedule);billKeys.set(key,schedule.id);
+      const dates=[p.startsOn];if(p.repeat==="monthly"){
+       const last=moveMonth(today.slice(0,7),1);
+       for(let m=p.startsOn.slice(0,7);m<=last;m=moveMonth(m,1)){const d=monthDue(m,Number(p.startsOn.slice(-2)));if(d>=p.startsOn&&!dates.includes(d))dates.push(d);}
+      }
+      const ids=dates.map(d=>{const plan=pushPlan({kind:"bill",title:p.title,amount:p.amount,dueOn:d,category:null,status:"reserved"});plan.billScheduleId=schedule.id;return plan.id;});
+      billPlans.set(schedule.id,ids);return {...schedule};
+    },
+    async updateBillSchedule(id,input){
+      const schedule=billSchedules.find(s=>s.id===id);if(!schedule)throw new ApiError(404,"not_found","ไม่พบบิล");
+      if(input.notify!==undefined)schedule.notify=input.notify;
+      if(input.stop){schedule.enabled=false;for(const id of billPlans.get(schedule.id)??[]){const p=findPlan(id);if(p.dueOn&&p.dueOn>=today&&["reserved","postponed"].includes(p.status))p.status="cancelled";}}
+      return {...schedule};
+    },
+
     async addPlan(req, key) {
       const c = requireCycle();
       const known = planKeys.get(key);
@@ -476,6 +578,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
         const category: Entry["category"] =
           p.kind === "bill" ? "bills" : ((body?.category ?? p.category ?? "other") as UserCategory);
         p.entryId = pushEntry(p.amount, category, p.title, today, "plan").id;
+        awardRecording(today);
         p.status = "paid";
       } else if (action === "unpay") {
         if (p.entryId) findEntry(p.entryId).cancelledAt = now();
@@ -504,8 +607,13 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       if (claimedOn !== today) {
         points += 1;
         claimedOn = today;
+        logPoints("daily", 1);
       }
       return { balance: points, claimedToday: true };
+    },
+
+    async pointsHistory() {
+      return { items: pointsLog.map((i) => ({ ...i })) };
     },
 
     async promos() {
@@ -535,6 +643,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       if ((stock.get(r.id) ?? 0) <= 0) throw new ApiError(409, "out_of_stock", "ของหมดแล้ว");
       if (points < r.cost) throw new ApiError(409, "not_enough_points", "แต้มไม่พอ");
       points -= r.cost;
+      logPoints("redemption", -r.cost, r.name);
       stock.set(r.id, (stock.get(r.id) ?? 0) - 1);
       const result = { balance: points, code: `RW-${shortCode(`${r.id}:${key}`)}` };
       redeemed.set(key, result);
@@ -550,6 +659,8 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       // Income raises the money on hand: shift the balance anchor (entries after it still come off)
       c.anchor = { ...c.anchor, amount: c.anchor.amount + req.amount };
       incomeKeys.add(key);
+      reportIncomes.push({ amount: req.amount, receivedOn: req.receivedOn ?? today });
+      awardRecording(receivedOn);
       return { summary: summaryOf(c) };
     },
 
@@ -602,9 +713,13 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       entryKeys.clear();
       planKeys.clear();
       incomeKeys.clear();
+      reportIncomes.length = 0;
+      notifications = { ...DEFAULT_NOTIFICATIONS };
+      spendingCats = spendingCats.filter(c=>c.id===c.parent).map(c=>({...c,label:({food:"อาหาร",transport:"เดินทาง",supplies:"ของใช้",other:"อื่น ๆ",bills:"บิล"})[c.parent],monthlyBudget:null,version:now().toISOString()}));
       reminders = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
       points = START_POINTS;
       claimedOn = null;
+      pointsLog.length = 0;
       for (const r of REWARD_FIXTURES) stock.set(r.id, r.stock);
       redeemed.clear();
       claimedCodes.clear();

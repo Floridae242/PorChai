@@ -26,4 +26,7 @@ describe("pending record draft", () => {
     window.sessionStorage.setItem(KEY, JSON.stringify({ ...draft, type: "other" }));
     expect(loadPendingRecord()).toBeNull();
   });
+  it.each([{category:"bills"},{category:"unknown"},{categoryId:{id:"food"}},{categoryId:"../food"}])("rejects a corrupted category selection %j",patch=>{
+    window.sessionStorage.setItem(KEY,JSON.stringify({...draft,...patch}));expect(loadPendingRecord()).toBeNull();
+  });
 });

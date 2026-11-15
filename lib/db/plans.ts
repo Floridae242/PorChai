@@ -5,13 +5,14 @@ import { loadBudget, requireActiveCycle, requireBasis, type ActiveCycle } from "
 import { HttpError } from "@/lib/http";
 import type { PlanRequest } from "@/lib/validate";
 
-const COLUMNS = "id, kind, title, amount, due_on, category, status, entry_id, created_at";
+const COLUMNS = "id, kind, title, amount, due_on, category, status, entry_id, created_at, bill_schedule_id";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const PLAN_ACTIONS = ["pay", "unpay", "cancel", "postpone", "keep"] as const;
 export type PlanAction = (typeof PLAN_ACTIONS)[number];
 
 interface Row {
+  bill_schedule_id: string | null;
   id: string;
   kind: Plan["kind"];
   title: string;
@@ -24,6 +25,7 @@ interface Row {
 }
 
 const toPlan = (r: Row, payday: string): Plan => ({
+  ...(r.bill_schedule_id ? {billScheduleId:r.bill_schedule_id}:{}),
   id: r.id,
   kind: r.kind,
   title: r.title,

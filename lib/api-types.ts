@@ -8,6 +8,7 @@ export type UserCategory = (typeof USER_CATEGORIES)[number];
 export type Category = UserCategory | "bills";
 
 export interface Entry {
+  categoryId?: string | null;
   id: string;
   amount: number;
   category: Category;
@@ -48,6 +49,7 @@ export interface NewCycleRequest {
 
 // POST /api/entries — also send header `Idempotency-Key` (same key = same spend, saved once)
 export interface NewEntryRequest {
+  categoryId?: string | null;
   amount: number;
   category: UserCategory;
   note?: string | null;
@@ -69,6 +71,7 @@ export interface BalanceCheckRequest {
 export type PlanStatus = "reserved" | "postponed" | "paid" | "cancelled" | "separate";
 
 export interface Plan {
+  billScheduleId?: string | null;
   id: string;
   kind: "bill" | "purchase";
   title: string;

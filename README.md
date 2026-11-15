@@ -1,5 +1,8 @@
 # PorChai (พอใช้)
 
+บิลประจำแบบปฏิทินและ Flex แจ้งเตือน: [วิธีใช้และตั้ง scheduler](docs/BILL-CALENDAR.md)
+แต้มร่วมกันและโฆษณาสาธิต: [การทำงานและตรวจรหัสเชื่อมต่อ](docs/POINTS-SYNC-AND-SPONSORS.md)
+
 ผู้ช่วยการเงินสำหรับนักศึกษาบน LINE OA และหน้าจอ LIFF
 LINE OA + Messaging API · LIFF · Next.js + TypeScript · Supabase PostgreSQL · AI API · Vercel · Microsoft Clarity · ทดสอบด้วย Vitest
 
@@ -142,6 +145,8 @@ Webhook จะบันทึก event ID และเชื่อมตัว�
 
 รูปแบบแชต: คำตอบ AI คำถามกลับ และข้อความแจ้งผลใช้ Flex Card เป็นหลักแล้ว โดยคงการ์ดจดรายจ่ายเดิมและคำสั่งปุ่มเดิมไว้ ดูขอบเขต ข้อยกเว้น และวิธีพรีวิวใน [Flex-first replies](docs/LINE-FLEX-REPLIES.md).
 
+รายงานและการค้นหา: `/app/reports` ดูรายวัน/เดือน, `/app/notifications` ตั้งสรุปผ่าน LINE/เตือนงบ, `/app/search` ค้นรายจ่ายของตนเองหรือค้นเว็บแบบเปิดแยก และ `/app/promotions` ดูคูปอง/โปร/โฆษณาจำลอง ดู migration, scheduler และสวิตช์ค้นเว็บใน [Reports, Notify & Search](docs/REPORTS-NOTIFY-SEARCH.md).
+
 ### LINE Developers Console (ทำเมื่อมี HTTPS endpoint พร้อมแล้ว)
 
 สถานะการตั้งค่าและผลตรวจจริงรอบล่าสุดอยู่ใน [LINE live setup](docs/LINE-LIVE-SETUP.md). ปัจจุบันใช้ HTTPS tunnel ชั่วคราว ไม่ใช่ hosting ถาวร. ตรวจซ้ำได้ด้วย `npm run line:check -- --url https://<dev-host> --live` โดยไม่แสดง credential.
@@ -207,3 +212,9 @@ npm run bench:scale   # creates 1,000 temporary local accounts, runs budget requ
 ```
 
 ก่อนนำโค้ดนี้ขึ้น hosting ต้องใช้ migrations ใหม่ทั้งสองไฟล์ก่อน; งานรอบนี้ใช้กับฐานข้อมูล local เท่านั้น. ตั้ง limits ตาม `.env.example` และโควตาจริงของ LINE/Gemini/Supabase. บัญชีออนไลน์พร้อมกัน 1,000 คนไม่ได้แปลว่าส่งเข้า Gemini ได้ 1,000 งานพร้อมกัน: งาน AI เกินโควตาตอบด้วย template จากสูตรเงินจริง.
+
+คำสั่งใช้งานผ่านแชต LINE และข้อจำกัด: [CHAT-COMMANDS.md](docs/CHAT-COMMANDS.md)
+
+แต้มอัตโนมัติ หมวด/งบส่วนตัว และวิเคราะห์พฤติกรรม: [PERSONAL-FINANCE.md](docs/PERSONAL-FINANCE.md) ต้องใช้ migration `20261116030000_personal_categories_auto_points.sql` ก่อนเปิดใช้บน hosting
+
+Carousel ต้อนรับ วิธีใช้ในแชตและ MINI App และคลังการ์ดทุก flow ที่รองรับ: [LINE-ONBOARDING.md](docs/LINE-ONBOARDING.md)

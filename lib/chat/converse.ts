@@ -1,9 +1,10 @@
 import type { Summary } from "@/lib/api-types";
 import { FORBIDDEN, normalizeMoneyText, numbersIn, onlyKnownNumbers } from "@/lib/advice/question";
 import { generate } from "@/lib/ai/gemini";
-import { categoryOf, MAX_AMOUNT, MAX_TITLE } from "@/lib/chat/parse";
+import { categoryOf, MAX_AMOUNT, MAX_TITLE, parseExpense } from "@/lib/chat/parse";
 import type { ChatLine, ProposedItem } from "@/lib/db/chat-memory";
 import { conversationBoundary, needsIntentClarification, referencesPrevious } from "./intent";
+import { canSplitExpenses, splitExplicitExpenses } from "./multi-expense";
 
 // Chat with the AI (card 15 "AI เข้าใจคำถาม"), used only when the rules cannot read a message:
 // no amount («Hey», «ข้าว», «เหลือเท่าไร»), an approximate one («ข้าวร้อยกว่า») or several («ข้าว 45 น้ำ 20»).
@@ -90,10 +91,10 @@ export function inText(item: string, text: string): boolean {
 }
 
 // Several spends split by the AI. Each title must be in the message and each amount one the user typed
-// (a number typed twice may be used twice). Any slip → null, and the bot asks for one at a time.
+// (a number typed twice may be used twice). Every amount must be accounted for; any slip asks for clarification.
 export function itemsFrom(ai: unknown, message: string): ProposedItem[] | null {
   const items = (ai as { items?: unknown } | null)?.items;
-  if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS) return null;
+  if (!Array.isArray(items) || items.length < 2 || items.length > MAX_ITEMS) return null;
   const typed = new Map<number, number>();
   for (const n of numbersIn(message)) typed.set(n, (typed.get(n) ?? 0) + 1);
   const out: ProposedItem[] = [];
@@ -106,10 +107,20 @@ export function itemsFrom(ai: unknown, message: string): ProposedItem[] | null {
     typed.set(it.amount_baht, count - 1);
     out.push({ title, amount, category: categoryOf(title) });
   }
-  return out;
+  return [...typed.values()].some(count => count !== 0) ? null : out;
 }
 
 export async function splitItems(message: string): Promise<ProposedItem[] | null> {
+  if (!canSplitExpenses(message)) return null;
+  const explicit = splitExplicitExpenses(message);
+  if (explicit) return explicit;
+  const lines=message.split(/[\n;]/u).map(s=>s.trim()).filter(Boolean);
+  if(lines.length>1){
+    if(lines.length>MAX_ITEMS)return null;
+    const parsed=lines.map(parseExpense);
+    if(parsed.some(p=>p.kind!=="entry") || lines.some(line=>conversationBoundary(line) || /ไหวไหม|พรุ่งนี้|\?/u.test(line)))return null;
+    return parsed.filter((p):p is Extract<ReturnType<typeof parseExpense>,{kind:"entry"}>=>p.kind==="entry").map(p=>({title:p.title,amount:p.amount,category:p.category}));
+  }
   const raw = await generate({
     system:
       "แยกรายการรายจ่ายจากข้อความแชตของนักศึกษา ตอบเป็น JSON เท่านั้น แต่ละรายการ title = ชื่อสั้น ๆ ตามที่ผู้ใช้พิมพ์ " +
@@ -162,10 +173,11 @@ const SYSTEM =
   "balance คือเงินทั้งหมด ไม่ใช่งบเหลือใช้; todayRemaining ใช้ได้อีกวันนี้เท่านั้น ห้ามเติม ต่อวัน หรือ บาท/วัน หลังตัวเลขนี้; dailyBudget เท่านั้นคืองบต่อวัน ห้ามสลับตัวเลขสองช่องนี้ " +
   "คำถาม นายเป็นใคร อยู่ใน topic app ให้แนะนำตัวว่าชื่อพอใช้ ผู้ช่วยเรื่องเงินของนักศึกษา " +
   "ห้ามเดาว่าเงินพอหรือไม่พอถึงวันเงินเข้า ให้บอกตัวเลขจาก facts แทน เช่น วันนี้ใช้ได้อีกเท่าไร งบต่อวันเท่าไร อีกกี่วันเงินเข้า " +
-  "ห้ามอธิบายขั้นตอนกดปุ่ม เมนู หรือหน้าจอในแอป เพราะคุณไม่เห็นหน้าจอ ถ้าถามวิธีแก้ ลบ ตั้งค่า หรือดูอะไรในแอป ให้บอกว่าทำได้ในแอป กดปุ่ม เปิดแอป ด้านล่างได้เลย " +
+  "ห้ามอธิบายขั้นตอนกดปุ่ม เมนู หรือหน้าจอในแอป เพราะคุณไม่เห็นหน้าจอ ถ้าถามวิธีใช้ฟีเจอร์ ให้แนะนำพิมพ์ เมนู เพื่อดูคำสั่งแชต เช่น ได้รับเงิน 1000 บาท, ดูรายงานวันนี้, เพิ่มบิล ค่าหอ 500 บาท, เปิดสรุปรายวัน ห้ามอ้างว่าทำสำเร็จเอง " +
   "ห้ามแนะนำให้ลดค่ากินหรือค่าเดินทาง ห้ามแนะนำใช้เงินออม ห้ามบอกว่าจดหรือบันทึกอะไรแล้ว " +
-  "ถ้า facts.setUp เป็น false ให้ชวนตั้งรอบเงินในแอปก่อน ถ้าถามว่าซื้ออะไรไหวไหมแต่ไม่บอกราคา ให้ถามราคา " +
-  "สิ่งที่ทำในแชตได้: จดรายจ่ายโดยพิมพ์ชื่อกับยอด เช่น ข้าว 45 · ถามก่อนจ่าย เช่น ชาบู 300 ไหวไหม";
+  "ถ้า facts.setUp เป็น false ให้ชวนพิมพ์ เริ่มรอบเงิน เพื่อตั้งค่าในแชตก่อน ถ้าถามว่าซื้ออะไรไหวไหมแต่ไม่บอกราคา ให้ถามราคา " +
+  "รองรับจดหลายรายจ่ายในข้อความเดียวเมื่อชื่อและยอดชัด แยกบรรทัดหรือคั่นด้วยช่องว่าง ระบบให้ตรวจรายการร่างก่อนกด จดทั้งหมด ห้ามกล่าวว่าต้องส่งทีละรายการ คำถามวิธีจดยังไม่ใช่การขอสร้างรายการร่างหรือบันทึกตัวอย่าง " +
+  "สิ่งที่ทำในแชตได้: จดรายรับรายจ่าย ถามก่อนจ่าย ดูรายงาน ค้นรายจ่าย จัดการบิลแผน ปรับยอดและค่าใช้จ่ายจำเป็น ตั้งแจ้งเตือน ดูแต้มและแลกของ เริ่มรอบเงิน พิมพ์ เมนู เพื่อดูคำสั่ง ห้ามกล่าวว่าทำสำเร็จเอง";
 
 // Why a reading came out as it did; logged in production (never the message or the AI's words)
 export type ChatOutcome = "ok" | "no_answer" | "unparseable" | "off_topic" | "spend" | "spend_not_in_text" | "clarify" | `guard:${ReplyProblem}`;

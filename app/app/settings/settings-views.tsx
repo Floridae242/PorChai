@@ -9,7 +9,7 @@ import { Banner } from "@/components/ui/banner";
 import { Button, buttonClass } from "@/components/ui/button";
 import { InputField } from "@/components/ui/input-field";
 import { ListRow } from "@/components/ui/list-row";
-import { USER_CATEGORIES, type Plan, type Summary } from "@/lib/api-types";
+import { USER_CATEGORIES, type Summary } from "@/lib/api-types";
 import { stopClarity } from "@/lib/clarity";
 import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import { essentialsFromDaily } from "@/lib/client/essentials";
@@ -56,6 +56,7 @@ export function SettingsMainView() {
       <AppHeader title="ตั้งค่า" tone="default" />
 
       <section className="divide-y divide-line rounded-md border border-line bg-card px-4">
+        <ListRow title="วิธีใช้พอใช้" href="/app/help" badge={<Chevron />} />
         <ListRow title="รอบเงินและวันเงินเข้า" href="/app/plan/edit" badge={<Chevron />} />
         <ListRow title="การเตือน" href="/app/settings/notifications" badge={<Chevron />} />
         <ListRow title="เงินออม · เงินเผื่อ · ค่าจำเป็น" href="/app/settings/savings" badge={<Chevron />} />
@@ -167,6 +168,7 @@ export function SettingsNotificationsView() {
       {header}
 
       {!ready ? <Banner kind="info" text={`${MSG_NOT_READY} — ตั้งค่าการเตือนยังใช้ไม่ได้ตอนนี้`} /> : null}
+      <Link href="/app/notifications" className={buttonClass("secondary")}>สรุปรายวัน รายเดือน และเตือนงบ</Link>
 
       <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
         <label className="flex items-center justify-between gap-3 text-sm font-semibold text-primary">
@@ -256,233 +258,7 @@ export function SettingsNotificationsView() {
   );
 }
 
-type BillsState =
-  | { state: "loading" }
-  | { state: "failed" }
-  | { state: "ok"; bills: Plan[] };
-
-function billStatusText(bill: Plan): string {
-  switch (bill.status) {
-    case "reserved":
-      return bill.heldThisCycle ? "ยังไม่จ่าย · หักจากเงินที่ใช้ได้" : "ยังไม่จ่าย · ยังไม่หักในรอบนี้";
-    case "paid":
-      return "จ่ายแล้ว ✓";
-    case "separate":
-      return "จ่ายแยก · ไม่หักงบ";
-    case "postponed":
-      return "เลื่อนไปรอบหน้า";
-    default:
-      return "ยกเลิกแล้ว";
-  }
-}
-
-// H7. Lists the real bills; add and remove hit the API. Rename/re-amount and "จ่ายแยก" have no API.
-export function SettingsBillsView() {
-  const api = useApi();
-  const router = useRouter();
-  const routerRef = useRef(router); // the router object is not guaranteed stable: keep it out of effect deps
-  useEffect(() => {
-    routerRef.current = router;
-  });
-  const add = useSubmit<unknown>();
-  const remove = useSubmit<unknown>();
-  const [data, setData] = useState<BillsState>({ state: "loading" });
-  const [attempt, setAttempt] = useState(0);
-  const [addOpen, setAddOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [amountText, setAmountText] = useState("");
-  const [titleError, setTitleError] = useState<string | null>(null);
-  const [amountError, setAmountError] = useState<string | null>(null);
-  const [removing, setRemoving] = useState<Plan | null>(null);
-  const [message, setMessage] = useState<{ kind: "info" | "error"; text: string } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    api.plans().then(
-      (res) => {
-        if (!cancelled) setData({ state: "ok", bills: res.plans.filter((p) => p.kind === "bill" && p.status !== "cancelled") });
-      },
-      (err) => {
-        if (cancelled) return;
-        if (isCode(err, "no_cycle")) routerRef.current.replace("/app/setup/income");
-        else if (isCode(err, "no_consent")) routerRef.current.replace("/app/consent");
-        else setData({ state: "failed" });
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [api, attempt]);
-
-  function openAdd() {
-    add.reset();
-    setTitle("");
-    setAmountText("");
-    setTitleError(null);
-    setAmountError(null);
-    setMessage(null);
-    setAddOpen(true);
-  }
-
-  async function handleAdd() {
-    const cleanTitle = title.trim();
-    const parsed = parseBahtInput(amountText);
-    setTitleError(cleanTitle ? null : "กรุณาใส่ชื่อบิล");
-    setAmountError(parsed.ok ? null : bahtErrorMessage(parsed.reason));
-    if (!cleanTitle || !parsed.ok) return;
-    const req = { title: cleanTitle, amount: parsed.satang };
-    const result = await add.submit(req, (key) => api.addPlan({ kind: "bill", status: "reserved", ...req }, key));
-    if (result.ok) {
-      setAddOpen(false);
-      setMessage({ kind: "info", text: "เพิ่มบิลแล้ว" });
-      setAttempt((n) => n + 1);
-    }
-  }
-
-  function openRemove(bill: Plan) {
-    remove.reset();
-    setMessage(null);
-    setRemoving(bill);
-  }
-
-  async function handleRemove() {
-    if (!removing) return;
-    const id = removing.id;
-    const result = await remove.submit(id, () => api.planAction(id, "cancel"));
-    if (result.ok) {
-      setRemoving(null);
-      setMessage({ kind: "info", text: "ลบบิลแล้ว" });
-      setAttempt((n) => n + 1);
-    }
-  }
-
-  const addError = add.error ? errorText(add.error, "เพิ่มบิลไม่สำเร็จ ลองใหม่อีกครั้ง") : null;
-  const removeError = remove.error ? errorText(remove.error, "ลบบิลไม่สำเร็จ ลองใหม่อีกครั้ง") : null;
-
-  return (
-    <main className="flex flex-col gap-4 py-2 font-body">
-      <AppHeader title="บิลประจำ" back="/app/settings" tone="default" />
-
-      {data.state === "loading" ? (
-        <p className="text-sm text-secondary" aria-busy="true">
-          กำลังโหลดบิล…
-        </p>
-      ) : data.state === "failed" ? (
-        <LoadFailed
-          onRetry={() => {
-            setData({ state: "loading" });
-            setAttempt((n) => n + 1);
-          }}
-        />
-      ) : (
-        <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
-          <div>
-            <h2 className="text-base font-semibold text-primary">บิลที่ต้องจ่ายก่อนวันเงินเข้า</h2>
-            <p className="text-xs text-secondary">แก้ไขชื่อหรือยอดเงินของบิลที่เพิ่มแล้วยังทำไม่ได้ตอนนี้</p>
-          </div>
-
-          {data.bills.length === 0 ? (
-            <p className="py-2 text-sm text-muted">ยังไม่มีบิลที่ตั้งไว้</p>
-          ) : (
-            <ul className="divide-y divide-line">
-              {data.bills.map((bill) => (
-                <li key={bill.id} className="flex flex-col gap-2 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-primary">{bill.title}</p>
-                      <p className="text-xs text-secondary">{billStatusText(bill)}</p>
-                    </div>
-                    <span className="text-sm font-semibold tabular-nums text-primary">
-                      {formatBaht(bill.amount)} บาท
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openRemove(bill)}
-                      aria-label={`ลบ ${bill.title}`}
-                      className="inline-flex h-11 items-center rounded-pill px-3 text-sm font-semibold text-danger outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)]"
-                    >
-                      ลบ
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMessage({ kind: "info", text: `${MSG_NOT_READY} — แก้ไขบิลยังใช้ไม่ได้ตอนนี้` })}
-                      aria-label={`แก้ไข ${bill.title}`}
-                      className="inline-flex h-11 items-center rounded-pill px-3 text-sm font-semibold text-link outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)]"
-                    >
-                      แก้ไข
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <Button variant="secondary" block onClick={openAdd}>
-            + เพิ่มบิล
-          </Button>
-        </section>
-      )}
-
-      {message ? <Banner kind={message.kind} text={message.text} /> : null}
-
-      <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="เพิ่มบิล">
-        <div className="flex flex-col gap-4">
-          <InputField
-            label="ชื่อบิล"
-            placeholder="เช่น ค่าหอ, ค่าน้ำ, ค่าเน็ต"
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              setTitleError(null);
-            }}
-            state={titleError ? "error" : title ? "filled" : "default"}
-            helper={titleError ?? undefined}
-          />
-          <InputField
-            label="จำนวนเงิน (บาท)"
-            inputMode="decimal"
-            placeholder="เช่น 400"
-            value={amountText}
-            onChange={(e) => {
-              setAmountText(e.target.value);
-              setAmountError(null);
-            }}
-            state={amountError ? "error" : amountText ? "filled" : "default"}
-            helper={amountError ?? undefined}
-          />
-          {addError ? <Banner kind={isCode(add.error, "not_implemented") ? "info" : "error"} text={addError} /> : null}
-          <div className="flex flex-col gap-2">
-            <Button variant="primary" block busy={add.busy} onClick={handleAdd}>
-              บันทึก
-            </Button>
-            <Button variant="ghost" block onClick={() => setAddOpen(false)}>
-              ยกเลิก
-            </Button>
-          </div>
-        </div>
-      </Sheet>
-
-      <Sheet open={removing !== null} onClose={() => setRemoving(null)} title="ลบบิลนี้?">
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-secondary">
-            {removing ? `${removing.title} ${formatBaht(removing.amount)} บาท จะไม่ถูกหักจากเงินที่ใช้ได้อีก` : ""}
-          </p>
-          {removeError ? <Banner kind="error" text={removeError} /> : null}
-          <div className="flex flex-col gap-2">
-            <Button variant="primary" block busy={remove.busy} onClick={handleRemove}>
-              ลบบิล
-            </Button>
-            <Button variant="ghost" block onClick={() => setRemoving(null)}>
-              ยกเลิก
-            </Button>
-          </div>
-        </div>
-      </Sheet>
-    </main>
-  );
-}
+export { SettingsBillsView } from "./bills/bills-view";
 
 type SavingsState = { state: "loading" } | { state: "failed" } | { state: "ok"; summary: Summary };
 

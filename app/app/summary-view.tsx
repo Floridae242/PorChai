@@ -1,4 +1,6 @@
 "use client";
+import { DashboardInsights } from "./reports/reports-view";
+import { MockPromotionBanner } from "./promotions/promotion-mock-view";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -14,20 +16,14 @@ import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import { ApiError } from "@/lib/client/errors";
 import type { CategoryTotals, DailySpend } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
+import {usePoints} from "@/lib/client/use-points";
+import {useDataRevision} from "@/lib/client/use-data-revision";
 import { useSubmit } from "@/lib/client/use-submit";
 import { formatThaiTime } from "@/lib/format/date";
 import { formatBaht } from "@/lib/format/money";
 
 const TIGHT_THRESHOLD_SATANG = 5000;
 const MSG_NOT_READY = "ยังไม่พร้อมใช้งาน";
-
-interface Points {
-  balance: number;
-  claimedToday: boolean;
-}
-
-// No points API yet (or it failed): show 0, never a guess.
-const NO_POINTS: Points = { balance: 0, claimedToday: false };
 
 function isCode(err: unknown, code: string): boolean {
   return err instanceof ApiError && err.code === code;
@@ -43,7 +39,9 @@ export function SummaryView() {
 
   const [summary, setSummary] = useState<Summary | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [points, setPoints] = useState<Points>(NO_POINTS);
+  const pointState=usePoints(),points=pointState.data,revision=useDataRevision();
+  const {done:claimDone,reset:resetClaim}=claim;
+  useEffect(()=>{if(points?.claimedToday===false&&claimDone)resetClaim();},[points?.claimedToday,claimDone,resetClaim]);
   // null = the server cannot provide it (not implemented / failed): that section is hidden.
   const [daily, setDaily] = useState<DailySpend | null>(null);
   const [categories, setCategories] = useState<CategoryTotals | null>(null);
@@ -59,15 +57,13 @@ export function SummaryView() {
           api.summary(),
           api.entries(),
         ]);
-        const [ptsRes, dailyRes, catRes] = await Promise.all([
-          api.points().catch(() => null),
+        const [dailyRes, catRes] = await Promise.all([
           api.dailySpend().catch(() => null),
           api.categoryTotals().catch(() => null),
         ]);
         if (cancelled) return;
         setSummary(sumRes);
         setEntries(entRes.entries);
-        setPoints(ptsRes ?? NO_POINTS);
         setDaily(dailyRes);
         setCategories(catRes);
         setLoading(false);
@@ -90,7 +86,7 @@ export function SummaryView() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, attempt]);
+  }, [api, attempt,revision]);
 
   useEffect(() => {
     if (shownToast.current) return;
@@ -106,8 +102,8 @@ export function SummaryView() {
       api.claimPoints(key),
     );
     if (result.ok) {
-      setPoints(result.value);
-      toast.show(`รับแต้มฟรีแล้ว +1 · รวม ${result.value.balance} แต้ม`, {
+      pointState.update(result.value);
+      toast.show(`อัปเดตแต้มแล้ว · รวม ${result.value.balance} แต้ม`, {
         mascot: "reward",
       });
       return;
@@ -210,6 +206,8 @@ export function SummaryView() {
         </Link>
       </div>
 
+      <DashboardInsights />
+
       <section className="flex items-center justify-between gap-3 rounded-md border border-line bg-reward-bg p-4">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
@@ -217,7 +215,7 @@ export function SummaryView() {
               สะสมแต้มรายวัน
             </span>
             <span className="rounded-pill bg-reward px-2 py-0.5 text-xs font-bold text-primary">
-              {points.balance} แต้ม
+              {points?.balance??"—"} แต้ม
             </span>
           </div>
           <Link
@@ -227,7 +225,7 @@ export function SummaryView() {
             ดูแต้มและแลกของรางวัล ›
           </Link>
         </div>
-        {points.claimedToday ? (
+        {points?.claimedToday ? (
           <span className="rounded-pill border border-line-strong bg-card px-4 py-2 text-xs font-semibold text-ok">
             รับแต้มฟรีแล้ววันนี้ ✓
           </span>
@@ -241,6 +239,10 @@ export function SummaryView() {
           </Button>
         )}
       </section>
+      {pointState.failed&&<p role="status" className="text-xs text-secondary">ยังอัปเดตแต้มไม่ได้ ยอดที่แสดงอาจยังไม่ล่าสุด <button type="button" onClick={()=>void pointState.refresh()} className="min-h-11 font-semibold text-link">โหลดแต้มใหม่</button></p>}
+
+      {/* Demo sponsor (labelled as a sample): under the points card, it belongs to the same perks family. */}
+      <MockPromotionBanner />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {categories ? (

@@ -67,7 +67,7 @@ const payButton = (d: Draft): QuickReplyAction => ({
 const ASK: Record<AskReason, string> = {
   no_amount: "จดรายจ่าย พิมพ์ชื่อกับยอดได้เลย เช่น «ข้าว 45» หรือกรอกเองในแอป",
   many_amounts:
-    "เจอหลายยอดในข้อความเดียว ส่งทีละรายการนะ เช่น «ข้าว 50» แล้วค่อย «น้ำ 20»",
+    "ยังแยกชื่อกับยอดได้ไม่ครบครับ ส่งหลายรายการได้ครั้งละไม่เกิน 5 รายการ เช่น «ข้าว 50 บาท น้ำ 20 บาท» หรือขึ้นบรรทัดใหม่ทีละรายการ โดยไม่ต้องใส่ยอดรวม",
   approximate: "ขอยอดที่จ่ายจริงเป็นตัวเลขนะ เช่น «ข้าว 120» จะได้จดไม่ผิด",
   no_title: "ยอดนี้ค่าอะไร? พิมพ์ชื่อด้วย เช่น «ข้าว 50»",
   too_large: "ยอดนี้สูงมาก ถ้าถูกต้องกรอกเองในแอปได้เลย",
@@ -278,11 +278,10 @@ export const welcomeMessage = () =>
 // Chat with the AI (card 15). The AI's reply, guarded in lib/chat/converse.ts
 export const chatMessage = (reply: string): TextMessage => text(reply, [app()]);
 
-// AI off, failed or broke a guard: who the bot is and what is left today. It also answers «นายเป็นใคร»
-// when Gemini is busy (13 Nov); the list of 3 things was removed at the user's request.
+// Same as lib/chat/messages.ts (the one the bot uses): say it cannot answer, then what is left today
 export function chatFallbackMessage(s: Summary | null): TextMessage {
   const today = s ? budgetLine(s.budget, s.spentToday) : "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าในแอปก่อนนะครับ";
-  return text(["สวัสดีครับ ผมชื่อพอใช้ ผู้ช่วยเรื่องเงินของคุณ", today].join("\n"), [app()]);
+  return text(["ขอโทษครับ พอใช้ยังตอบข้อความนี้ไม่ได้", today, "ลองพิมพ์ใหม่ หรือกดเมนูพอใช้ด้านล่างได้ครับ"].join("\n"), [app()]);
 }
 
 // Not about money or the app: never the AI's words, always this

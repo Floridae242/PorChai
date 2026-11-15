@@ -10,14 +10,19 @@ import type { PorchaiApi } from "@/lib/client/types";
 import { MockBadge } from "@/components/shell/mock-badge";
 import { getLiff } from "@/lib/liff/client";
 import { API_MODE } from "./liff-provider";
+import { withDataEvents } from "@/lib/client/data-events";
 
 function createLive(): PorchaiApi {
-  return withConsentFallback(createLiveApi(createLiffAuth(getLiff)));
+  return withDataEvents(
+    withConsentFallback(createLiveApi(createLiffAuth(getLiff))),
+  );
 }
 
 export function ApiProvider({ children }: { children: ReactNode }) {
   // One instance for the app session. The mock is loaded lazily so it stays out of live bundles.
-  const [api, setApi] = useState<PorchaiApi | null>(() => (API_MODE === "live" ? createLive() : null));
+  const [api, setApi] = useState<PorchaiApi | null>(() =>
+    API_MODE === "live" ? createLive() : null,
+  );
 
   useEffect(() => {
     if (API_MODE !== "mock") return;
@@ -25,9 +30,17 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     if (process.env.NODE_ENV === "production") return;
     let cancelled = false;
     import("@/lib/client/mock").then(({ createMockApi }) => {
-      if (!cancelled) setApi(createMockApi({
-          scenario: process.env.NODE_ENV !== "production" ? parseScenario(window.location.search) : "default",
-        }));
+      if (!cancelled)
+        setApi(
+          withDataEvents(
+            createMockApi({
+              scenario:
+                process.env.NODE_ENV !== "production"
+                  ? parseScenario(window.location.search)
+                  : "default",
+            }),
+          ),
+        );
     });
     return () => {
       cancelled = true;
@@ -35,8 +48,10 @@ export function ApiProvider({ children }: { children: ReactNode }) {
   }, []);
 
   if (!api) return null;
-  return <ApiContext.Provider value={api}>
+  return (
+    <ApiContext.Provider value={api}>
       <MockBadge mode={API_MODE} />
       {children}
-    </ApiContext.Provider>;
+    </ApiContext.Provider>
+  );
 }

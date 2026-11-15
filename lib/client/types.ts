@@ -18,6 +18,7 @@ import type {
   Summary,
 } from "@/lib/api-types";
 import type { Satang } from "@/lib/calc/money";
+import type { FinanceReport, NotificationPreferences, SearchResult } from "@/lib/reports/types";
 
 export interface Promo {
   id: string;
@@ -39,6 +40,19 @@ export interface Reward {
   name: string;
   cost: number; // points
   stock: number;
+}
+
+// Points history (newest first). One row per ledger entry: +1 for a day's points, a negative number for a
+// redemption. `day` is the Thai calendar date (YYYY-MM-DD); the reward code is never listed here.
+export interface PointsHistoryItem {
+  id: string;
+  kind: "daily" | "redemption";
+  delta: number;
+  day: string;
+  rewardName: string | null; // redemptions only
+}
+export interface PointsHistory {
+  items: PointsHistoryItem[];
 }
 
 export interface NewIncomeRequest {
@@ -86,6 +100,23 @@ export interface SaveReminderSettings {
 export type PlanActionName = "pay" | "unpay" | "cancel" | "postpone" | "keep";
 
 export interface PorchaiApi {
+  pointsConnection():Promise<import("@/lib/support/points-connection").PointsConnection>;
+  billSchedules(): Promise<{schedules: import("@/lib/bills/types").BillSchedule[]}>;
+  createBillSchedule(input: import("@/lib/bills/types").NewBillSchedule, key:string): Promise<import("@/lib/bills/types").BillSchedule>;
+  updateBillSchedule(id:string,input:{notify?:boolean;stop?:true}): Promise<import("@/lib/bills/types").BillSchedule>;
+  spendingCategories(): Promise<import("@/lib/insights/types").SpendingCategory[]>;
+  saveSpendingCategory(input: import("@/lib/insights/types").SaveCategory): Promise<import("@/lib/insights/types").SpendingCategory>;
+  spendingInsights(ai?: boolean): Promise<import("@/lib/insights/types").SpendingInsights>;
+  report(period: "day" | "month", date?: string): Promise<FinanceReport>;
+  notificationPreferences(): Promise<NotificationPreferences>;
+  saveNotificationPreferences(
+    value: NotificationPreferences,
+  ): Promise<NotificationPreferences>;
+  search(
+    query: string,
+    mode: "web" | "entries",
+    period?: "day" | "month" | "year",
+  ): Promise<SearchResult>;
   me(): Promise<{ hasActiveCycle: boolean }>;
   createCycle(req: NewCycleRequest): Promise<{ summary: Summary }>;
   summary(): Promise<Summary>;
@@ -106,6 +137,7 @@ export interface PorchaiApi {
   acceptConsent(version: string): Promise<void>;
   points(): Promise<{ balance: number; claimedToday: boolean }>;
   claimPoints(idempotencyKey: string): Promise<{ balance: number; claimedToday: true }>;
+  pointsHistory(): Promise<PointsHistory>;
   promos(): Promise<Promo[]>;
   promo(id: string): Promise<Promo>;
   claimPromo(id: string): Promise<{ code: string; expiresAt: string }>;

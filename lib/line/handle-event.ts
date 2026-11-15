@@ -6,7 +6,7 @@ import { tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
 import { advise, dueOnOf } from "@/lib/advice/advise";
 import { findPriceHint } from "@/lib/advice/price-hint";
-import { isBalanceQuestion, isPurchaseWish, isQuestion, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isPurchaseWish, isQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
   adviceCard,
@@ -47,9 +47,12 @@ import {
   slipUnreadableMessage,
   recordedCard,
   todayCard,
+  paydayCard,
+  enoughCard,
   type RecordedEntry,
 } from "@/lib/chat/cards";
 import { factsOf, readChat, splitItems } from "@/lib/chat/converse";
+import { isDeleteDataAsk } from "@/lib/chat/delete-data";
 import {
   adviceMessage,
   alreadyManyMessage,
@@ -60,10 +63,10 @@ import {
   askTitleMessage,
   chatFallbackMessage,
   chatMessage,
+  deleteDataMessage,
   declinedMessage,
   expiredMessage,
   keptMessage,
-  noCycleMessage,
   offTopicMessage,
   recordedMessage,
   type Draft,
@@ -84,6 +87,11 @@ import { HttpError } from "@/lib/http";
 import { decodePostback, type DecodedPostback } from "@/lib/line/flex/postback";
 import { reply, text, withAppButton, type ReplyMessage } from "@/lib/line/reply";
 import { presentReply } from "@/lib/line/presentation";
+import { chatAction, chatActionButton } from "@/lib/chat/actions";
+import { onboardingHelp } from "@/lib/line/onboarding";
+import { readHelpRequest } from "@/lib/line/help-request";
+import {pointsConnection} from "@/lib/support/points-connection";
+import {getDb} from "@/lib/db/client";
 
 interface LineEvent {
   type?: unknown;
@@ -98,8 +106,9 @@ interface LineEvent {
 interface Answer {
   message: ReplyMessage;
   pending?: Pending;
+  heading?:string;
 }
-const say = (message: ReplyMessage, pending?: Pending): Answer => ({ message, pending });
+const say = (message: ReplyMessage, pending?: Pending,heading?:string): Answer => ({ message, pending,heading });
 
 // The webhook verified LINE's signature before calling this, so source.userId is LINE's word, not the client's.
 // Throws only when a spend could not be saved: the webhook then lets LINE deliver the event again.
@@ -127,7 +136,7 @@ export async function handleEvent(event: unknown): Promise<void> {
     }
   } catch (err) {
     if (!(err instanceof HttpError && err.code === "no_cycle")) throw err;
-    answer = say(noCycleMessage());
+    answer = say(text("ยังไม่ได้ตั้งรอบเงินครับ พิมพ์ ‘เริ่มรอบเงิน’ เพื่อตั้งค่าในแชตได้เลย คำสั่งเมื่อกี้ยังไม่ได้บันทึกครับ"));
   }
   if (!answer) return;
   if (said !== null) {
@@ -139,7 +148,7 @@ export async function handleEvent(event: unknown): Promise<void> {
   }
   if (typeof e.replyToken === "string") {
     // The spend is already saved; a failed answer must not make LINE send the event again
-    await reply(e.replyToken, [presentReply(withAppButton(answer.message))]).catch((err) => console.error(err));
+    await reply(e.replyToken, [presentReply(withAppButton(answer.message),answer.heading)]).catch((err) => console.error(err));
   }
 }
 
@@ -161,6 +170,13 @@ const MENU_TEXTS: Record<string, () => ReplyMessage> = {
 };
 
 async function onText(userId: string, body: string, eventId: string): Promise<Answer> {
+  if(/^(?:ตรวจแต้ม|ตรวจการซิงก์แต้ม)(?:ครับ|ค่ะ|คะ)?$/u.test(body.trim())){
+    const user=await getDb().from("users").select("line_user_id").eq("id",userId).single();if(user.error)throw user.error;
+    const info=await pointsConnection(userId,user.data.line_user_id);
+    return say(text(`ยอดจากเซิร์ฟเวอร์ ${info.balance} แต้ม\nรหัสบัญชี ${info.accountCode}\nรหัสระบบ ${info.systemCode} · เวอร์ชัน ${info.release}\nเปิดหน้าแต้มใน MINI App แล้วเลือก ตรวจการเชื่อมต่อ เพื่อเทียบรหัสทั้งสองฝั่งครับ`),undefined,"ตรวจการซิงก์แต้ม");
+  }
+  const help=readHelpRequest(body);
+  if(help)return say(help.topic?onboardingHelp(`guide:${help.topic}`)!:welcomeCard(),undefined,"วิธีใช้พอใช้");
   const history = await recentChat(userId);
   const last = history.at(-1);
   const pending = last?.role === "bot" ? last.pending : null; // only the very next message answers it
@@ -178,6 +194,10 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // The rich menu made in LINE OA Manager sends texts, not postbacks (it has no postback buttons)
   const menu = MENU_TEXTS[body.trim()];
   if (menu) return say(menu());
+  // «ลบข้อมูลได้ไหม»: where to delete the account in the app (never done from the chat, never the AI)
+  if (isDeleteDataAsk(body)) return say(deleteDataMessage());
+  const command = await chatAction(userId, body, pending);
+  if (command) return command;
   const clarification = conversationBoundary(body);
   if (clarification) return converse(userId, body, history, { approximate: false, question: false, clarification });
   // A social response ends the previous question; it is never the title of a pending amount.
@@ -211,6 +231,9 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
 
   // «เหลือเท่าไร», «งบเหลือป่ะ»: the budget card, its numbers from the calculator (the AI is never asked)
   if (isBalanceQuestion(body)) return say(todayCard(await loadSummary(userId)));
+  // «วันเงินเข้าเมื่อไร», «เงินพอถึงวันเงินเข้าไหม» (15 Nov): the same card, answering on top (never the AI)
+  if (isPaydayQuestion(body)) return say(paydayCard(await loadSummary(userId)));
+  if (isEnoughQuestion(body)) return say(enoughCard(await loadSummary(userId)));
 
   // Card 15: «พรุ่งนี้กินชาบู 300 ไหวไหม» is a question, not a spend — answer it, save nothing.
   // Without one clear price («เหลือกี่บาท?», «ชาบู 150 หรือ 200 ดี») it is chat. A question never
@@ -298,6 +321,10 @@ const LABEL = { pay: "ยืนยันจ่ายจริง", try: "ลอ�
 
 // Buttons from holdMessage / tryMessage / adviceMessage / proposalMessage. Anything malformed is ignored.
 async function onPostback(userId: string, data: string): Promise<{ label: string; answer: Answer } | null> {
+  if(data==="guide:all")return {label:"วิธีใช้",answer:say(welcomeCard())};
+  if(data.startsWith("guide:"))return {label:"ดูคู่มือ",answer:say(onboardingHelp(data)??text("ไม่พบหัวข้อคู่มือนี้ครับ พิมพ์ คู่มือ เพื่อเลือกอีกครั้ง"),undefined,"วิธีใช้พอใช้")};
+  const command = await chatActionButton(userId, data);
+  if (command) return { label: "คำสั่งแชต", answer: command };
   const flex = decodePostback(data);
   if (flex) return { label: flexLabel(flex), answer: await onCardButton(userId, flex) };
   const choice = readChoice(data);

@@ -17,11 +17,12 @@ const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
 // «ร้อยกว่า», «ประมาณ 50», «~50», «40-50»: the user does not know the exact amount yet
 const APPROXIMATE = /กว่า|ประมาณ|ราว|เกือบ|~|\d\s*-\s*\d/;
 // Money in («รับ 500», โฟรวิว's how-to card): income, never a spend
-const INCOME = /^(รับเงิน|รับ|เงินเข้า|ได้เงิน|รายรับ|เงินเดือน)/;
+const INCOME = /^(ได้รับเงิน|เงินเดือนเข้า|รับเงิน|รับ|เงินเข้า|ได้เงิน|รายรับ|เงินเดือน|แม่ให้เงิน|พ่อให้เงิน|ผู้ปกครองให้เงิน|got paid\b|income\b|salary\b)/i;
 // Another day: the chat records today only, so «เมื่อวาน ข้าว 45» is asked back (the app picks the date)
 const BACKDATED = /เมื่อวาน|วานนี้|เมื่อคืน/;
 const NUMBER = /\d+(?:\.\d{1,2})?/g;
 const CURRENCY = /บาท|฿|\.-/g;
+const SPENT = /\s*(?:จ่าย|หมด|ใช้)?ไป$/;
 
 // First match wins, so the more specific words come before the words they contain
 // (ค่าน้ำ before น้ำ, น้ำมัน before น้ำ)
@@ -37,7 +38,10 @@ const KEYWORDS: [UserCategory, string[]][] = [
   ],
   [
     "food",
-    ["ข้าว", "กาแฟ", "ชา", "น้ำ", "ขนม", "อาหาร", "เตี๋ยว", "หมู", "ไก่", "ชาบู", "ส้มตำ", "มื้อ", "นม", "ผลไม้", "ไอติม", "ไอศกรีม", "บุฟเฟ่ต์", "ปิ้งย่าง", "โกโก้", "สลัด", "ราเมง", "ซูชิ", "พิซซ่า"],
+    ["ข้าว", "กาแฟ", "ชา", "น้ำ", "ขนม", "อาหาร", "เตี๋ยว", "หมู", "ไก่", "ชาบู", "ส้มตำ", "มื้อ", "นม", "ผลไม้", "ไอติม", "ไอศกรีม", "บุฟเฟ่ต์", "ปิ้งย่าง", "โกโก้", "สลัด", "ราเมง", "ซูชิ", "พิซซ่า", "ปลาหมึก",
+      // 15 Nov: «ปลาหมึกย่าง» was «อื่น ๆ»
+      "ปลา", "กุ้ง", "ทะเล", "เนื้อ", "ไข่", "ผัด", "ทอด", "ต้ม", "แกง", "ยำ", "ลูกชิ้น", "หมาล่า", "หม่าล่า", "โจ๊ก", "บะหมี่", "มาม่า",
+      "เบอร์เกอร์", "สเต็ก", "ติ่มซำ", "บิงซู", "โรตี", "เครป"],
   ],
 ];
 
@@ -67,8 +71,10 @@ export function parseExpense(raw: string): ParsedExpense {
   const text = clean(raw);
 
   if (BACKDATED.test(text)) return { kind: "ask", reason: "backdated" };
+  if (/(?:จะได้รับ|รอเงินเข้า|พรุ่งนี้|มะรืน|เดือนหน้า|เงินคืน|คืนเงิน)/u.test(text) && /เงิน|รับ|ให้/u.test(text)) return { kind: "ask", reason: "income" };
   if (APPROXIMATE.test(text)) return { kind: "ask", reason: "approximate" };
   const income = INCOME.test(text);
+  if (income && /[-+]\s*\d/.test(text)) return { kind: "ask", reason: "income" };
   const numbers = text.match(NUMBER) ?? [];
   if (numbers.length === 0) return { kind: "ask", reason: income ? "income" : "no_amount" };
   if (numbers.length > 1) return { kind: "ask", reason: "many_amounts" };
@@ -81,7 +87,9 @@ export function parseExpense(raw: string): ParsedExpense {
     return { kind: "income", amount, note: note.slice(0, MAX_TITLE) || null };
   }
 
-  const title = text.replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TITLE);
+  // «หม่าล่าไป 50», «ข้าวจ่ายไป 45»: «ไป» says it was spent, it is not part of the name (16 Nov)
+  const title = text.replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim()
+    .replace(SPENT, "").trim().slice(0, MAX_TITLE);
   if (!title) return { kind: "ask", reason: "no_title" };
   return { kind: "entry", title, amount, category: categoryOf(title) };
 }

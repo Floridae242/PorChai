@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db/client";
 import { HttpError } from "@/lib/http";
-import type { Reward } from "@/lib/client/types";
+import { thaiDate } from "@/lib/calc/time";
+import type { PointsHistory, PointsHistoryItem, Reward } from "@/lib/client/types";
 
 export interface PointsState { balance: number; claimedToday: boolean }
 export interface DailyClaim { balance: number; claimedToday: true; created: boolean }
@@ -46,4 +47,45 @@ export async function redeemReward(userId: string, rewardId: string, key: string
   const { data, error } = await getDb().rpc("redeem_reward", { p_user: userId, p_reward: rewardId, p_key: key });
   checkError(error);
   return data;
+}
+
+// Points history: the latest ledger rows of this user, newest first. Read-only. A redemption shows the
+// reward's name but never its code. The query runs with the service role, so the user id filter is the
+// only thing that keeps it to one account.
+export const HISTORY_LIMIT = 50;
+
+export interface LedgerRow {
+  id: string;
+  kind: string;
+  delta: number;
+  earned_on: string | null;
+  created_at: string;
+  // PostgREST gives a to-one embed as an object; an array is accepted as well.
+  reward_claims?: { rewards?: { name?: unknown } | { name?: unknown }[] | null } | { rewards?: { name?: unknown } | { name?: unknown }[] | null }[] | null;
+}
+
+const first = <T>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
+
+export function toHistoryItem(row: LedgerRow): PointsHistoryItem | null {
+  if (row.kind !== "daily" && row.kind !== "redemption") return null;
+  const name = first(first(row.reward_claims)?.rewards)?.name;
+  return {
+    id: row.id,
+    kind: row.kind,
+    delta: row.delta,
+    day: row.kind === "daily" && row.earned_on ? row.earned_on : thaiDate(new Date(row.created_at)),
+    rewardName: row.kind === "redemption" && typeof name === "string" ? name : null,
+  };
+}
+
+export async function pointsHistory(userId: string): Promise<PointsHistory> {
+  const { data, error } = await getDb()
+    .from("points_ledger")
+    .select("id,kind,delta,earned_on,created_at,reward_claims(rewards(name))")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(HISTORY_LIMIT);
+  checkError(error);
+  return { items: ((data ?? []) as unknown as LedgerRow[]).map(toHistoryItem).filter((i): i is PointsHistoryItem => i !== null) };
 }

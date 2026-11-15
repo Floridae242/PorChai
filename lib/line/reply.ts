@@ -29,9 +29,13 @@ export type LineMessage = TextMessage | BrandedFlexMessage;
 // here, where answers leave, so a new message cannot forget it. LINE allows 13 quick replies.
 export function withAppButton(m: ReplyMessage): ReplyMessage {
   const items = m.quickReply?.items ?? [];
-  if (items.some((i) => i.action.label === "เปิดแอป") || items.length >= 13) return m;
+  if (items.length >= 13) return m;
   const open = { type: "action" as const, action: { type: "uri" as const, label: "เปิดแอป", uri: appUrl() } };
-  return { ...m, quickReply: { items: [...items, open] } } as ReplyMessage;
+  const help = {type:"action" as const,action:{type:"postback" as const,label:"วิธีใช้",data:"guide:all",displayText:"ขอวิธีใช้"}};
+  const next=[...items];
+  if(!next.some(i=>i.action.label==="เปิดแอป") && next.length<13)next.push(open);
+  if(!next.some(i=>i.action.type==="postback" && i.action.data==="guide:all") && next.length<13)next.push(help);
+  return next.length===items.length?m:{ ...m, quickReply: { items: next } } as ReplyMessage;
 }
 
 export async function reply(replyToken: string, messages: ReplyMessage[]): Promise<void> {

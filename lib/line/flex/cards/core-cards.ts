@@ -249,9 +249,7 @@ export function buildTodayBudgetCard(vm: TodayBudgetCardViewModel): FlexMessage 
 
   return {
     type: "flex",
-    altText: isOver
-      ? `วันนี้เกินงบ ${bahtText(overAmount)}`
-      : `วันนี้ใช้ได้อีก ${bahtText(vm.todayRemaining)}`,
+    altText: `${vm.answer ? `${vm.answer} · ` : ""}${isOver ? `วันนี้เกินงบ ${bahtText(overAmount)}` : `วันนี้ใช้ได้อีก ${bahtText(vm.todayRemaining)}`}`,
     contents: {
       type: "bubble",
       size: "mega",
@@ -298,9 +296,13 @@ export function buildTodayBudgetCard(vm: TodayBudgetCardViewModel): FlexMessage 
         paddingAll: "16px",
         backgroundColor: FLEX_COLORS.white,
         contents: [
+          ...(vm.answer
+            ? [{ type: "text" as const, text: vm.answer, size: "sm" as const, weight: "bold" as const, color: FLEX_COLORS.green900, wrap: true }]
+            : []),
           {
             type: "box",
             layout: "vertical",
+            ...(vm.answer ? { margin: "md" as const } : {}),
             backgroundColor: isOver ? FLEX_COLORS.red50 : FLEX_COLORS.lime50,
             cornerRadius: "12px",
             paddingAll: "14px",
