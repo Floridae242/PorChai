@@ -16,12 +16,13 @@ import {
   type FlexText,
 } from "@/lib/line/flex";
 
-const BATCH_NAMES: Record<"C1" | "C2" | "C3" | "C4" | "C5", string> = {
+const BATCH_NAMES: Record<"C1" | "C2" | "C3" | "C4" | "C5" | "C5N", string> = {
   C1: "C1 · เดโมหลัก (จดข้าว + เตือน 12:30)",
   C2: "C2 · ถาม AI & ลองก่อนจ่าย",
   C3: "C3 · เริ่มใช้ & เมนูหลัก",
   C4: "C4 · สลิป OCR & ลิงก์โปร/แต้ม",
-  C5: "C5 · ข้อความยาวจริงที่ถูกห่อเป็นการ์ด (ดูก่อนปรับ)",
+  C5: "C5 · ข้อความยาวจริง (ของเดิม)",
+  C5N: "C5 ใหม่ · ปรับเป็นการ์ดแล้ว",
 };
 
 const TEXT_SIZE_CLASS: Record<NonNullable<FlexText["size"]>, string> = {
@@ -227,7 +228,7 @@ export function FlexPreviewClient() {
   const [copiedMode, setCopiedMode] = useState<"bubble" | "full" | null>(null);
 
   const current = scenarios.find((s) => s.id === selectedId) ?? scenarios[0]!;
-  const batches = ["C1", "C2", "C3", "C4", "C5"] as const;
+  const batches = ["C1", "C2", "C3", "C4", "C5", "C5N"] as const;
   const batchScenarios = scenarios.filter((s) => s.batch === current.batch);
 
   function select(id: string) {
@@ -238,6 +239,10 @@ export function FlexPreviewClient() {
   function handleAction(action: FlexAction) {
     if (action.type === "uri") {
       setLastActionLog(`เปิดลิงก์: ${action.uri}`);
+      return;
+    }
+    if (action.type === "message") {
+      setLastActionLog(`กดปุ่ม "${action.label}" → ส่งข้อความแทนผู้ใช้: "${action.text}"`);
       return;
     }
     const decoded = decodePostback(action.data);
@@ -478,6 +483,27 @@ export function FlexPreviewClient() {
                   {copiedMode === "full" ? "คัดลอกข้อความเต็มแล้ว" : "คัดลอกข้อความเต็ม (+quickReply)"}
                 </button>
               </div>
+
+              {current.compareId && scenarios.some((s) => s.id === current.compareId) && (
+                <button
+                  type="button"
+                  onClick={() => select(current.compareId!)}
+                  className="mt-4 rounded-full border border-[#7EC151] bg-[#E8F3CF] px-4 py-2 text-xs font-bold text-[#12301B] hover:bg-[#dcebb9]"
+                >
+                  {current.batch === "C5N" ? "ดูของเดิมเทียบ ←" : "ดูการ์ดใหม่เทียบ →"}
+                </button>
+              )}
+
+              {current.notes && current.notes.length > 0 && (
+                <div className="mt-4 rounded-xl border border-[#E1E8D3] bg-white px-3 py-2.5">
+                  <p className="mb-1 text-xs font-bold text-[#12301B]">ข้อความที่ลดลง และเหตุผลของแต่ละปุ่ม</p>
+                  <ul className="list-disc space-y-1 pl-4 text-xs text-[#4A5A48]">
+                    {current.notes.map((n, i) => (
+                      <li key={i}>{n}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <p
                 role="status"

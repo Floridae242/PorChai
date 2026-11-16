@@ -11,6 +11,7 @@ export * from "./cards/conversation";
 
 import { buildRecordedCard } from "./cards/recorded";
 import { buildLongTextScenarios } from "./long-text-previews";
+import { buildNewLongTextScenarios } from "./guide-card-previews";
 import { buildConversationCard } from "./cards/conversation";
 import { miniAppUrl } from "./format";
 import {
@@ -40,13 +41,17 @@ import type { LineChatMessage } from "./types";
 
 export interface FlexDemoScenario {
   id: string;
-  batch: "C1" | "C2" | "C3" | "C4" | "C5";
+  batch: "C1" | "C2" | "C3" | "C4" | "C5" | "C5N";
   code: string;
   title: string;
   userPrompt?: string;
   message: LineChatMessage;
   /** Optional map of postback action -> target scenario id for interactive simulation */
   nextOnAction?: Partial<Record<string, string>>;
+  /** Preview only: the scenario to compare with (old <-> new card). */
+  compareId?: string;
+  /** Preview only: short notes shown next to the card (why each button is there, text before/after). */
+  notes?: string[];
 }
 
 /**
@@ -472,5 +477,7 @@ export function buildDemoScenarios(appOrigin?: string): FlexDemoScenario[] {
     },
     // --- Batch C5: the real long chat answers, as the wrapper shows them (dev preview, see long-text-previews.ts)
     ...buildLongTextScenarios(appOrigin),
+    // --- Batch C5N: the same answers redone as guide cards, to compare with C5 (see guide-card-previews.ts)
+    ...buildNewLongTextScenarios(appOrigin),
   ];
 }

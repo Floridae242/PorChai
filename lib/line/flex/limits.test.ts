@@ -40,9 +40,9 @@ function collectImages(msg: FlexMessage): FlexImage[] {
 describe("LINE Flex Guardrails (limits.test.ts)", () => {
   const scenarios = buildDemoScenarios("https://porchai.vercel.app");
 
-  it("includes scenarios across all 5 batches (C1-C4 demo, C5 long chat answers)", () => {
+  it("includes scenarios across all 6 batches (C1-C4 demo, C5 long chat answers, C5N the same answers as guide cards)", () => {
     const batches = new Set(scenarios.map((s) => s.batch));
-    expect(batches).toEqual(new Set(["C1", "C2", "C3", "C4", "C5"]));
+    expect(batches).toEqual(new Set(["C1", "C2", "C3", "C4", "C5", "C5N"]));
     expect(scenarios.length).toBeGreaterThanOrEqual(18);
   });
 

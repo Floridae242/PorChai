@@ -19,6 +19,8 @@ interface Sample {
   text: string;
 }
 
+export type LongTextSample = Sample;
+
 const COPIES: Sample[] = [
   {
     id: "what-can-do",
@@ -77,11 +79,17 @@ function guideSamples(): Sample[] {
   return out;
 }
 
+// The samples, in the same order as the old (C5) and new (C5N) batches.
+export function longTextSamples(): LongTextSample[] {
+  return [...COPIES, ...guideSamples()];
+}
+
 export function buildLongTextScenarios(appOrigin?: string): FlexDemoScenario[] {
-  return [...COPIES, ...guideSamples()].map((s, i): FlexDemoScenario => ({
+  return longTextSamples().map((s, i): FlexDemoScenario => ({
     id: `long-${s.id}`,
     batch: "C5",
     code: `L-${String(i + 1).padStart(2, "0")}`,
+    compareId: `new-${s.id}`,
     title: `${s.title} · ${s.text.length} ตัวอักษร`,
     userPrompt: `${s.userPrompt}  ·  ที่มา: ${s.source}`,
     // Same quick replies the runtime adds to every answer (withAppButton in lib/line/reply.ts)
