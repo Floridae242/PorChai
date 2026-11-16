@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { thaiDate } from "@/lib/calc/time";
+import { editReplyAmount, isCorrectionReply, looksLikeAmountReply } from "@/lib/chat/correction";
 import { formatBaht } from "@/lib/format/money";
 import {
   text,
@@ -311,6 +312,10 @@ function ask(
     time: "แจ้งเตือนเวลาไหนครับ? เช่น 20:00",
   };
   return say(prompts[field], { kind: "chat_form", intent, field });
+}
+
+async function retireEdit(userId: string, pending: CommandPending): Promise<void> {
+  await remember(userId, [{ role: "bot", body: "เปลี่ยนคำขอแก้รายการก่อนยืนยัน", pending: { ...pending, closed: true } }]);
 }
 
 async function choose(
@@ -731,13 +736,36 @@ export async function chatAction(
       return pending?.kind === "chat_command"
         ? confirm(userId, pending, false)
         : say("ยกเลิกคำขอแล้วครับ");
+    if (pending?.kind === "chat_command" && !pending.closed && pending.action.op === "entry_edit") {
+      const amount = editReplyAmount(body);
+      if (amount !== null) {
+        // Retire the old card before issuing a replacement; it must not apply the previous amount.
+        await retireEdit(userId, pending);
+        return await run(userId, {
+          tool: "entry_edit", amount,
+          selected: { id: pending.action.id, title: pending.action.expected.note ?? "รายการ", amount: pending.action.expected.amount },
+        });
+      }
+    }
     if (
       pending?.kind === "chat_command" &&
       /^(ยืนยัน|ตกลง|ใช่)$/u.test(body.trim())
     )
       return confirm(userId, pending, true);
     const intent = parseIntent(body, thaiDate(new Date()));
-    if (intent) return await run(userId, intent);
+    if (intent) {
+      if (pending?.kind === "chat_command" && !pending.closed && pending.action.op === "entry_edit" &&
+          (intent.tool === "entry_edit" || intent.tool === "entry_delete")) await retireEdit(userId, pending);
+      return await run(userId, intent);
+    }
+    if (pending?.kind === "chat_command" && pending.action.op === "entry_edit" &&
+        (looksLikeAmountReply(body) || isCorrectionReply(body))) {
+      if (pending.closed) return expired();
+      await retireEdit(userId, pending);
+      return ask({ tool: "entry_edit", selected: {
+        id: pending.action.id, title: pending.action.expected.note ?? "รายการ", amount: pending.action.expected.amount,
+      } }, "amount");
+    }
     if (pending?.kind === "chat_command" || pending?.kind === "chat_list") {
       const parsed = parseExpense(body);
       if (
@@ -758,6 +786,7 @@ export async function chatAction(
         i.time = /^([01]\d|2[0-3]):[0-5]\d$/.test(body.trim())
           ? body.trim()
           : undefined;
+      else if (field === "amount" && i.tool === "entry_edit") i.amount = editReplyAmount(body) ?? undefined;
       else i[field] = statedMoney(body);
       return i[field] === undefined ? ask(i, field) : await run(userId, i);
     }

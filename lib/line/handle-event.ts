@@ -1,5 +1,6 @@
 import { routineChat } from "@/lib/chat/routine";
 import { conversationBoundary } from "@/lib/chat/intent";
+import { editReplyAmount, isCorrectionReply, looksLikeAmountReply } from "@/lib/chat/correction";
 import { AiGate, withAiScope } from "@/lib/ai/admission";
 import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
 import { tomorrowBudget } from "@/lib/calc/budget";
@@ -198,6 +199,12 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   if (isDeleteDataAsk(body)) return say(deleteDataMessage());
   const command = await chatAction(userId, body, pending);
   if (command) return command;
+  // Only a server-stored edit target can consume a short correction such as «ใช่ 400».
+  if (pending?.kind === "edit") {
+    const amount = editReplyAmount(body);
+    if (amount !== null) return say(await editAmount(userId, pending.entryId, amount));
+    if (looksLikeAmountReply(body) || isCorrectionReply(body)) return say(text("ยอดใหม่ยังไม่ชัดเจนครับ ใส่จำนวนที่มากกว่า 0 ไม่เกิน 100,000 บาท และทศนิยมไม่เกิน 2 ตำแหน่ง เช่น 400 หรือพิมพ์คำสั่งใหม่เพื่อเปลี่ยนรายการ"), pending, "ตรวจยอดใหม่");
+  }
   const clarification = conversationBoundary(body);
   if (clarification) return converse(userId, body, history, { approximate: false, question: false, clarification });
   // A social response ends the previous question; it is never the title of a pending amount.
@@ -217,12 +224,12 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     const log = await reminderById(userId, pending.reminderId);
     return say(log ? await recordReminder(userId, log, amount) : reminderNotFoundMessage());
   }
-  // Card 10 [แก้] → «50»: the new amount of that entry
-  if (pending?.kind === "edit" && amount !== null) return say(await editAmount(userId, pending.entryId, amount));
   // «ข้าว» → «กี่บาท?» → «45»
   if (pending?.kind === "amount" && amount !== null) {
     return spend(userId, { title: pending.title, amount, category: categoryOf(pending.title), key: eventId });
   }
+  // Natural-language bot replies carry no authority to select an entry or create a spend.
+  if (isCorrectionReply(body)) return say(text("ยังไม่ได้บันทึกหรือแก้รายการครับ หากต้องการแก้รายการล่าสุด พิมพ์ “แก้ยอดล่าสุด 400 บาท” โดยเปลี่ยน 400 เป็นยอดที่ถูกต้อง หรือพิมพ์ “ดูรายการ” เพื่อเลือกรายการเดิมก่อนแก้"), undefined, "เลือกข้อมูลที่ต้องการแก้");
   // «45» → «ค่าอะไร?» → «ข้าว»
   const title = body.trim();
   if (pending?.kind === "title" && parsed.kind === "ask" && parsed.reason === "no_amount" && !isQuestion(body) && title.length <= MAX_TITLE) {

@@ -8,18 +8,17 @@ import { AppHeader } from "@/components/shell/app-header";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonClass } from "@/components/ui/button";
 import { InputField } from "@/components/ui/input-field";
-import { ListRow } from "@/components/ui/list-row";
+import { PlanIcon, SettingsIcon } from "@/components/shell/icons";
 import { USER_CATEGORIES, type Summary } from "@/lib/api-types";
 import { stopClarity } from "@/lib/clarity";
 import { CATEGORY_LABELS } from "@/lib/client/category-labels";
-import { essentialsFromDaily } from "@/lib/client/essentials";
+import { essentialsFromDaily, parseEssentialsInput } from "@/lib/client/essentials";
 import { ApiError } from "@/lib/client/errors";
 import { clearAllLocalUserData } from "@/lib/client/local-data";
 import type { ReminderSettings } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
-import { bahtErrorMessage } from "@/lib/format/baht-error";
-import { formatBaht, parseBahtInput, satangToInputString } from "@/lib/format/money";
+import { formatBaht, satangToInputString } from "@/lib/format/money";
 
 const MSG_NOT_READY = "ยังไม่พร้อมใช้งาน";
 const MSG_LOAD_FAILED = "โหลดข้อมูลไม่สำเร็จ ตรวจสอบสัญญาณแล้วลองใหม่อีกครั้ง";
@@ -34,10 +33,6 @@ function errorText(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 
-function Chevron() {
-  return <span aria-hidden="true">›</span>;
-}
-
 function LoadFailed({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="flex flex-col gap-3">
@@ -49,21 +44,52 @@ function LoadFailed({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-// H3. Only what exists: no name, avatar, point total or plan status is invented.
+const SETTINGS_GROUPS = [
+  { title: "แผนเงินของคุณ", icon: PlanIcon, rows: [
+    { title: "รอบเงินและวันเงินเข้า", detail: "เปลี่ยนวันเงินเข้า หรือปรับยอดให้ตรงเงินจริง", href: "/app/plan/edit" },
+    { title: "เงินออม · เงินเผื่อ · ค่าจำเป็น", detail: "ดูเงินที่กันไว้ และตั้งค่าใช้จ่ายจำเป็นต่อวัน", href: "/app/settings/savings" },
+    { title: "บิลประจำ", detail: "เลือกวันครบกำหนดและตั้งเตือนบิลในปฏิทิน", href: "/app/settings/bills" },
+    { title: "หมวดหมู่ของฉัน", detail: "ตั้งชื่อหมวด งบรายเดือน และดูงบแนะนำ", href: "/app/settings/categories" },
+  ] },
+  { title: "การแจ้งเตือนผ่าน LINE", icon: SettingsIcon, rows: [
+    { title: "การเตือน", detail: "เตือนรายการที่อาจลืมจด และหยุดเตือนชั่วคราว", href: "/app/settings/notifications" },
+    { title: "สรุปและเตือนงบ", detail: "เลือกรับสรุปรายวัน รายเดือน และเตือนเมื่อเกินงบ", href: "/app/notifications" },
+  ] },
+] as const;
+
+function SettingsRow({ title, detail, href, danger = false }: { title: string; detail: string; href: string; danger?: boolean }) {
+  return <Link href={href} className="group flex min-h-20 items-center gap-3 rounded-md px-4 py-4 outline-none transition-colors hover:bg-subtle focus-visible:ring-2 focus-visible:ring-[var(--green-700)]">
+    <span className="min-w-0 flex-1">
+      <span className={`block text-base font-semibold ${danger ? "text-danger" : "text-primary"}`}>{title}</span>
+      <span className="mt-1 block text-sm leading-6 text-secondary">{detail}</span>
+    </span>
+    <span aria-hidden="true" className={`shrink-0 text-2xl ${danger ? "text-danger" : "text-link"}`}>›</span>
+  </Link>;
+}
+
 export function SettingsMainView() {
   return (
-    <main className="flex flex-col gap-4 py-2 font-body">
+    <main className="flex flex-col gap-6 py-2 font-body">
       <AppHeader title="ตั้งค่า" tone="default" />
-
-      <section className="divide-y divide-line rounded-md border border-line bg-card px-4">
-        <ListRow title="วิธีใช้พอใช้" href="/app/help" badge={<Chevron />} />
-        <ListRow title="รอบเงินและวันเงินเข้า" href="/app/plan/edit" badge={<Chevron />} />
-        <ListRow title="การเตือน" href="/app/settings/notifications" badge={<Chevron />} />
-        <ListRow title="เงินออม · เงินเผื่อ · ค่าจำเป็น" href="/app/settings/savings" badge={<Chevron />} />
-        <ListRow title="ความเป็นส่วนตัวและข้อมูล" href="/app/settings/privacy" badge={<Chevron />} />
-        <ListRow title="บิลประจำ" href="/app/settings/bills" badge={<Chevron />} />
-        <ListRow title="หมวดหมู่ของฉัน" href="/app/settings/categories" badge={<Chevron />} />
-        <ListRow title="ลบข้อมูลของฉัน" href="/app/settings/delete" badge={<Chevron />} />
+      <section aria-label="ปรับพอใช้ให้เข้ากับคุณ" className="rounded-sheet border border-line bg-selected p-5">
+        <p className="font-display text-2xl leading-relaxed text-primary">ใช้เงินในแบบของคุณ</p>
+        <p className="mt-1 text-sm leading-6 text-secondary">ปรับแผนเงิน จัดหมวดรายจ่าย และเลือกสิ่งที่อยากให้พอใช้เตือน</p>
+      </section>
+      {SETTINGS_GROUPS.map(({ title, icon: Icon, rows }) => <section key={title} aria-label={title}>
+        <h2 className="mb-3 flex items-center gap-2 px-1 text-sm font-semibold text-secondary"><Icon />{title}</h2>
+        <div className="divide-y divide-line overflow-hidden rounded-sheet border border-line bg-card">
+          {rows.map(row => <SettingsRow key={row.href} {...row} />)}
+        </div>
+      </section>)}
+      <section aria-label="ความช่วยเหลือและข้อมูล">
+        <h2 className="mb-3 px-1 text-sm font-semibold text-secondary">ความช่วยเหลือและข้อมูล</h2>
+        <div className="divide-y divide-line rounded-sheet border border-line bg-card">
+          <SettingsRow title="วิธีใช้พอใช้" detail="ดูตัวอย่างการจดผ่านแชตและวิธีใช้ฟีเจอร์ต่าง ๆ" href="/app/help" />
+          <SettingsRow title="ความเป็นส่วนตัวและข้อมูล" detail="ดูว่าพอใช้เก็บข้อมูลอะไรและนำไปใช้อย่างไร" href="/app/settings/privacy" />
+        </div>
+      </section>
+      <section aria-label="จัดการข้อมูลส่วนตัว" className="rounded-sheet border border-line bg-card">
+        <SettingsRow title="ลบข้อมูลของฉัน" detail="ลบข้อมูลทั้งหมดและเริ่มใหม่ ต้องยืนยันก่อนลบ" href="/app/settings/delete" danger />
       </section>
     </main>
   );
@@ -87,6 +113,7 @@ export function SettingsNotificationsView() {
   const [pausedUntil, setPausedUntil] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
+  const [timeError, setTimeError] = useState<string | null>(null);
 
   const apply = useCallback((s: ReminderSettings) => {
     setEnabled(s.enabled);
@@ -117,10 +144,15 @@ export function SettingsNotificationsView() {
     fn();
     setSavedNote(false);
     setFieldError(null);
+    setTimeError(null);
     if (save.done || save.error) save.reset();
   }
 
   async function handleSave() {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+      setTimeError("เลือกเวลาเตือนก่อนบันทึก");
+      return;
+    }
     if (paused && !pausedUntil) {
       setFieldError("เลือกวันที่หยุดเตือนถึง");
       return;
@@ -168,7 +200,11 @@ export function SettingsNotificationsView() {
       {header}
 
       {!ready ? <Banner kind="info" text={`${MSG_NOT_READY} — ตั้งค่าการเตือนยังใช้ไม่ได้ตอนนี้`} /> : null}
-      <Link href="/app/notifications" className={buttonClass("secondary")}>สรุปรายวัน รายเดือน และเตือนงบ</Link>
+      <p className="text-sm leading-6 text-secondary">ให้พอใช้ช่วยเตือนรายการที่อาจลืมจด เลือกเวลาได้ตามชีวิตประจำวันของคุณ</p>
+      <div className="rounded-sheet border border-line bg-card">
+        <SettingsRow title="สรุปรายวัน รายเดือน และเตือนงบ" detail="ตั้งค่าข้อความสรุปและเตือนเมื่อใช้เกินงบแยกได้ที่นี่" href="/app/notifications" />
+        <SettingsRow title="เตือนบิลประจำ" detail="เลือกบิลที่จะเตือน ล่วงหน้า 3 วันและวันครบกำหนด 09:00 น." href="/app/settings/bills" />
+      </div>
 
       <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
         <label className="flex items-center justify-between gap-3 text-sm font-semibold text-primary">
@@ -180,9 +216,9 @@ export function SettingsNotificationsView() {
             type="checkbox"
             role="switch"
             checked={enabled}
-            disabled={!ready}
+            disabled={!ready || (save.busy && !save.done)}
             onChange={(e) => edit(() => setEnabled(e.target.checked))}
-            className="size-5 accent-[var(--green-700)]"
+            className="size-6 shrink-0 accent-[var(--green-700)]"
           />
         </label>
 
@@ -190,8 +226,10 @@ export function SettingsNotificationsView() {
           label="เวลาเตือน"
           type="time"
           value={time}
-          disabled={!ready}
+          disabled={!ready || (save.busy && !save.done)}
           onChange={(e) => edit(() => setTime(e.target.value))}
+          state={timeError ? "error" : "default"}
+          helper={timeError ?? "เวลาประเทศไทย (UTC+7)"}
         />
 
         <div className="flex flex-col gap-2 border-t border-line pt-3">
@@ -201,9 +239,9 @@ export function SettingsNotificationsView() {
               type="checkbox"
               role="switch"
               checked={paused}
-              disabled={!ready}
+              disabled={!ready || (save.busy && !save.done)}
               onChange={(e) => edit(() => setPaused(e.target.checked))}
-              className="size-5 accent-[var(--green-700)]"
+              className="size-6 shrink-0 accent-[var(--green-700)]"
             />
           </label>
           {paused ? (
@@ -211,7 +249,7 @@ export function SettingsNotificationsView() {
               label="หยุดเตือนถึงวันที่"
               type="date"
               value={pausedUntil}
-              disabled={!ready}
+              disabled={!ready || (save.busy && !save.done)}
               onChange={(e) => edit(() => setPausedUntil(e.target.value))}
               state={fieldError ? "error" : "default"}
               helper={fieldError ?? undefined}
@@ -240,7 +278,7 @@ export function SettingsNotificationsView() {
         )}
       </section>
 
-      <p className="text-xs text-secondary">พอใช้ไม่ส่งโปรหรือโฆษณาผ่านข้อความ LINE</p>
+      <p className="text-xs leading-5 text-secondary">ต้องเพิ่มเพื่อน LINE OA พอใช้เพื่อรับการเตือน การตั้งค่านี้ใช้สำหรับเตือนรายการที่จด ไม่เปิดรับโฆษณา</p>
 
       {saveError ? <Banner kind={isCode(save.error, "not_implemented") ? "info" : "error"} text={saveError} /> : null}
       {savedNote ? <Banner kind="info" text="บันทึกการตั้งค่าแล้ว" /> : null}
@@ -277,7 +315,6 @@ export function SettingsSavingsView() {
   const [essentialText, setEssentialText] = useState("");
   const [essentialError, setEssentialError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
-  const [notReady, setNotReady] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -300,8 +337,8 @@ export function SettingsSavingsView() {
   }, [api, attempt]);
 
   async function handleSave() {
-    const parsed = parseBahtInput(essentialText);
-    setEssentialError(parsed.ok ? null : bahtErrorMessage(parsed.reason));
+    const parsed = parseEssentialsInput(essentialText);
+    setEssentialError(parsed.ok ? null : parsed.message);
     if (!parsed.ok) return;
     const result = await save.submit(parsed.satang, () => api.setEssentials(essentialsFromDaily(parsed.satang)));
     if (result.ok) {
@@ -310,7 +347,7 @@ export function SettingsSavingsView() {
     }
   }
 
-  const header = <AppHeader title="เงินออม เงินเผื่อ + ค่าจำเป็น" back="/app/settings" tone="default" />;
+  const header = <AppHeader title="เงินที่กันไว้" back="/app/settings" tone="default" />;
 
   if (data.state === "loading") {
     return (
@@ -342,35 +379,37 @@ export function SettingsSavingsView() {
       {header}
 
       <section className="flex flex-col gap-2 rounded-md border border-line bg-card p-4">
-        <h2 className="text-base font-semibold text-primary">1 เป้าออมรอบนี้</h2>
+        <h2 className="text-base font-semibold text-primary">เป้าออมรอบนี้</h2>
         <p className="text-sm text-secondary">
           ตอนนี้กันไว้ <span className="font-semibold tabular-nums text-primary">{formatBaht(s.savings)} บาท</span>
         </p>
         <Button
           variant="secondary"
-          onClick={() => setNotReady(`${MSG_NOT_READY} — ปรับเป้าออมยังใช้ไม่ได้ตอนนี้`)}
+          disabled
         >
           ปรับเป้าออม
         </Button>
+        <p className="text-xs leading-5 text-secondary">ดูยอดที่กันไว้ได้ การปรับเป้าออมในหน้านี้ยังไม่พร้อมใช้งาน</p>
       </section>
 
       <section className="flex flex-col gap-2 rounded-md border border-line bg-card p-4">
-        <h2 className="text-base font-semibold text-primary">2 เงินเผื่อ</h2>
+        <h2 className="text-base font-semibold text-primary">เงินเผื่อฉุกเฉิน</h2>
         <p className="text-sm text-secondary">
           เก็บไว้สำหรับเรื่องฉุกเฉิน · ตอนนี้{" "}
           <span className="font-semibold tabular-nums text-primary">{formatBaht(s.emergencyBuffer)} บาท</span>
         </p>
         <Button
           variant="secondary"
-          onClick={() => setNotReady(`${MSG_NOT_READY} — ปรับเงินเผื่อยังใช้ไม่ได้ตอนนี้`)}
+          disabled
         >
           ปรับเงินเผื่อ
         </Button>
+        <p className="text-xs leading-5 text-secondary">ดูยอดที่กันไว้ได้ การปรับเงินเผื่อในหน้านี้ยังไม่พร้อมใช้งาน</p>
       </section>
 
       <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
         <div>
-          <h2 className="text-base font-semibold text-primary">3 ค่าใช้จ่ายจำเป็นต่อวัน</h2>
+          <h2 className="text-base font-semibold text-primary">ค่าใช้จ่ายจำเป็นต่อวัน</h2>
           <p className="text-xs text-secondary">
             เงินที่ต้องใช้ทุกวันแน่ ๆ ใส่เป็นยอดรวมได้เลย · ใช้คำนวณว่าของชิ้นหนึ่งซื้อได้ไม่เกินเท่าไหร่
           </p>
@@ -380,6 +419,7 @@ export function SettingsSavingsView() {
           inputMode="decimal"
           placeholder="เช่น 70"
           value={essentialText}
+          disabled={save.busy && !save.done}
           onChange={(e) => {
             setEssentialText(e.target.value);
             setEssentialError(null);
@@ -387,11 +427,10 @@ export function SettingsSavingsView() {
             if (save.done || save.error) save.reset();
           }}
           state={essentialError ? "error" : essentialText ? "filled" : "default"}
-          helper={essentialError ?? "รวมทุกอย่างที่ต้องจ่ายทุกวันไว้ในช่องเดียว"}
+          helper={essentialError ?? "รวมทุกอย่างที่ต้องจ่ายทุกวัน ถ้าไม่มีให้ใส่ 0"}
         />
       </section>
 
-      {notReady ? <Banner kind="info" text={notReady} /> : null}
       {saveError ? <Banner kind={isCode(save.error, "not_implemented") ? "info" : "error"} text={saveError} /> : null}
       {savedNote ? <Banner kind="info" text="บันทึกค่าจำเป็นต่อวันแล้ว" /> : null}
 
@@ -460,7 +499,7 @@ export function SettingsPrivacyView() {
         <ul className="flex flex-col gap-2 text-secondary">
           <li>• ยอดเงิน วันเงินเข้า และบิลที่คุณกรอก</li>
           <li>• รายการรายรับ/รายจ่ายที่คุณจด</li>
-          <li>• LINE ID เพื่อให้เปิดแผนของคุณได้</li>
+          <li>• รหัสผู้ใช้ LINE เพื่อเชื่อมแชตกับแผนของคุณ</li>
           <li>• บันทึกการแตะ การเลื่อนหน้า และหน้าที่เปิด ด้วย Microsoft Clarity เพื่อปรับปรุงแอป เริ่มเก็บหลังคุณกดยอมรับเท่านั้น</li>
         </ul>
       </section>
@@ -468,7 +507,7 @@ export function SettingsPrivacyView() {
       <section className="flex flex-col gap-2 rounded-md border border-line bg-card p-4 text-sm">
         <h2 className="text-base font-semibold text-primary">สิ่งที่ไม่ทำ</h2>
         <ul className="flex flex-col gap-2 text-secondary">
-          <li>• ไม่เชื่อมบัญชีธนาคาร ไม่ขอสลิป</li>
+          <li>• ไม่เชื่อมบัญชีธนาคาร และไม่ขอรหัสผ่านธนาคาร</li>
           <li>• ข้อความ ตัวเลข ยอดเงิน และสิ่งที่คุณกรอกถูกปิดบังทั้งหมดใน Clarity</li>
         </ul>
       </section>
@@ -515,16 +554,16 @@ export function SettingsDeleteView() {
       {error ? <Banner kind={isCode(del.error, "not_implemented") ? "info" : "error"} text={error} /> : null}
 
       <div className="flex flex-col gap-3">
-        <Button
-          variant="primary"
-          block
+        <button
+          type="button"
+          className="flex min-h-[52px] w-full items-center justify-center rounded-pill bg-danger px-6 py-3 font-semibold text-white outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
           onClick={() => {
             del.reset();
             setConfirmOpen(true);
           }}
         >
           ลบข้อมูลทั้งหมด
-        </Button>
+        </button>
         <Link href="/app/settings" className={buttonClass("secondary", true)}>
           ยกเลิก
         </Link>

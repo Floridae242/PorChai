@@ -184,7 +184,11 @@ export function CustomCategoriesView() {
         </p>
       ) : (
         <>
-          <ul className="divide-y divide-line rounded-md border border-line bg-card px-4">
+          {rows.length === 0 ? <section className="rounded-sheet border border-dashed border-line-strong bg-subtle p-5">
+            <h2 className="font-semibold text-primary">เริ่มจัดหมวดในแบบของคุณ</h2>
+            <p className="mt-2 text-sm leading-6 text-secondary">เช่น กาแฟ อาหารในมหาวิทยาลัย หรือค่าเดินทาง สร้างหมวดแล้วเลือกตั้งงบรายเดือนได้</p>
+          </section> : null}
+          <ul aria-label="หมวดและงบรายเดือน" className="divide-y divide-line rounded-sheet border border-line bg-card px-4">
             {rows.map((c) => (
               <li
                 key={c.id}
@@ -194,8 +198,8 @@ export function CustomCategoriesView() {
                   <strong className="break-words text-primary">
                     {c.label}
                   </strong>
-                  <p className="mt-1 text-xs text-secondary">
-                    หมวดหลัก: {CATEGORY_LABELS[c.parent]} ·{" "}
+                  <p className="mt-1 text-xs leading-5 text-secondary">หมวดหลัก: {CATEGORY_LABELS[c.parent]}</p>
+                  <p className="mt-2 text-sm font-semibold text-primary">
                     {c.monthlyBudget === null
                       ? "ยังไม่ตั้งงบ"
                       : `${formatBaht(c.monthlyBudget)} บาท/เดือน`}

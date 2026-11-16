@@ -48,7 +48,7 @@ export function fields(message: string, tool: Tool, today: string): Intent {
     : /(?:สัปดาห์|อาทิตย์)ที่แล้ว/u.test(message)
     ? addDays(today, -7)
     : statedDate(message, today);
-  const target = /ล่าสุด/u.test(message)
+  const target = /ล่าสุด|เมื่อกี้/u.test(message)
     ? "latest"
     : Number(normalized.match(/(?:รายการ|แผน|บิล|ลำดับ)\s*(\d+)/u)?.[1]) ||
       undefined;
@@ -81,7 +81,7 @@ export function fields(message: string, tool: Tool, today: string): Intent {
 export function parseIntent(message: string, today: string): Intent | null {
   const s = message
       .trim()
-      .replace(/^(?:ช่วย(?!เหลือ)|ขอให้|ขอ(?=ดู)|อยากให้|อยาก)\s*/u, ""),
+      .replace(/^(?:ช่วย(?!เหลือ)|ขอให้|ขอ(?=ดู|แก้|เปลี่ยน)|อยากให้|อยาก|ต้องการ)\s*/u, ""),
     bare = s.replace(/(?:ครับ|ค่ะ|นะครับ|หน่อย)+$/u, "").trim();
   if(/^(?:ดู|ขอ)?(?:วิเคราะห์|พฤติกรรม|แพทเทิร์น)|^AI\s*(?:แนะนำ|วิเคราะห์)|^แนะนำงบ/iu.test(s))return {tool:"insights",query:s};
   if(/^(?:ดู|ขอ)(?:หมวด|งบรายหมวด)/u.test(s))return {tool:"categories"};
@@ -131,6 +131,10 @@ export function parseIntent(message: string, today: string): Intent | null {
     return fields(s, "notifications", today);
   if (/^(?:เปิด|ปิด|ดู|ตั้ง(?:ค่า)?)(?:การเตือนจด|เตือนจด|เตือนรายการ)/u.test(s))
     return fields(s, "reminders", today);
+  const balanceEdit = /^แก้ยอดเงิน(?:จริง)?(?:\s|[๐-๙\d]|$)/u.test(s);
+  if (/^(?:แก้(?:ไข)?|เปลี่ยนยอด)(?:รายการ|รายจ่าย)/u.test(s) ||
+      (!balanceEdit && /^(?:แก้(?:ไข)?(?:ยอด|จำนวนเงิน)|เปลี่ยน(?:ยอด|จำนวนเงิน))/u.test(s)))
+    return fields(s, "entry_edit", today);
   if (/^ปรับยอด|^แก้ยอดเงิน|^ยอดเงินจริง/u.test(s))
     return fields(s, "balance", today);
   if (/^(?:ตั้ง|ปรับ|กัน|เปลี่ยน)(?:ค่า)?เงินเผื่อ/u.test(s))
