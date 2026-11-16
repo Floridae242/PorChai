@@ -40,9 +40,9 @@ function collectImages(msg: FlexMessage): FlexImage[] {
 describe("LINE Flex Guardrails (limits.test.ts)", () => {
   const scenarios = buildDemoScenarios("https://porchai.vercel.app");
 
-  it("includes scenarios across all 4 batches (C1, C2, C3, C4)", () => {
+  it("includes scenarios across all 5 batches (C1-C4 demo, C5 long chat answers)", () => {
     const batches = new Set(scenarios.map((s) => s.batch));
-    expect(batches).toEqual(new Set(["C1", "C2", "C3", "C4"]));
+    expect(batches).toEqual(new Set(["C1", "C2", "C3", "C4", "C5"]));
     expect(scenarios.length).toBeGreaterThanOrEqual(18);
   });
 
@@ -82,7 +82,8 @@ describe("LINE Flex Guardrails (limits.test.ts)", () => {
         it("encodes all postback buttons with valid v1.<action>.<id> <= 300 chars", () => {
           const buttons = collectButtons(flexMsg);
           for (const btn of buttons) {
-            if (btn.action.type === "postback") {
+            // guide:<topic> is the guide buttons' own format (lib/line/onboarding.ts), not a v1 card action
+            if (btn.action.type === "postback" && !btn.action.data.startsWith("guide:")) {
               expect(btn.action.data.length).toBeLessThanOrEqual(300);
               const decoded = decodePostback(btn.action.data);
               expect(decoded).not.toBeNull();
@@ -100,7 +101,7 @@ describe("LINE Flex Guardrails (limits.test.ts)", () => {
             expect(item.action.label.length).toBeLessThanOrEqual(20);
             if (item.action.type === "postback") {
               expect(item.action.data.length).toBeLessThanOrEqual(300);
-              expect(decodePostback(item.action.data)).not.toBeNull();
+              if (!item.action.data.startsWith("guide:")) expect(decodePostback(item.action.data)).not.toBeNull();
             }
           }
         });

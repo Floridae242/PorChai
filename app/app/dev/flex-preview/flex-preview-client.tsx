@@ -16,11 +16,12 @@ import {
   type FlexText,
 } from "@/lib/line/flex";
 
-const BATCH_NAMES: Record<"C1" | "C2" | "C3" | "C4", string> = {
+const BATCH_NAMES: Record<"C1" | "C2" | "C3" | "C4" | "C5", string> = {
   C1: "C1 · เดโมหลัก (จดข้าว + เตือน 12:30)",
   C2: "C2 · ถาม AI & ลองก่อนจ่าย",
   C3: "C3 · เริ่มใช้ & เมนูหลัก",
   C4: "C4 · สลิป OCR & ลิงก์โปร/แต้ม",
+  C5: "C5 · ข้อความยาวจริงที่ถูกห่อเป็นการ์ด (ดูก่อนปรับ)",
 };
 
 const TEXT_SIZE_CLASS: Record<NonNullable<FlexText["size"]>, string> = {
@@ -262,7 +263,7 @@ export function FlexPreviewClient() {
     setTimeout(() => setCopiedMode(null), 2000);
   }
 
-  const batches = ["C1", "C2", "C3", "C4"] as const;
+  const batches = ["C1", "C2", "C3", "C4", "C5"] as const;
 
   return (
     <div className="min-h-screen bg-[#F7F9F1] p-4 md:p-6 text-[#12301B]">

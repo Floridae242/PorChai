@@ -10,6 +10,7 @@ export * from "./cards/chat-extras";
 export * from "./cards/conversation";
 
 import { buildRecordedCard } from "./cards/recorded";
+import { buildLongTextScenarios } from "./long-text-previews";
 import { buildConversationCard } from "./cards/conversation";
 import { miniAppUrl } from "./format";
 import {
@@ -39,7 +40,7 @@ import type { LineChatMessage } from "./types";
 
 export interface FlexDemoScenario {
   id: string;
-  batch: "C1" | "C2" | "C3" | "C4";
+  batch: "C1" | "C2" | "C3" | "C4" | "C5";
   code: string;
   title: string;
   userPrompt?: string;
@@ -469,5 +470,7 @@ export function buildDemoScenarios(appOrigin?: string): FlexDemoScenario[] {
       userPrompt: "แต้ม",
       message: buildPointsLinkMessage(appOrigin),
     },
+    // --- Batch C5: the real long chat answers, as the wrapper shows them (dev preview, see long-text-previews.ts)
+    ...buildLongTextScenarios(appOrigin),
   ];
 }
