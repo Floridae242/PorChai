@@ -28,6 +28,7 @@ import {
   miniAppUrl,
 } from "@/lib/line/flex";
 import { text, type QuickReplyAction, type ReplyMessage, type TextMessage } from "@/lib/line/reply";
+import { guideCard } from "@/lib/line/flex/guide-specs";
 import { buildOnboardingCarousel } from "@/lib/line/onboarding";
 
 // Card 10: what the bot says with โฟรวิว's Flex cards (lib/line/flex), and the answers to their buttons.
@@ -237,11 +238,7 @@ export const entryNotFoundMessage = (): TextMessage => text("ไม่พบร�
 
 // Rich menu [จดรายรับ/จ่าย]: only what the chat records today. โฟรวิว's how-to card also shows
 // «เมื่อวาน ข้าว 45», which the chat cannot record (it is asked back), so it is not used here yet.
-export const howToRecordMessage = (): TextMessage =>
-  text(
-    "จดรายจ่าย พิมพ์ชื่อกับยอดได้เลยครับ เช่น «ข้าว 45»\nรายรับ พิมพ์ รับ ตามด้วยยอด เช่น «รับ 500»\nหลายรายการพิมพ์ในข้อความเดียวได้ เช่น «ข้าว 45 กาแฟ 55» แล้วกดยืนยัน\nจดย้อนหลัง กรอกในแอปแล้วเลือกวันที่ได้เลย",
-    [{ type: "uri", label: "กรอกในแอป", uri: miniAppUrl("/app/record/new") }],
-  );
+export const howToRecordMessage = (): ReplyMessage => guideCard("how-to-record")!;
 
 // Rich menu [ลองก่อนจ่าย]
 export const howToTryMessage = (): TextMessage =>

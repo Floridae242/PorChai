@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildDemoScenarios } from "../index";
 import type { FlexMessage, FlexNode } from "../types";
+import { guideReply } from "../../onboarding";
+import { howToRecordMessage } from "@/lib/chat/cards";
+import { deleteDataMessage } from "@/lib/chat/messages";
+import { guideCard } from "../guide-specs";
 import { buildGuideCard, visibleTextLength } from "./guide-cards";
 
 const scenarios = buildDemoScenarios("https://porchai.vercel.app");
@@ -76,6 +80,12 @@ describe("C5N: every long answer of C5 redone as a card", () => {
     const buttons = card.contents.footer?.contents ?? [];
     expect(buttons.length).toBeLessThanOrEqual(2);
     expect(buttons.length).toBeGreaterThan(0);
+    // LINE: a button label is at most 20 characters, a message action sends at most 300
+    for (const b of buttons) {
+      if (b.type !== "button") continue;
+      expect(b.action.label.length).toBeLessThanOrEqual(20);
+      if (b.action.type === "message") expect(b.action.text.length).toBeLessThanOrEqual(300);
+    }
     expect((n.notes ?? []).filter((x) => x.startsWith("ปุ่ม ")).length).toBe(buttons.length);
     // a mascot (image), over https png
     expect(JSON.stringify(card)).toMatch(/https:\/\/[^"]+\/mascot\/[A-Za-z]+\.png/);
@@ -90,5 +100,50 @@ describe("C5N: every long answer of C5 redone as a card", () => {
     }
     expect(sent.length).toBeGreaterThan(5);
     for (const text of sent) expect(text).toMatch(/^(ดู|ค้น)/);
+  });
+});
+
+// What the chat's own tests (lib/line/chat.db.test.ts, help-request.test.ts) look for in these answers.
+describe("the chat's guide cards keep the sentences and buttons the chat tests pin", () => {
+  const all = (m: FlexMessage) => texts(m).join(" ");
+  const buttons = (m: FlexMessage) =>
+    (m.contents.footer?.contents ?? []).flatMap((b) => (b.type === "button" ? [b.action] : []));
+
+  it("how to record: only what works, and the button «กรอกในแอป»", () => {
+    const m = howToRecordMessage() as FlexMessage;
+    expect(m.type).toBe("flex");
+    expect(all(m)).toContain("«ข้าว 45»");
+    expect(all(m)).toContain("«รับ 500»");
+    expect(all(m)).not.toContain("เมื่อวาน");
+    expect(buttons(m)).toContainEqual(expect.objectContaining({ type: "uri", label: "กรอกในแอป" }));
+  });
+
+  it("delete data: where, that it cannot be undone, and the link to the delete page", () => {
+    const m = deleteDataMessage() as FlexMessage;
+    expect(all(m)).toContain("ตั้งค่า › ลบข้อมูลของฉัน");
+    expect(all(m)).toContain("กู้คืนไม่ได้");
+    expect(buttons(m)).toContainEqual(expect.objectContaining({ type: "uri", label: "ไปหน้าลบข้อมูล", uri: expect.stringMatching(/\/settings\/delete$/) }));
+  });
+
+  it("a correction reply with nothing to correct says nothing was saved", () => {
+    expect(all(guideCard("correction-reply")!)).toContain("ยังไม่ได้บันทึกหรือแก้รายการ");
+  });
+
+  it("multi record keeps its facts and its honest limit", () => {
+    const t = all(guideReply("guide:multi_record")!);
+    for (const part of ["2–5", "จดทั้งหมด", "ข้าว 45\nกาแฟ 55", "ยังไม่ได้สร้างรายการร่างหรือบันทึก"]) expect(t).toContain(part);
+  });
+
+  it("every guide topic says that reading it changed nothing, and unknown topics get no card", () => {
+    const ids = ["multi_record", "edit", "scan", "search", "balance", "essentials", "payday", "buffer", "reminders", "privacy",
+      "start", "record", "income", "decide", "categories", "plans", "reports", "points", "notify", "promos"];
+    for (const id of ids) {
+      const card = guideReply(`guide:${id}`);
+      expect(card, id).toBeTruthy();
+      expect(all(card!)).toContain("ยังไม่ได้บันทึกหรือเปลี่ยนข้อมูล");
+      // never a one-tap button that changes money
+      for (const a of buttons(card!)) if (a.type === "message") expect(a.text).toMatch(/^(ดู|ค้น)/);
+    }
+    for (const bad of ["guide:pay:1000", "guide:../start", "guide:unknown", "pc:yes:any"]) expect(guideReply(bad)).toBeNull();
   });
 });

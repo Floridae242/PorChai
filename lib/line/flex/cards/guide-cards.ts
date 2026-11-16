@@ -23,6 +23,7 @@ export interface GuideCardSpec {
   rows?: { label: string; text: string }[]; // ≤ 4
   example?: string; // what to type, as the user would write it
   note?: string; // one small line (amber): what is NOT done / a caution
+  guideNote?: boolean; // the guide topics: "reading this changed nothing" (always said by the guide texts)
   buttons: GuideButton[]; // ≤ 2, the first is the main one
 }
 
@@ -59,6 +60,7 @@ export function buildGuideCard(spec: GuideCardSpec, appOrigin?: string): FlexMes
     );
   }
   if (spec.note) body.push(text(spec.note, { size: "xxs", color: FLEX_COLORS.sage500 }));
+  if (spec.guideNote) body.push(text("การดูคู่มือยังไม่ได้บันทึกหรือเปลี่ยนข้อมูล", { size: "xxs", color: FLEX_COLORS.sage500 }));
 
   const buttons = spec.buttons.slice(0, 2);
   const alt = [spec.title, spec.lead, ...(spec.rows ?? []).map((r) => `${r.label}: ${r.text}`)].filter(Boolean).join(" · ");

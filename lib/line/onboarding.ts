@@ -8,6 +8,8 @@ import { appUrl } from "@/lib/liff/config";
 import { mascotPngUrl } from "./flex/format";
 import { text, type TextMessage } from "./reply";
 import { EXTRA_HELP } from "./help-request";
+import { guideCard } from "./flex/guide-specs";
+import type { FlexMessage as GuideCard } from "./flex/types";
 
 export const ONBOARDING_STEPS = [
   {
@@ -264,4 +266,10 @@ export function onboardingHelp(data: string): TextMessage | null {
         `${step.title}\n${step.detail}\n\nตัวอย่างสำหรับพิมพ์เอง: ${step.command}\n${step.tip}\nปุ่มคู่มือยังไม่ได้บันทึกหรือเปลี่ยนข้อมูลครับ`,
       )
     : null;
+}
+
+/** The chat's answer to a guide button / help request: a card. Same whitelist as onboardingHelp. */
+export function guideReply(data: string): GuideCard | null {
+  if (!onboardingHelp(data)) return null;
+  return guideCard(data.slice("guide:".length));
 }

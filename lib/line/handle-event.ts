@@ -91,7 +91,8 @@ import { decodePostback, type DecodedPostback } from "@/lib/line/flex/postback";
 import { reply, text, withAppButton, type ReplyMessage } from "@/lib/line/reply";
 import { presentReply } from "@/lib/line/presentation";
 import { chatAction, chatActionButton } from "@/lib/chat/actions";
-import { onboardingHelp } from "@/lib/line/onboarding";
+import { guideReply, onboardingHelp } from "@/lib/line/onboarding";
+import { guideCard } from "@/lib/line/flex/guide-specs";
 import { readHelpRequest } from "@/lib/line/help-request";
 import {pointsConnection} from "@/lib/support/points-connection";
 import {getDb} from "@/lib/db/client";
@@ -179,7 +180,7 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     return say(text(`ยอดจากเซิร์ฟเวอร์ ${info.balance} แต้ม\nรหัสบัญชี ${info.accountCode}\nรหัสระบบ ${info.systemCode} · เวอร์ชัน ${info.release}\nเปิดหน้าแต้มใน MINI App แล้วเลือก ตรวจการเชื่อมต่อ เพื่อเทียบรหัสทั้งสองฝั่งครับ`),undefined,"ตรวจการซิงก์แต้ม");
   }
   const help=readHelpRequest(body);
-  if(help)return say(help.topic?onboardingHelp(`guide:${help.topic}`)!:welcomeCard(),undefined,"วิธีใช้พอใช้");
+  if(help)return say(help.topic?(guideReply(`guide:${help.topic}`)??onboardingHelp(`guide:${help.topic}`)!):welcomeCard(),undefined,"วิธีใช้พอใช้");
   const history = await recentChat(userId);
   const last = history.at(-1);
   const pending = last?.role === "bot" ? last.pending : null; // only the very next message answers it
@@ -235,7 +236,7 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     return spend(userId, { title: pending.title, amount, category: categoryOf(pending.title), key: eventId });
   }
   // Natural-language bot replies carry no authority to select an entry or create a spend.
-  if (isCorrectionReply(body)) return say(text("ยังไม่ได้บันทึกหรือแก้รายการครับ หากต้องการแก้รายการล่าสุด พิมพ์ “แก้ยอดล่าสุด 400 บาท” โดยเปลี่ยน 400 เป็นยอดที่ถูกต้อง หรือพิมพ์ “ดูรายการ” เพื่อเลือกรายการเดิมก่อนแก้"), undefined, "เลือกข้อมูลที่ต้องการแก้");
+  if (isCorrectionReply(body)) return say(guideCard("correction-reply")!, undefined, "เลือกข้อมูลที่ต้องการแก้");
   // «45» → «ค่าอะไร?» → «ข้าว»
   const title = body.trim();
   if (pending?.kind === "title" && parsed.kind === "ask" && parsed.reason === "no_amount" && !isQuestion(body) && title.length <= MAX_TITLE) {
@@ -355,7 +356,7 @@ const LABEL = { pay: "ยืนยันจ่ายจริง", try: "ลอ�
 // Buttons from holdMessage / tryMessage / adviceMessage / proposalMessage. Anything malformed is ignored.
 async function onPostback(userId: string, data: string): Promise<{ label: string; answer: Answer } | null> {
   if(data==="guide:all")return {label:"วิธีใช้",answer:say(welcomeCard())};
-  if(data.startsWith("guide:"))return {label:"ดูคู่มือ",answer:say(onboardingHelp(data)??text("ไม่พบหัวข้อคู่มือนี้ครับ พิมพ์ คู่มือ เพื่อเลือกอีกครั้ง"),undefined,"วิธีใช้พอใช้")};
+  if(data.startsWith("guide:"))return {label:"ดูคู่มือ",answer:say(guideReply(data)??onboardingHelp(data)??text("ไม่พบหัวข้อคู่มือนี้ครับ พิมพ์ คู่มือ เพื่อเลือกอีกครั้ง"),undefined,"วิธีใช้พอใช้")};
   const command = await chatActionButton(userId, data);
   if (command) return { label: "คำสั่งแชต", answer: command };
   const flex = decodePostback(data);

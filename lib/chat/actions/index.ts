@@ -65,7 +65,8 @@ import { CATEGORY_LABELS } from "@/lib/line/flex/format";
 import { parseIntent, statedDate, statedMoney } from "./parse";
 import { inferReadIntent } from "./infer";
 import { sponsorCarousel } from "@/lib/line/sponsor-card";
-import { installmentSchedule, parseInstallment } from "./installments";
+import { INSTALLMENT_HELP, installmentSchedule, parseInstallment } from "./installments";
+import { guideCard } from "@/lib/line/flex/guide-specs";
 import { addInstallments } from "@/lib/db/installments";
 import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isQuestion } from "@/lib/advice/question";
 import { simulatePurchase } from "@/lib/calc/budget";
@@ -102,8 +103,8 @@ const action = (label: string, data: string): QuickReplyAction => ({
   data,
   displayText: label,
 });
-const help =
-  "ทำในแชตได้เลยครับ เช่น\n• ได้รับเงิน 1000 บาท / ข้าว 50\n• วันนี้ใช้ได้เท่าไหร่ / ดูรายงานวันนี้ / ดูรายงานเดือนนี้\n• ค้นรายจ่าย ข้าว / ดูรายการ\n• เพิ่มบิล ค่าหอ 500 บาท / ดูแผน / จ่ายบิล 1\n• ผ่อน โทรศัพท์ ยอดรวม 12000 บาท 12 งวด เริ่ม 2026-12-01\n• แก้รายการล่าสุด 60 บาท / ลบรายการล่าสุด\n• ปรับยอด 2000 บาท / กันเงินเผื่อ 100 บาท\n• เปลี่ยนวันรับเงิน 2026-12-01\n• ตั้งค่าอาหาร 50 ค่ารถ 20\n• เปิดสรุปรายวัน เวลา 20:00 / ปิดแจ้งเตือน\n• เปิดเตือนจด / ดูแต้ม / เช็กครบแล้ว / แลกของ\n• เริ่มรอบเงิน / ดูคูปอง\n• ดูภาพรวม / วิเคราะห์ / AI วิเคราะห์ / ดูหมวด\n• เพิ่มหมวด ชานม กลุ่ม อาหาร งบ 500 บาท\nจดวันนี้รับแต้มอัตโนมัติวันละ 1 แต้ม\nส่งรูปใบเสร็จ หรือถามก่อนจ่ายได้ด้วยครับ";
+// «ทำอะไรได้»: a short menu card (was a 14-line text); the rest is one tap away in the guide topics
+const helpAnswer = (): Answer => ({ message: guideCard("what-can-do")! });
 const expired = () => say("คำขอนี้หมดอายุหรือไม่ใช่ของบัญชีนี้แล้วครับ พิมพ์คำสั่งใหม่ได้เลย");
 
 async function preview(
@@ -438,7 +439,7 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
       );
     }
     case "help":
-      return say(help);
+      return helpAnswer();
     case "setup":
       return setup({
         kind: "chat_setup",
@@ -627,7 +628,7 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
       );
     }
     default:
-      return say(help);
+      return helpAnswer();
   }
 }
 
@@ -825,7 +826,10 @@ export async function chatAction(
       error.code !== "no_cycle" &&
       error.status < 500
     )
-      return say(error.message,undefined,[],"ตรวจคำขออีกครั้ง");
+      // the installment how-to is a card, every other message stays text
+      return error.message === INSTALLMENT_HELP
+        ? { message: guideCard("installment-help")!, heading: "แผนผ่อนสินค้า" }
+        : say(error.message, undefined, [], "ตรวจคำขออีกครั้ง");
     throw error;
   }
 }
