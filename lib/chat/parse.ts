@@ -3,7 +3,7 @@ import type { UserCategory } from "@/lib/api-types";
 // Card 09: read a short chat message such as «ข้าว 50». Pure, so every rule is a unit test.
 // Anything unclear is asked back, never guessed (no number words, no AI: "ไม่ขยายรองรับภาษาทุกแบบ").
 
-export type AskReason = "no_amount" | "many_amounts" | "approximate" | "no_title" | "too_large" | "income" | "backdated";
+export type AskReason = "no_amount" | "many_amounts" | "approximate" | "no_title" | "too_large" | "income" | "backdated" | "number_word";
 
 export type ParsedExpense =
   | { kind: "entry"; title: string; amount: number; category: UserCategory }
@@ -22,7 +22,13 @@ const INCOME = /^(ได้รับเงิน|เงินเดือนเ�
 const BACKDATED = /เมื่อวาน|วานนี้|เมื่อคืน/;
 const NUMBER = /\d+(?:\.\d{1,2})?/g;
 const CURRENCY = /บาท|฿|\.-/g;
+// «ห้าสิบ», «ข้าวห้าสิบบาท»: an amount in words is asked in digits, never read (16 Nov). «สองแถว», «ร้อยเอ็ด» are not.
+const NUMBER_WORD = /(?:หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ)(?:สิบ|ร้อย|พัน|หมื่น)|(?:สิบ|ร้อย|พัน)(?:บาท|$)/u;
+// «ค่า 50», «ซื้อ 50»: a verb alone is no name (16 Nov, they were recorded so)
+const NO_NAME = /^(?:ค่า|ซื้อ|จ่าย|ใช้|ค่าใช้จ่าย|รายจ่าย|จ่ายค่า|ซื้อของ)$/u;
 const SPENT = /\s*(?:จ่าย|หมด|ใช้)?ไป$/;
+// «กาแฟ 45 บาทค่ะ», «ข้าว 50 ครับ ขอบคุณ»: a polite ending on its own is not part of the name (16 Nov)
+const POLITE = /(?:(?:^|\s+)(?:ครับ|คับ|ค่ะ|คะ|นะ(?:ครับ|คะ|ค่ะ)?|จ้า|จ้ะ|น้า|ขอบคุณ(?:ครับ|ค่ะ|คะ|นะ|มาก)?|thx|thanks?))+$/iu;
 
 // First match wins, so the more specific words come before the words they contain
 // (ค่าน้ำ before น้ำ, น้ำมัน before น้ำ)
@@ -54,7 +60,10 @@ function clean(raw: string): string {
   return raw
     .replace(/[๐-๙]/g, (d) => String(THAI_DIGITS.indexOf(d)))
     .replace(/(\d),(?=\d{3}(?!\d))/g, "$1") // 1,200 → 1200
+    // «ข้าว 1k» was 1 baht named «ข้าว k» (16 Nov): «k» right after a number is a thousand, «1kg» is not
+    .replace(/(\d+(?:\.\d+)?)\s*[kK](?![a-zA-Z])/g, (_, n: string) => String(Math.round(Number(n) * 100_000) / 100))
     .replace(/^[\s/\\]+/, "")
+    .replace(/7\s*-\s*(?:11|eleven)/iu, "เซเว่น") // the shop, not a range «40-50» (16 Nov)
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -76,6 +85,7 @@ export function parseExpense(raw: string): ParsedExpense {
   const income = INCOME.test(text);
   if (income && /[-+]\s*\d/.test(text)) return { kind: "ask", reason: "income" };
   const numbers = text.match(NUMBER) ?? [];
+  if (numbers.length === 0 && NUMBER_WORD.test(text)) return { kind: "ask", reason: "number_word" };
   if (numbers.length === 0) return { kind: "ask", reason: income ? "income" : "no_amount" };
   if (numbers.length > 1) return { kind: "ask", reason: "many_amounts" };
 
@@ -89,7 +99,7 @@ export function parseExpense(raw: string): ParsedExpense {
 
   // «หม่าล่าไป 50», «ข้าวจ่ายไป 45»: «ไป» says it was spent, it is not part of the name (16 Nov)
   const title = text.replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim()
-    .replace(SPENT, "").trim().slice(0, MAX_TITLE);
-  if (!title) return { kind: "ask", reason: "no_title" };
+    .replace(POLITE, "").replace(SPENT, "").trim().slice(0, MAX_TITLE);
+  if (!title || NO_NAME.test(title)) return { kind: "ask", reason: "no_title" };
   return { kind: "entry", title, amount, category: categoryOf(title) };
 }

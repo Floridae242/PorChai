@@ -73,6 +73,7 @@ const ASK: Record<AskReason, string> = {
   too_large: "ยอดนี้สูงมาก ถ้าถูกต้องกรอกเองในแอปได้เลย",
   income: "รายรับพิมพ์ รับ ตามด้วยยอดได้เลยครับ เช่น «รับ 500»",
   backdated: "จดย้อนหลังในแชตยังไม่ได้ครับ กรอกในแอปแล้วเลือกวันที่ได้เลย",
+  number_word: "ขอยอดเป็นตัวเลขนะครับ เช่น «ข้าว 50» จะได้จดไม่ผิด",
 };
 
 export const askMessage = (reason: AskReason): LineMessage =>

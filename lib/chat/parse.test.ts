@@ -46,7 +46,7 @@ describe("parseExpense — unclear messages are asked, never recorded", () => {
   it("no amount", () => {
     expect(parseExpense("ข้าว")).toEqual({ kind: "ask", reason: "no_amount" });
     expect(parseExpense("Hey")).toEqual({ kind: "ask", reason: "no_amount" });
-    expect(parseExpense("ข้าวห้าสิบ")).toEqual({ kind: "ask", reason: "no_amount" }); // number words: not supported
+    expect(parseExpense("ข้าวห้าสิบ")).toEqual({ kind: "ask", reason: "number_word" }); // number words: asked in digits (16 Nov)
   });
 
   it("more than one amount", () => {
@@ -135,3 +135,51 @@ it("«ไปรษณีย์ 30» keeps its name: only a trailing «ไป» g
   expect(parseExpense("ไปรษณีย์ 30")).toMatchObject({ kind: "entry", title: "ไปรษณีย์" });
 });
 it.each(["หม่าล่า", "หมาล่า"])("«%s» is food, however it is spelt", (title) => expect(categoryOf(title)).toBe("food"));
+
+// 16 Nov: «ข้าว 1k» was recorded as 1 baht named «ข้าว k»
+it.each([
+  ["ข้าว 1k", "ข้าว", 100000],
+  ["ข้าว 1.5k", "ข้าว", 150000],
+  ["ค่าหอ 3K บาท", "ค่าหอ", 300000],
+  ["ข้าว 2 k", "ข้าว", 200000],
+])("«%s» is a thousand: «%s» %i satang", (text, title, amount) => {
+  expect(parseExpense(text)).toMatchObject({ kind: "entry", title, amount });
+});
+it("«kfc 99» keeps its name: «k» is a thousand only after a number", () => {
+  expect(parseExpense("kfc 99")).toMatchObject({ kind: "entry", title: "kfc", amount: 9900 });
+});
+it("«ข้าวสาร 5kg» is not 5,000 baht: «kg» is a weight", () => {
+  expect(parseExpense("ข้าวสาร 5kg")).not.toMatchObject({ amount: 500000 });
+});
+it("«200k» is too large, asked back", () => {
+  expect(parseExpense("ข้าว 200k")).toEqual({ kind: "ask", reason: "too_large" });
+});
+
+// 16 Nov: «กาแฟ 45 บาทค่ะ» was named «กาแฟ ค่ะ»
+it.each([
+  ["กาแฟ 45 บาทค่ะ", "กาแฟ"],
+  ["ข้าว 50 ครับ ขอบคุณ", "ข้าว"],
+  ["ข้าว 50 นะครับ", "ข้าว"],
+  ["ชานม 45 จ้า", "ชานม"],
+  ["ข้าวมันไก่ 45 ขอบคุณครับ", "ข้าวมันไก่"],
+  ["หม่าล่าไป 50 ครับ", "หม่าล่า"],
+])("«%s»: the name is «%s», without the polite ending", (text, title) => {
+  expect(parseExpense(text)).toMatchObject({ kind: "entry", title });
+});
+it("«ครับ 50» alone has no name left", () => {
+  expect(parseExpense("ครับ 50")).toEqual({ kind: "ask", reason: "no_title" });
+});
+it("a word that only ends like «นะ» keeps it when written together", () => {
+  expect(parseExpense("ขนมนะ 20")).toMatchObject({ title: "ขนมนะ" });
+});
+
+// 16 Nov: «ค่า 50», «ซื้อ 50» were recorded named «ค่า», «ซื้อ»; «7-11 85» was asked as a range
+it.each(["ค่า 50", "ซื้อ 50", "จ่าย 50", "ค่าใช้จ่าย 50", "รายจ่าย 50"])("«%s» has no name: asked what for", (text) => {
+  expect(parseExpense(text)).toEqual({ kind: "ask", reason: "no_title" });
+});
+it.each(["7-11 85", "7-eleven 85", "เซเว่น 85"])("«%s» is the shop, 85 baht", (text) => {
+  expect(parseExpense(text)).toMatchObject({ kind: "entry", title: "เซเว่น", amount: 8500 });
+});
+it("«ข้าว 40-50» is still a range", () => {
+  expect(parseExpense("ข้าว 40-50")).toEqual({ kind: "ask", reason: "approximate" });
+});

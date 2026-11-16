@@ -11,6 +11,7 @@ import {
   parseEssentials,
   parsePayPlan,
   parseTrial,
+  parseNewIncome,
 } from "@/lib/validate";
 
 const TODAY = "2026-11-11";
@@ -351,5 +352,24 @@ describe("card 23 inputs", () => {
     expect(parseNewPlan({ title: "x", amount: 100 }).basis).toBeNull();
     expect(parseBalanceCheck({ balance: 100, basis: "abc" }, NOW).basis).toBe("abc");
     rejects(() => parseNewPlan({ title: "x", amount: 100, basis: 5 }), "ผลคำนวณ");
+  });
+});
+
+// 16 Nov exploratory run: the API took 1e15 satang (the chat stops at 100,000 baht)
+describe("money limits", () => {
+  it("an entry or income up to 100,000 baht is fine, above is refused", () => {
+    expect(parseNewEntry({ amount: 10_000_000, category: "food" }, TODAY).amount).toBe(10_000_000);
+    expect(() => parseNewEntry({ amount: 10_000_001, category: "food" }, TODAY)).toThrow(HttpError);
+    expect(() => parseNewEntry({ amount: 1e15, category: "food" }, TODAY)).toThrow(HttpError);
+    expect(() => parseEntryPatch({ amount: 10_000_001 }, TODAY)).toThrow(HttpError);
+    expect(parseNewIncome({ amount: 10_000_000 }, TODAY).amount).toBe(10_000_000);
+    expect(() => parseNewIncome({ amount: 1e12 }, TODAY)).toThrow(HttpError);
+  });
+  it("a balance up to 10 million baht is fine, above is refused", () => {
+    expect(parseBalanceCheck({ balance: 1_000_000_000 }, NOW).balance).toBe(1_000_000_000);
+    expect(() => parseBalanceCheck({ balance: 1_000_000_001 }, NOW)).toThrow(HttpError);
+    expect(() => parseBalanceCheck({ balance: 1e14 }, NOW)).toThrow(HttpError);
+    const cycle = { incomeSource: "family", incomeFrequency: "monthly", payday: "2026-11-23", balance: 1_000_000_001 };
+    expect(() => parseNewCycle(cycle, TODAY, NOW)).toThrow(HttpError);
   });
 });

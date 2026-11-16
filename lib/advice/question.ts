@@ -51,6 +51,14 @@ const BALANCE_TOPIC = /เหลือ|ใช้|งบ|ยอด/;
 // A bare «เหลือ» or «ใช้» says nothing: it needs a question word, or a word asking to see (เช็ค/ดู/ยอด/งบ)
 const BALANCE_ASK = /เท่า|กี่|ไหม|มั้ย|มั๊ย|ป่ะ|ปะ|ป่าว|เปล่า|บ้าง|[?？]|เช็ค|เช็ก|ดู|ยอด|งบ/;
 
+// «พรุ่งนี้ใช้ได้เท่าไหร่» (16 Nov, it got «ตอบไม่ได้»): tomorrow's daily budget. No item or price.
+const TOMORROW_WORDS = /พรุ่งนี้|ใช้เงินได้|ใช้ได้|เหลือใช้|งบ|เท่าไหร่|เท่าไร|กี่บาท|อีก|ครับ|คับ|ค่ะ|คะ|นะ|จ้า|[?？]|\s/g;
+export function isTomorrowQuestion(raw: string): boolean {
+  const text = normalize(raw);
+  if (!/พรุ่งนี้/.test(text) || !/ใช้|งบ/.test(text) || !/เท่า|กี่/.test(text)) return false;
+  return text.replace(TOMORROW_WORDS, "") === "";
+}
+
 export function isBalanceQuestion(raw: string): boolean {
   const text = normalize(raw);
   if (!BALANCE_TOPIC.test(text) || !BALANCE_ASK.test(text)) return false;

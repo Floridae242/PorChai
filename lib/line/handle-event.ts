@@ -7,7 +7,7 @@ import { tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
 import { advise, dueOnOf } from "@/lib/advice/advise";
 import { findPriceHint } from "@/lib/advice/price-hint";
-import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isPurchaseWish, isQuestion, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isPurchaseWish, isQuestion, isTomorrowQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
   adviceCard,
@@ -49,6 +49,8 @@ import {
   recordedCard,
   todayCard,
   paydayCard,
+  tomorrowCard,
+  yearAskMessage,
   enoughCard,
   type RecordedEntry,
 } from "@/lib/chat/cards";
@@ -210,6 +212,10 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // A social response ends the previous question; it is never the title of a pending amount.
   const routine = routineChat(body);
   if (routine?.kind === "chat" && routine.reply) return say(chatMessage(routine.reply));
+  // L6 card: «ยืนยัน» typed instead of [ยืนยันจ่ายจริง] is the same tap, saved once under the card's key (16 Nov)
+  if (pending?.kind === "hold" && /^(ยืนยัน|ยืนยันจ่ายจริง|จ่ายแล้ว|ตกลง|ใช่)$/u.test(body.trim())) {
+    return say(await onDraft(userId, { ...pending.draft, action: "pay" }));
+  }
   const amount = amountOnly(body);
   // Try card [ลองยอดอื่น] → «250»: try the new price (a new draft: paying it is a new spend)
   if (pending?.kind === "try" && pending.awaiting === "amount" && amount !== null) {
@@ -237,6 +243,11 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   }
 
   // «เหลือเท่าไร», «งบเหลือป่ะ»: the budget card, its numbers from the calculator (the AI is never asked)
+  if (isTomorrowQuestion(body)) {
+    const loaded = await loadBudget(userId);
+    return say(tomorrowCard(summaryOf(loaded), tomorrowBudget(loaded.input)));
+  }
+  if (/(?:ปีนี้|ทั้งปี|รายปี|ปีที่แล้ว).*(?:ใช้(?:เงิน)?ไป|รายงาน|สรุป)|(?:รายงาน|สรุป).*(?:ปีนี้|ทั้งปี|รายปี)/u.test(body)) return say(yearAskMessage());
   if (isBalanceQuestion(body)) return say(todayCard(await loadSummary(userId)));
   // «วันเงินเข้าเมื่อไร», «เงินพอถึงวันเงินเข้าไหม» (15 Nov): the same card, answering on top (never the AI)
   if (isPaydayQuestion(body)) return say(paydayCard(await loadSummary(userId)));
@@ -262,10 +273,15 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     return say(incomeCard(parsed.amount, await loadSummary(userId)));
   }
   if (parsed.kind === "entry") {
+    // «ชาบู 250 ไหวไหม» → «ไหว ✓» → «ชาบู 250»: already weighed, so it is the card's [ยืนยันจ่ายจริง], not held again
+    if (pending?.kind === "try" && !pending.closed && pending.draft.fits && pending.draft.title === parsed.title && pending.draft.amount === parsed.amount) {
+      const d = pending.draft;
+      return say(await onDraft(userId, { title: d.title, amount: d.amount, category: d.category, key: d.key, dueOn: d.dueOn, action: "pay" }));
+    }
     return spend(userId, { title: parsed.title, amount: parsed.amount, category: parsed.category, key: eventId });
   }
   if (parsed.reason === "no_title" && amount !== null) return say(askTitleMessage(amount), { kind: "title", amount });
-  if (["too_large", "no_title", "income", "backdated"].includes(parsed.reason)) return say(askMessage(parsed.reason));
+  if (["too_large", "no_title", "income", "backdated", "number_word"].includes(parsed.reason)) return say(askMessage(parsed.reason));
 
   if (parsed.reason === "many_amounts") {
     const { budget } = await loadSummary(userId); // no cycle → set up first, before using the AI
@@ -278,6 +294,11 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // No amount or an approximate one: the AI reads it with the recent chat
   return converse(userId, body, history, { approximate: parsed.reason === "approximate", question: false });
 }
+
+const looksLikeItem = (body: string) => {
+  const t = body.trim();
+  return t.length > 0 && t.length <= MAX_TITLE && !/[\d\s]/u.test(t) && categoryOf(t) !== "other" && !isQuestion(t);
+};
 
 async function converse(
   userId: string,
@@ -304,6 +325,11 @@ async function converse(
     return say(askAmountMessage(reading.item, approximate), { kind: "amount", title: reading.item });
   }
   if (reading?.kind === "off_topic") return say(offTopicMessage());
+  // No AI answer and «ข้าวมันไก่» alone: a known item without a price → ask it, like «ข้าว» (16 Nov)
+  if (reading === null && !question && !approximate && !clarification && looksLikeItem(body)) {
+    const item = body.trim();
+    return say(askAmountMessage(item, false), { kind: "amount", title: item });
+  }
   if (reading?.kind === "chat" && reading.reply) return say(chatMessage(reading.reply));
   return say(clarification ? chatMessage(clarification) : approximate ? askMessage("approximate") : chatFallbackMessage(summary));
 }
@@ -312,7 +338,7 @@ async function converse(
 async function spend(userId: string, draft: Draft): Promise<Answer> {
   const { budget } = await loadSummary(userId);
   if (budget.kind === "ok" && budget.todayRemaining >= 0 && draft.amount > budget.todayRemaining) {
-    return say(holdCard(draft, budget.todayRemaining));
+    return say(holdCard(draft, budget.todayRemaining), { kind: "hold", draft: { title: draft.title, amount: draft.amount, category: draft.category as UserCategory, key: draft.key } });
   }
   const { entry } = await record(userId, draft);
   return say(await recorded(userId, { ...draft, category: draft.category as UserCategory, id: entry.id }));
@@ -402,8 +428,10 @@ async function payDraft(userId: string, draft: Draft): Promise<ReplyMessage> {
 async function adviceAnswer(userId: string, body: string, eventId: string): Promise<Answer> {
   const a = await advise(userId, body);
   if (a.verdict === "ask" || a.amount === null) return say(adviceMessage(a, eventId));
-  const draft: TryDraft = { id: crypto.randomUUID(), title: a.item ?? "รายการ", amount: a.amount, category: a.category, key: eventId, dueOn: a.dueOn };
-  return say(adviceCard(a, draft, thaiDate(new Date())), { kind: "try", draft });
+  const today = thaiDate(new Date());
+  const fits = a.verdict === "enough" && a.countsThisCycle && (a.dueOn === null || a.dueOn === today);
+  const draft: TryDraft = { id: crypto.randomUUID(), title: a.item ?? "รายการ", amount: a.amount, category: a.category, key: eventId, dueOn: a.dueOn, fits };
+  return say(adviceCard(a, draft, today), { kind: "try", draft });
 }
 
 // L6 [ลองก่อนซื้อ] / [ลองยอดอื่น]: card 14's try as โฟรวิว's card. Nothing is saved.

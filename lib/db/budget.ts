@@ -10,6 +10,7 @@ import {
   type PlanLike,
 } from "@/lib/calc/inputs";
 import { thaiDate } from "@/lib/calc/time";
+import { formatThaiDate } from "@/lib/format/date";
 import { getDb } from "@/lib/db/client";
 import { HttpError } from "@/lib/http";
 
@@ -19,6 +20,7 @@ export interface ActiveCycle {
   id: string;
   start_balance: number;
   start_balance_at: string;
+  started_at: string;
   payday: string;
   emergency_buffer: number;
   savings_amount: number;
@@ -26,12 +28,18 @@ export interface ActiveCycle {
   essential_transport_daily: number | null;
 }
 
+// A spend or income dated before the cycle began belongs to no cycle here (the API took 1999, 16 Nov)
+export function requireInCycle(date: string, startedAt: string): void {
+  const first = thaiDate(new Date(startedAt));
+  if (date < first) throw new HttpError(422, "invalid_input", `วันที่ต้องอยู่ในรอบเงินนี้ ตั้งแต่ ${formatThaiDate(first, "long")} ถึงวันนี้`);
+}
+
 // Every money action needs the caller's own active cycle; there is never a cycle id from the request.
 export async function requireActiveCycle(userId: string): Promise<ActiveCycle> {
   const { data, error } = await getDb()
     .from("cycles")
     .select(
-      "id, start_balance, start_balance_at, payday, emergency_buffer, savings_amount, essential_food_daily, essential_transport_daily",
+      "id, start_balance, start_balance_at, started_at, payday, emergency_buffer, savings_amount, essential_food_daily, essential_transport_daily",
     )
     .eq("user_id", userId)
     .eq("status", "active")
