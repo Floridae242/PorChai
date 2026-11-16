@@ -1,73 +1,122 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<robot generator="Robot 7.5 (Python 3.15.0 on win32)" generated="2026-11-16T05:46:30.489281" rpa="false" schemaversion="5">
+<robot generator="Robot 7.5 (Python 3.15.0 on win32)" generated="2026-11-16T10:24:25.086586" rpa="false" schemaversion="5">
 <suite id="s1" name="Liff Flows Selenium" source="D:\PorChai\robot\suites\ui\liff_flows_selenium.robot">
 <kw name="Open Mobile Browser" type="SETUP">
 <kw name="Evaluate" owner="BuiltIn">
-<msg time="2026-11-16T05:46:31.211130" level="INFO">${chrome_options} = &lt;selenium.webdriver.chrome.options.Options object at 0x000001DA681D2120&gt;</msg>
-<var>${chrome_options}</var>
+<msg time="2026-11-16T10:24:26.358277" level="INFO">${opts} = &lt;selenium.webdriver.chrome.options.Options object at 0x00000202AF8B2120&gt;</msg>
+<var>${opts}</var>
 <arg>sys.modules['selenium.webdriver'].ChromeOptions()</arg>
 <arg>sys</arg>
 <doc>Evaluates the given expression in Python and returns the result.</doc>
-<status status="PASS" start="2026-11-16T05:46:31.202222" elapsed="0.008995"/>
+<status status="PASS" start="2026-11-16T10:24:26.346945" elapsed="0.011448"/>
 </kw>
 <kw name="Call Method" owner="BuiltIn">
-<msg time="2026-11-16T05:46:31.212728" level="FAIL">Calling method 'add_argument' failed: TypeError: ArgOptions.add_argument() got an unexpected keyword argument '--window-size'</msg>
-<arg>${chrome_options}</arg>
+<arg>${opts}</arg>
 <arg>add_argument</arg>
-<arg>--window-size=412,915</arg>
+<arg>--window-size\=412,915</arg>
 <doc>Calls the named method of the given object with the provided arguments.</doc>
-<status status="FAIL" start="2026-11-16T05:46:31.211912" elapsed="0.028477">Calling method 'add_argument' failed: TypeError: ArgOptions.add_argument() got an unexpected keyword argument '--window-size'</status>
+<status status="PASS" start="2026-11-16T10:24:26.359292" elapsed="0.001174"/>
 </kw>
 <kw name="Call Method" owner="BuiltIn">
-<arg>${chrome_options}</arg>
+<arg>${opts}</arg>
 <arg>add_experimental_option</arg>
 <arg>mobileEmulation</arg>
 <arg>${{ {'deviceName': 'Pixel 7'} }}</arg>
 <doc>Calls the named method of the given object with the provided arguments.</doc>
-<status status="NOT RUN" start="2026-11-16T05:46:31.240729" elapsed="0.000058"/>
+<status status="PASS" start="2026-11-16T10:24:26.360808" elapsed="0.001200"/>
 </kw>
 <kw name="Create Webdriver" owner="SeleniumLibrary">
+<msg time="2026-11-16T10:24:26.406729" level="INFO">Creating an instance of the Chrome WebDriver.</msg>
+<msg time="2026-11-16T10:24:28.440672" level="WARN">The chromedriver version (155.0.8059.79) detected in PATH at C:\chromedriver-win64\chromedriver.exe might not be compatible with the detected chrome version (156.0.8078.47); currently, chromedriver 156.0.8078.80 is recommended for chrome 156.*, so it is advised to delete the driver in PATH and retry</msg>
 <arg>Chrome</arg>
-<arg>options=${chrome_options}</arg>
+<arg>options=${opts}</arg>
 <doc>Creates an instance of Selenium WebDriver.</doc>
-<status status="NOT RUN" start="2026-11-16T05:46:31.240995" elapsed="0.000044"/>
+<status status="PASS" start="2026-11-16T10:24:26.362518" elapsed="4.039830"/>
 </kw>
 <kw name="Set Selenium Implicit Wait" owner="SeleniumLibrary">
 <arg>5s</arg>
 <doc>Sets the implicit wait value used by Selenium.</doc>
-<status status="NOT RUN" start="2026-11-16T05:46:31.241193" elapsed="0.000038"/>
+<status status="PASS" start="2026-11-16T10:24:30.402988" elapsed="0.004014"/>
 </kw>
-<status status="FAIL" start="2026-11-16T05:46:31.200926" elapsed="0.040512">Calling method 'add_argument' failed: TypeError: ArgOptions.add_argument() got an unexpected keyword argument '--window-size'</status>
+<status status="PASS" start="2026-11-16T10:24:26.344971" elapsed="4.062387"/>
 </kw>
 <test id="s1-t1" name="TC-17: Double Submit Protection on Record Expense" line="21">
-<doc>Fill expense and verify button disables or records once.</doc>
+<kw name="Go To" owner="SeleniumLibrary">
+<msg time="2026-11-16T10:24:30.410824" level="INFO">Opening url 'http://localhost:3004/app/record/new'</msg>
+<arg>${LIFF_RECORD_URL}</arg>
+<doc>Navigates the current browser window to the provided ``url``.</doc>
+<status status="PASS" start="2026-11-16T10:24:30.410184" elapsed="3.917692"/>
+</kw>
+<kw name="Wait Until Page Contains Element" owner="SeleniumLibrary">
+<arg>xpath=//input</arg>
+<arg>timeout=10s</arg>
+<doc>Waits until the element ``locator`` appears on the current page.</doc>
+<status status="PASS" start="2026-11-16T10:24:34.328809" elapsed="0.402374"/>
+</kw>
+<kw name="Input Text" owner="SeleniumLibrary">
+<msg time="2026-11-16T10:24:34.732658" level="INFO">Typing text '45' into text field 'xpath=(//input)[1]'.</msg>
+<arg>xpath=(//input)[1]</arg>
+<arg>45</arg>
+<doc>Types the given ``text`` into the text field identified by ``locator``.</doc>
+<status status="PASS" start="2026-11-16T10:24:34.732030" elapsed="0.218496"/>
+</kw>
+<kw name="Input Text" owner="SeleniumLibrary">
+<msg time="2026-11-16T10:24:34.952232" level="INFO">Typing text 'ข้าว' into text field 'xpath=(//input)[2]'.</msg>
+<arg>xpath=(//input)[2]</arg>
+<arg>ข้าว</arg>
+<doc>Types the given ``text`` into the text field identified by ``locator``.</doc>
+<status status="PASS" start="2026-11-16T10:24:34.951321" elapsed="0.173786"/>
+</kw>
+<kw name="Click Button" owner="SeleniumLibrary">
+<msg time="2026-11-16T10:24:35.126443" level="INFO">Clicking button 'xpath=//button[contains(., 'บันทึก')]'.</msg>
+<arg>xpath=//button[contains(., 'บันทึก')]</arg>
+<doc>Clicks the button identified by ``locator``.</doc>
+<status status="PASS" start="2026-11-16T10:24:35.125816" elapsed="0.238163"/>
+</kw>
+<kw name="Click Button" owner="SeleniumLibrary">
+<msg time="2026-11-16T10:24:35.365419" level="INFO">Clicking button 'xpath=//button[contains(., 'บันทึก')]'.</msg>
+<arg>xpath=//button[contains(., 'บันทึก')]</arg>
+<doc>Clicks the button identified by ``locator``.</doc>
+<status status="PASS" start="2026-11-16T10:24:35.364744" elapsed="0.179327"/>
+</kw>
+<kw name="Sleep" owner="BuiltIn">
+<msg time="2026-11-16T10:24:38.546043" level="INFO">Slept 3 seconds.</msg>
+<arg>3s</arg>
+<doc>Pauses execution for the given time.</doc>
+<status status="PASS" start="2026-11-16T10:24:35.544743" elapsed="3.001583"/>
+</kw>
+<kw name="Capture Page Screenshot" owner="SeleniumLibrary">
+<msg time="2026-11-16T10:24:38.936614" level="INFO" html="true">&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td colspan="3"&gt;&lt;a href="selenium-screenshot-1.png"&gt;&lt;img src="selenium-screenshot-1.png" width="800px"&gt;&lt;/a&gt;</msg>
+<doc>Takes a screenshot of the current page and embeds it into a log file.</doc>
+<status status="PASS" start="2026-11-16T10:24:38.547236" elapsed="0.389576"/>
+</kw>
+<doc>Fill expense and click save twice quickly; check the result by eye / screenshot.</doc>
 <tag>liff</tag>
 <tag>tc-17</tag>
 <tag>ui</tag>
-<status status="FAIL" start="2026-11-16T05:46:31.241594" elapsed="0.000866">Parent suite setup failed:
-Calling method 'add_argument' failed: TypeError: ArgOptions.add_argument() got an unexpected keyword argument '--window-size'</status>
+<status status="PASS" start="2026-11-16T10:24:30.407975" elapsed="8.529443"/>
 </test>
-<kw name="Close Browser" owner="SeleniumLibrary" type="TEARDOWN">
-<doc>Closes the current browser.</doc>
-<status status="PASS" start="2026-11-16T05:46:31.243495" elapsed="0.000239"/>
+<kw name="Close All Browsers" owner="SeleniumLibrary" type="TEARDOWN">
+<doc>Closes all open browsers and resets the browser cache.</doc>
+<status status="PASS" start="2026-11-16T10:24:38.939574" elapsed="2.414626"/>
 </kw>
-<doc>UI &amp; LIFF Webview test suite using SeleniumLibrary (built-in support).</doc>
-<status status="FAIL" start="2026-11-16T05:46:30.492923" elapsed="0.750889">Suite setup failed:
-Calling method 'add_argument' failed: TypeError: ArgOptions.add_argument() got an unexpected keyword argument '--window-size'</status>
+<doc>UI &amp; LIFF Webview test suite using SeleniumLibrary.</doc>
+<status status="PASS" start="2026-11-16T10:24:25.092943" elapsed="16.261442"/>
 </suite>
 <statistics>
 <total>
-<stat pass="0" fail="1" skip="0">All Tests</stat>
+<stat pass="1" fail="0" skip="0">All Tests</stat>
 </total>
 <tag>
-<stat pass="0" fail="1" skip="0">liff</stat>
-<stat pass="0" fail="1" skip="0">tc-17</stat>
-<stat pass="0" fail="1" skip="0">ui</stat>
+<stat pass="1" fail="0" skip="0">liff</stat>
+<stat pass="1" fail="0" skip="0">tc-17</stat>
+<stat pass="1" fail="0" skip="0">ui</stat>
 </tag>
 <suite>
-<stat name="Liff Flows Selenium" id="s1" pass="0" fail="1" skip="0">Liff Flows Selenium</stat>
+<stat name="Liff Flows Selenium" id="s1" pass="1" fail="0" skip="0">Liff Flows Selenium</stat>
 </suite>
 </statistics>
 <errors>
+<msg time="2026-11-16T10:24:28.440672" level="WARN">The chromedriver version (155.0.8059.79) detected in PATH at C:\chromedriver-win64\chromedriver.exe might not be compatible with the detected chrome version (156.0.8078.47); currently, chromedriver 156.0.8078.80 is recommended for chrome 156.*, so it is advised to delete the driver in PATH and retry</msg>
 </errors>
 </robot>
