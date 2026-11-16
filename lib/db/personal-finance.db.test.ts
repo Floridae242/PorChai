@@ -40,6 +40,10 @@ async function user() {
     ),
     today(),
   );
+  // Entries here go back up to a month: the cycle began before them (entries before a cycle are refused, 16 Nov)
+  const began = new Date(Date.now() - 45 * 86_400_000).toISOString();
+  const moved = await db.from("cycles").update({ started_at: began }).eq("user_id", id);
+  if (moved.error) throw moved.error;
   return id;
 }
 const record = (

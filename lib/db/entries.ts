@@ -1,6 +1,6 @@
 import type { Entry } from "@/lib/api-types";
 import { getDb } from "@/lib/db/client";
-import { requireActiveCycle } from "@/lib/db/budget";
+import { requireActiveCycle, requireInCycle } from "@/lib/db/budget";
 import { HttpError } from "@/lib/http";
 import type { EntryPatch, NewEntry } from "@/lib/validate";
 
@@ -54,6 +54,7 @@ export async function addEntry(
 ): Promise<{ entry: Entry; created: boolean }> {
   const db = getDb();
   const cycle = await requireActiveCycle(userId);
+  requireInCycle(input.spentOn, cycle.started_at);
   const { data, error } = await db
     .from("entries")
     .insert({
@@ -114,6 +115,11 @@ export async function editEntry(userId: string, id: string, patch: EntryPatch): 
   const row = await ownEntry(userId, id);
   checkPlanEntryEdit(row, patch);
   if (row.cancelled_at) throw CANCELLED();
+  if (patch.spentOn !== undefined) {
+    const owner = await getDb().from("entries").select("cycles(started_at)").eq("id", id).single();
+    if (owner.error) throw owner.error;
+    requireInCycle(patch.spentOn, (owner.data.cycles as unknown as { started_at: string }).started_at);
+  }
   const { data, error } = await getDb()
     .from("entries")
     .update({

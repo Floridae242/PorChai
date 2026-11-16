@@ -314,6 +314,8 @@ export function adviceCard(a: Advice, d: TryDraft, today: string): ReplyMessage 
     beforeDaily: before.dailyBudget,
     afterDaily: a.after?.kind === "ok" ? a.after.dailyBudget : 0,
     explanation: a.explanation,
+    overToday: (d.dueOn === null || d.dueOn === today) && max !== null && d.amount <= max && before.todayRemaining >= 0
+      ? Math.max(0, d.amount - before.todayRemaining) : 0,
   });
 }
 

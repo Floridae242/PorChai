@@ -32,6 +32,19 @@ function namedMoney(text: string, names: string): number | undefined {
   );
   return match ? statedMoney(match[1]) : undefined;
 }
+// «เพิ่มบิล ค่าไฟ 500 วันที่ 20» kept no date (16 Nov): the next 20th from today, today included.
+// A month without that day («วันที่ 31» in November) takes its last day.
+function nextDayOfMonth(message: string, today: string): string | undefined {
+  const day = Number(normalizeMoneyText(message).match(/วันที่\s*(\d{1,2})(?!\d)/u)?.[1]);
+  if (!day || day > 31) return undefined;
+  const [y, m] = today.split("-").map(Number);
+  const on = (year: number, month: number) => {
+    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(day, last)).padStart(2, "0")}`;
+  };
+  const thisMonth = on(y, m);
+  return thisMonth >= today ? thisMonth : m === 12 ? on(y + 1, 1) : on(y, m + 1);
+}
 export function fields(message: string, tool: Tool, today: string): Intent {
   const normalized = normalizeMoneyText(message),
     time = normalized.match(/(?:^|\s|เวลา)([0-2]?\d:[0-5]\d)(?:\s|$)/)?.[1];
@@ -47,7 +60,7 @@ export function fields(message: string, tool: Tool, today: string): Intent {
     ? addDays(`${today.slice(0, 7)}-01`, -1)
     : /(?:สัปดาห์|อาทิตย์)ที่แล้ว/u.test(message)
     ? addDays(today, -7)
-    : statedDate(message, today);
+    : statedDate(message, today) ?? (tool === "add_bill" || tool === "add_plan" ? nextDayOfMonth(message, today) : undefined);
   const target = /ล่าสุด|เมื่อกี้/u.test(message)
     ? "latest"
     : Number(normalized.match(/(?:รายการ|แผน|บิล|ลำดับ)\s*(\d+)/u)?.[1]) ||

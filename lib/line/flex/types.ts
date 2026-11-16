@@ -169,6 +169,8 @@ export interface AiCompareCardViewModel {
   explanation?: string;
   hasMatchingPromo?: boolean;
   appOrigin?: string;
+  /** Satang over what is left today, when it fits the cycle and is for today */
+  overToday?: Satang;
 }
 
 export interface AskDateViewModel {

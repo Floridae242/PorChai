@@ -154,3 +154,21 @@ it("«ข้าวสาร 5kg» is not 5,000 baht: «kg» is a weight", () => 
 it("«200k» is too large, asked back", () => {
   expect(parseExpense("ข้าว 200k")).toEqual({ kind: "ask", reason: "too_large" });
 });
+
+// 16 Nov: «กาแฟ 45 บาทค่ะ» was named «กาแฟ ค่ะ»
+it.each([
+  ["กาแฟ 45 บาทค่ะ", "กาแฟ"],
+  ["ข้าว 50 ครับ ขอบคุณ", "ข้าว"],
+  ["ข้าว 50 นะครับ", "ข้าว"],
+  ["ชานม 45 จ้า", "ชานม"],
+  ["ข้าวมันไก่ 45 ขอบคุณครับ", "ข้าวมันไก่"],
+  ["หม่าล่าไป 50 ครับ", "หม่าล่า"],
+])("«%s»: the name is «%s», without the polite ending", (text, title) => {
+  expect(parseExpense(text)).toMatchObject({ kind: "entry", title });
+});
+it("«ครับ 50» alone has no name left", () => {
+  expect(parseExpense("ครับ 50")).toEqual({ kind: "ask", reason: "no_title" });
+});
+it("a word that only ends like «นะ» keeps it when written together", () => {
+  expect(parseExpense("ขนมนะ 20")).toMatchObject({ title: "ขนมนะ" });
+});

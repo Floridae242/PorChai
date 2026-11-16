@@ -1,4 +1,4 @@
-import { requireActiveCycle } from "@/lib/db/budget";
+import { requireActiveCycle, requireInCycle } from "@/lib/db/budget";
 import { getDb } from "@/lib/db/client";
 import type { NewIncome } from "@/lib/validate";
 
@@ -11,6 +11,7 @@ export async function addIncome(
   source: "chat" | "form",
 ): Promise<{ created: boolean }> {
   const cycle = await requireActiveCycle(userId);
+  requireInCycle(input.receivedOn, cycle.started_at);
   const { error } = await getDb().from("incomes").insert({
     user_id: userId,
     cycle_id: cycle.id,

@@ -39,6 +39,21 @@ function amount(v: unknown): number {
   return v;
 }
 
+// One spend or income: where the chat stops too (MAX_AMOUNT); the API took 1e15 satang (16 Nov)
+const MAX_MONEY = 10_000_000; // 100,000 baht
+function money(v: unknown): number {
+  const n = amount(v);
+  if (n > MAX_MONEY) throw invalid("ยอดต่อรายการต้องไม่เกิน 100,000 บาท");
+  return n;
+}
+
+const MAX_BALANCE = 1_000_000_000; // 10 million baht
+function balanceOf(v: unknown): number {
+  const n = nonNegative(v, "ยอดเงินต้องเป็นจำนวนสตางค์ ไม่ติดลบ");
+  if (n > MAX_BALANCE) throw invalid("ยอดเงินต้องไม่เกิน 10 ล้านบาท");
+  return n;
+}
+
 function category(v: unknown): UserCategory {
   if (!USER_CATEGORIES.includes(v as UserCategory)) {
     throw invalid("หมวดต้องเป็น อาหาร เดินทาง ของใช้ หรืออื่น ๆ");
@@ -103,7 +118,7 @@ export function parseNewEntry(body: unknown, today: string): NewEntry {
   if(b.categoryId !== undefined && b.categoryId !== null && !categoryIdOk(b.categoryId))throw invalid("รหัสหมวดส่วนตัวไม่ถูกต้องครับ");
   return {
     ...(b.categoryId !== undefined ? {categoryId:b.categoryId as string|null}: {}),
-    amount: amount(b.amount),
+    amount: money(b.amount),
     category: category(b.category),
     note: note(b.note),
     spentOn: b.spentOn === undefined ? today : spentOn(b.spentOn, today),
@@ -114,7 +129,7 @@ export function parseEntryPatch(body: unknown, today: string): EntryPatch {
   const b = asObject(body);
   const patch: EntryPatch = {};
   if("categoryId" in b){if(b.categoryId !== null && !categoryIdOk(b.categoryId))throw invalid("รหัสหมวดส่วนตัวไม่ถูกต้องครับ");patch.categoryId=b.categoryId as string|null;}
-  if ("amount" in b) patch.amount = amount(b.amount);
+  if ("amount" in b) patch.amount = money(b.amount);
   if ("category" in b) patch.category = category(b.category);
   if ("note" in b) patch.note = note(b.note);
   if ("spentOn" in b) patch.spentOn = spentOn(b.spentOn, today);
@@ -124,7 +139,7 @@ export function parseEntryPatch(body: unknown, today: string): EntryPatch {
 
 export function parseBalanceCheck(body: unknown, now: Date): BalanceCheck {
   const b = asObject(body);
-  const check: BalanceCheck = { balance: nonNegative(b.balance, "ยอดเงินต้องเป็นจำนวนสตางค์ ไม่ติดลบ") };
+  const check: BalanceCheck = { balance: balanceOf(b.balance) };
   if (b.asOf !== undefined) check.asOf = pastTime(b.asOf, now);
   const seen = basis(b.basis, false);
   if (seen) check.basis = seen;
@@ -179,7 +194,7 @@ export function parseNewCycle(body: unknown, today: string, now: Date): NewCycle
     throw invalid("ความถี่เงินเข้าต้องเป็น รายสัปดาห์ รายเดือน หรือไม่แน่นอน");
   }
   const payday = futurePayday(b.payday, today);
-  const balance = nonNegative(b.balance, "ยอดเงินต้องเป็นจำนวนสตางค์ ไม่ติดลบ");
+  const balance = balanceOf(b.balance);
 
   if (b.savingsPercent !== undefined && b.savingsAmount !== undefined) {
     throw invalid("เป้าออมเลือกได้แบบเดียว: เปอร์เซ็นต์ หรือจำนวนบาท");
@@ -386,7 +401,7 @@ export interface NewIncome {
 export function parseNewIncome(body: unknown, today: string): NewIncome {
   const b = asObject(body);
   return {
-    amount: amount(b.amount),
+    amount: money(b.amount),
     note: note(b.note),
     receivedOn: b.receivedOn === undefined ? today : spentOn(b.receivedOn, today),
   };

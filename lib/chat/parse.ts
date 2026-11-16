@@ -23,6 +23,8 @@ const BACKDATED = /เมื่อวาน|วานนี้|เมื่อ�
 const NUMBER = /\d+(?:\.\d{1,2})?/g;
 const CURRENCY = /บาท|฿|\.-/g;
 const SPENT = /\s*(?:จ่าย|หมด|ใช้)?ไป$/;
+// «กาแฟ 45 บาทค่ะ», «ข้าว 50 ครับ ขอบคุณ»: a polite ending on its own is not part of the name (16 Nov)
+const POLITE = /(?:(?:^|\s+)(?:ครับ|คับ|ค่ะ|คะ|นะ(?:ครับ|คะ|ค่ะ)?|จ้า|จ้ะ|น้า|ขอบคุณ(?:ครับ|ค่ะ|คะ|นะ|มาก)?|thx|thanks?))+$/iu;
 
 // First match wins, so the more specific words come before the words they contain
 // (ค่าน้ำ before น้ำ, น้ำมัน before น้ำ)
@@ -91,7 +93,7 @@ export function parseExpense(raw: string): ParsedExpense {
 
   // «หม่าล่าไป 50», «ข้าวจ่ายไป 45»: «ไป» says it was spent, it is not part of the name (16 Nov)
   const title = text.replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim()
-    .replace(SPENT, "").trim().slice(0, MAX_TITLE);
+    .replace(POLITE, "").replace(SPENT, "").trim().slice(0, MAX_TITLE);
   if (!title) return { kind: "ask", reason: "no_title" };
   return { kind: "entry", title, amount, category: categoryOf(title) };
 }

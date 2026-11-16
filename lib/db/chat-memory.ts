@@ -36,6 +36,7 @@ export interface TryDraft {
   category: UserCategory;
   key: string; // the first message's webhookEventId: paying or keeping it happens once under this key
   dueOn: string | null; // a question about another day
+  fits?: boolean; // answered «ไหว ✓» for today: typing the same spend next records it (16 Nov)
 }
 
 // OCR (layer 4): what the AI read from a slip, until the user saves or cancels it. The photo is not kept.

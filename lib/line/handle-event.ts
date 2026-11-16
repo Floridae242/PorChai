@@ -266,6 +266,11 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     return say(incomeCard(parsed.amount, await loadSummary(userId)));
   }
   if (parsed.kind === "entry") {
+    // «ชาบู 250 ไหวไหม» → «ไหว ✓» → «ชาบู 250»: already weighed, so it is the card's [ยืนยันจ่ายจริง], not held again
+    if (pending?.kind === "try" && !pending.closed && pending.draft.fits && pending.draft.title === parsed.title && pending.draft.amount === parsed.amount) {
+      const d = pending.draft;
+      return say(await onDraft(userId, { title: d.title, amount: d.amount, category: d.category, key: d.key, dueOn: d.dueOn, action: "pay" }));
+    }
     return spend(userId, { title: parsed.title, amount: parsed.amount, category: parsed.category, key: eventId });
   }
   if (parsed.reason === "no_title" && amount !== null) return say(askTitleMessage(amount), { kind: "title", amount });
@@ -282,6 +287,11 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // No amount or an approximate one: the AI reads it with the recent chat
   return converse(userId, body, history, { approximate: parsed.reason === "approximate", question: false });
 }
+
+const looksLikeItem = (body: string) => {
+  const t = body.trim();
+  return t.length > 0 && t.length <= MAX_TITLE && !/[\d\s]/u.test(t) && categoryOf(t) !== "other" && !isQuestion(t);
+};
 
 async function converse(
   userId: string,
@@ -308,6 +318,11 @@ async function converse(
     return say(askAmountMessage(reading.item, approximate), { kind: "amount", title: reading.item });
   }
   if (reading?.kind === "off_topic") return say(offTopicMessage());
+  // No AI answer and «ข้าวมันไก่» alone: a known item without a price → ask it, like «ข้าว» (16 Nov)
+  if (reading === null && !question && !approximate && !clarification && looksLikeItem(body)) {
+    const item = body.trim();
+    return say(askAmountMessage(item, false), { kind: "amount", title: item });
+  }
   if (reading?.kind === "chat" && reading.reply) return say(chatMessage(reading.reply));
   return say(clarification ? chatMessage(clarification) : approximate ? askMessage("approximate") : chatFallbackMessage(summary));
 }
@@ -406,8 +421,10 @@ async function payDraft(userId: string, draft: Draft): Promise<ReplyMessage> {
 async function adviceAnswer(userId: string, body: string, eventId: string): Promise<Answer> {
   const a = await advise(userId, body);
   if (a.verdict === "ask" || a.amount === null) return say(adviceMessage(a, eventId));
-  const draft: TryDraft = { id: crypto.randomUUID(), title: a.item ?? "รายการ", amount: a.amount, category: a.category, key: eventId, dueOn: a.dueOn };
-  return say(adviceCard(a, draft, thaiDate(new Date())), { kind: "try", draft });
+  const today = thaiDate(new Date());
+  const fits = a.verdict === "enough" && a.countsThisCycle && (a.dueOn === null || a.dueOn === today);
+  const draft: TryDraft = { id: crypto.randomUUID(), title: a.item ?? "รายการ", amount: a.amount, category: a.category, key: eventId, dueOn: a.dueOn, fits };
+  return say(adviceCard(a, draft, today), { kind: "try", draft });
 }
 
 // L6 [ลองก่อนซื้อ] / [ลองยอดอื่น]: card 14's try as โฟรวิว's card. Nothing is saved.

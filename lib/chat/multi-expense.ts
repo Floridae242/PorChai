@@ -11,7 +11,9 @@ export function canSplitExpenses(message: string): boolean {
   message = message.normalize("NFC").replace(/[๐-๙]/gu, d => String(THAI_DIGITS.indexOf(d)));
   if (/\d\s*(?:[eE][+-]?\d|[kKmM]\b|ล้าน|พัน|หมื่น|แสน|%|เปอร์เซ็นต์)|0[xX][\da-fA-F]|\btotal\b/u.test(message)) return false;
   return message.length <= 1000 && !conversationBoundary(message) && !isQuestion(message) &&
-    !/รับเงิน|ได้รับ|รายรับ|เงินเข้า|ได้เงิน|เงินเดือน|แม่ให้เงิน|พ่อให้เงิน|(?:^|\s)รับ\s*\d|\b(?:income|salary|got paid)\b|เมื่อวาน|วานนี้|เมื่อคืน|พรุ่งนี้|มะรืน|เดือนหน้า|รวม|ทั้งหมด|หรือ|วันที่|ประมาณ|ราว|เกือบ|กว่า|~|[+\-/]|\d\s*(?:จาน|แก้ว|ชิ้น|กล่อง|ขวด|คน|ชุด|แพ็ก|แพ็ค|ครั้ง)|\d+\.\d{3}/iu.test(message);
+    !/รับเงิน|ได้รับ|รายรับ|เงินเข้า|ได้เงิน|เงินเดือน|แม่ให้เงิน|พ่อให้เงิน|(?:^|\s)รับ\s*\d|\b(?:income|salary|got paid)\b|เมื่อวาน|วานนี้|เมื่อคืน|พรุ่งนี้|มะรืน|เดือนหน้า|รวม|ทั้งหมด|หรือ|วันที่|ประมาณ|ราว|เกือบ|กว่า|~|[+\-/]|\d\s*(?:จาน|แก้ว|ชิ้น|กล่อง|ขวด|คน|ชุด|แพ็ก|แพ็ค|ครั้ง|ใบ|อัน|ตัว|ห่อ|ถุง|ซอง|คู่|เล่ม|ลูก|ฟอง|ไม้|ถ้วย|ชาม)|\d+\.\d{3}/iu.test(message) &&
+    // «ข้าว 50 x2» was an item «x» of 2 baht (16 Nov): a multiplier needs asking
+    !/(?:^|[\s\d])[xX×*]\s*\d|\d\s*[xX×*](?:\s|$)/u.test(message);
 }
 
 /** Each amount terminates exactly one named expense. No model, arithmetic or writes. */

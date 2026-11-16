@@ -177,3 +177,96 @@ describe("«1k» is a thousand", () => {
     expect(await entries()).toMatchObject([{ amount: 100000, note: "ข้าว" }]);
   });
 });
+
+// ---------- medium (16 Nov) ----------
+
+const userId = async () => (await db.from("users").select("id").eq("line_user_id", line).single()).data!.id as string;
+
+describe("«เริ่มรอบเงิน» speaks Thai and checks the payday at once", () => {
+  it("a payday that has passed is asked again right away, the answers so far kept", async () => {
+    for (const t of ["เริ่มรอบเงิน", "ทุน", "รายเดือน", "3000"]) await chat(t);
+    await chat("2020-01-01");
+    expect(lastText()).toContain("วันเงินเข้าต้องเป็นวันหลังวันนี้");
+    expect(lastText()).toContain("วันรับเงินรอบถัดไป");
+    await chat(today());
+    expect(lastText()).toContain("วันเงินเข้าต้องเป็นวันหลังวันนี้");
+    await chat(addDays(today(), 14));
+    expect(lastText()).toContain("กันเงินออม");
+  });
+
+  it("the summary names the source and frequency in Thai", async () => {
+    for (const t of ["เริ่มรอบเงิน", "งานพิเศษ", "รายสัปดาห์", "3000", addDays(today(), 7), "0", "0", "0", "0"]) await chat(t);
+    expect(lastText()).toContain("งานพิเศษ · รายสัปดาห์");
+    expect(lastText()).not.toMatch(/side_job|weekly|family|monthly/);
+  });
+});
+
+describe("bills from the chat", () => {
+  it("«เพิ่มบิล ค่าไฟ 500 วันที่ 20» keeps the day, and «ดูบิล» shows the status in Thai", async () => {
+    await cycle(240000, 40);
+    await chat("เพิ่มบิล ค่าไฟ 500 วันที่ 20");
+    expect(lastText()).not.toContain("ไม่กำหนดวัน");
+    await chat("ยืนยัน");
+    const plan = (await db.from("plans").select("title,due_on").eq("user_id", await userId()).single()).data!;
+    expect(plan.title).toBe("ค่าไฟ");
+    expect(plan.due_on).toMatch(/-20$/);
+    await chat("ดูบิล");
+    expect(lastText()).toContain("ค่าไฟ");
+    expect(lastText()).not.toMatch(/reserved|postponed/);
+  });
+});
+
+describe("unclear money in is asked, a name alone asks the amount", () => {
+  it.each(["ทอนเงินมา 20", "ถูกหวย 1000"])("«%s» records nothing", async (t) => {
+    await cycle(240000, 12);
+    await chat(t);
+    expect(lastText()).toContain("ได้รับเงิน");
+    expect(await entries()).toEqual([]);
+  });
+
+  it("«ข้าวมันไก่» asks how much, then «45» records it (AI off)", async () => {
+    await cycle(240000, 12);
+    await chat("ข้าวมันไก่");
+    expect(lastText()).toContain("กี่บาท");
+    await chat("45");
+    expect(await entries()).toMatchObject([{ amount: 4500, note: "ข้าวมันไก่" }]);
+  });
+});
+
+describe("«ไหวไหม» then buying it", () => {
+  // 2,400 baht, 12 days, food + transport 70 a day: 200 a day, 1,560 to spare
+  it("after «ไหว ✓», the same item and price is recorded at once, and the card said it is over today", async () => {
+    await cycle(240000, 12);
+    await chat("ชาบู 250 ไหวไหม");
+    expect(lastText()).toContain("ไหว");
+    expect(lastText()).toContain("เกินงบวันนี้ 50 บาท");
+    await chat("ชาบู 250");
+    expect(lastText()).not.toContain("สูงกว่างบที่เหลือวันนี้");
+    expect(await entries()).toMatchObject([{ amount: 25000, note: "ชาบู" }]);
+    await chat("ชาบู 250"); // a second one is its own spend (today is over already, so recorded: L6)
+    expect(await entries()).toHaveLength(2);
+  });
+
+  it("without asking first it is held as before", async () => {
+    await cycle(240000, 12);
+    await chat("ชาบู 250");
+    expect(lastText()).toContain("สูงกว่างบที่เหลือวันนี้");
+    expect(await entries()).toEqual([]);
+  });
+
+  it("after «ไม่พอ», it is held as before", async () => {
+    await cycle(240000, 12);
+    await chat("รองเท้า 2000 ไหวไหม");
+    await chat("รองเท้า 2000");
+    expect(lastText()).toContain("สูงกว่างบที่เหลือวันนี้");
+    expect(await entries()).toEqual([]);
+  });
+
+  it("the not-enough card names each number for what it is", async () => {
+    await cycle(240000, 12);
+    await chat("รองเท้า 3000 ไหวไหม"); // 1,440 over what can be bought; 600 short of the 2,400 itself
+    expect(lastText()).toContain("เกินที่ซื้อได้ 1,440 บาท");
+    expect(lastText()).not.toMatch(/เกินงบ \d/);
+    expect(lastText()).toContain("ไม่พอกันบิล เงินออม และเงินเผื่อ");
+  });
+});

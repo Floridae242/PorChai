@@ -249,7 +249,7 @@ async function execute(userId: string, p: CommandPending): Promise<string> {
         plan.category ?? "other",
         today,
       );
-      return `อัปเดต ${result.title} ${money(result.amount)} แล้ว · ${result.status}`;
+      return `อัปเดต ${result.title} ${money(result.amount)} แล้ว · ${statusText(result.status)}`;
     }
     case "redeem": {
       const reward = (await listRewards()).find((x) => x.id === a.id);
@@ -370,7 +370,7 @@ async function choose(
     page,
   };
   return say(
-    `${type === "reward" ? "ของรางวัล (ใช้แต้ม)" : type === "plan" ? "แผนและบิล" : "รายจ่ายล่าสุด"} · หน้า ${page}\n${rows.map((r, i) => `${i + 1}. ${r.title} · ${type === "reward" ? `${r.amount} แต้ม` : money(r.amount)}${r.status ? ` · ${r.status}` : ""}`).join("\n")}\nแสดงไม่เกิน 10 รายการต่อหน้า เลือกหมายเลขเพื่อ${intent ? "ทำต่อ" : "ดูรายละเอียด"}ครับ${type === "plan" ? `\nดูต่อ: ดูแผน หน้า ${page + 1} · ทำรายการ: จ่ายบิล 1 หน้า ${page}` : ""}`,
+    `${type === "reward" ? "ของรางวัล (ใช้แต้ม)" : type === "plan" ? "แผนและบิล" : "รายจ่ายล่าสุด"} · หน้า ${page}\n${rows.map((r, i) => `${i + 1}. ${r.title} · ${type === "reward" ? `${r.amount} แต้ม` : money(r.amount)}${r.status ? ` · ${statusText(r.status)}` : ""}`).join("\n")}\nแสดงไม่เกิน 10 รายการต่อหน้า เลือกหมายเลขเพื่อ${intent ? "ทำต่อ" : "ดูรายละเอียด"}ครับ${type === "plan" ? `\nดูต่อ: ดูแผน หน้า ${page + 1} · ทำรายการ: จ่ายบิล 1 หน้า ${page}` : ""}`,
     p,
     rows.map((_, i) => action(`เลือก ${i + 1}`, `pc:pick:${p.key}:${i}`)),
   );
@@ -630,7 +630,16 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
   }
 }
 
-function setup(p: SetupPending, unclear = false): Answer {
+// The summary names what the questions asked, not the stored code (it said «family · monthly», 16 Nov)
+const SOURCE_TH = { family: "เงินจากบ้าน/ทุน", side_job: "งานพิเศษ", other: "อื่น ๆ" } as const;
+const FREQUENCY_TH = { weekly: "รายสัปดาห์", monthly: "รายเดือน", irregular: "ไม่แน่นอน" } as const;
+// «ดูแผน» / «ดูบิล» said «reserved»: the words the plan screen uses
+const PLAN_STATUS_TH: Record<string, string> = {
+  reserved: "กันเงินไว้แล้ว", postponed: "เลื่อนไปรอบหน้า", paid: "จ่ายแล้ว", cancelled: "ยกเลิกแล้ว", separate: "จ่ายแยก",
+};
+const statusText = (status: string) => PLAN_STATUS_TH[status] ?? status;
+
+function setup(p: SetupPending, lead: "unclear" | "past_payday" | null = null): Answer {
   const prompts = {
     source: "เงินหลักมาจากไหนครับ? พิมพ์ เงินจากบ้าน/ทุน, งานพิเศษ หรือ อื่นๆ",
     frequency: "รับเงินเป็นรอบแบบไหนครับ? รายสัปดาห์, รายเดือน หรือ ไม่แน่นอน",
@@ -642,7 +651,8 @@ function setup(p: SetupPending, unclear = false): Answer {
     food: "กันค่าอาหารวันละกี่บาทครับ? ใส่ 0 หรือพิมพ์ ข้าม เพื่อยังไม่ตั้งค่าใช้จ่ายจำเป็น",
     transport: "กันค่าเดินทางวันละกี่บาทครับ? ใส่ 0 ได้",
   };
-  return say(unclear ? `ยังไม่เข้าใจคำตอบครับ ${prompts[p.field]}\nหรือพิมพ์ ยกเลิก เพื่อออกจากการเริ่มรอบเงิน` : prompts[p.field], p);
+  if (lead === "past_payday") return say(`วันเงินเข้าต้องเป็นวันหลังวันนี้ครับ ${prompts.payday}`, p);
+  return say(lead === "unclear" ? `ยังไม่เข้าใจคำตอบครับ ${prompts[p.field]}\nหรือพิมพ์ ยกเลิก เพื่อออกจากการเริ่มรอบเงิน` : prompts[p.field], p);
 }
 
 // Mid-setup «ข้าว 50», «วันนี้ใช้ได้เท่าไหร่», «ดูแต้ม»: another request, not an answer, so the setup ends (16 Nov)
@@ -661,7 +671,7 @@ async function setupReply(
     n = statedMoney(body),
     today = thaiDate(new Date());
   const next = (field: SetupPending["field"]) => setup({ ...p, input, field });
-  const unclear = () => (leavesSetup(body) ? null : setup(p, true));
+  const unclear = () => (leavesSetup(body) ? null : setup(p, "unclear"));
   switch (p.field) {
     case "source":
       if (/บ้าน|ทุน|family/u.test(body)) input.incomeSource = "family";
@@ -683,6 +693,8 @@ async function setupReply(
     case "payday": {
       const date = statedDate(body, today);
       if (!date) return unclear();
+      // Checked here, not after four more answers (2020-01-01 failed only at the summary, 16 Nov)
+      if (date <= today) return setup(p, "past_payday");
       input.payday = date;
       return next("savings");
     }
@@ -707,7 +719,7 @@ async function setupReply(
   parseNewCycle(input, today, new Date());
   return preview(
     userId,
-    `เริ่มรอบเงิน\nแหล่งเงิน ${input.incomeSource} · ${input.incomeFrequency}\nยอดตั้งต้น ${money(input.balance!)} · รับเงิน ${input.payday}\nออม ${money(input.savingsAmount!)} · เผื่อ ${money(input.emergencyBuffer!)}\n${input.essentials ? `อาหาร ${money(input.essentials.food)} เดินทาง ${money(input.essentials.transport)} ต่อวัน` : "ยังไม่ตั้งค่าใช้จ่ายจำเป็น"}`,
+    `เริ่มรอบเงิน\nแหล่งเงิน ${SOURCE_TH[input.incomeSource!]} · ${FREQUENCY_TH[input.incomeFrequency!]}\nยอดตั้งต้น ${money(input.balance!)} · รับเงิน ${input.payday}\nออม ${money(input.savingsAmount!)} · เผื่อ ${money(input.emergencyBuffer!)}\n${input.essentials ? `อาหาร ${money(input.essentials.food)} เดินทาง ${money(input.essentials.transport)} ต่อวัน` : "ยังไม่ตั้งค่าใช้จ่ายจำเป็น"}`,
     {
       op: "cycle",
       input: input as Required<
@@ -730,7 +742,7 @@ async function selected(
   if (!item) return say("เลือกหมายเลขที่แสดงในรายการครับ", p);
   if (p.purpose) return run(userId, { ...p.purpose, selected: item });
   return say(
-    `${item.title} ${money(item.amount)}${item.status ? ` · ${item.status}` : ""}\n${p.type === "entry" ? "พิมพ์ แก้รายการล่าสุด 60 บาท หรือ ลบรายการล่าสุด หรือระบุเลขรายการจากรายการล่าสุดครับ" : `พิมพ์ จ่ายบิล 1 หน้า ${p.page ?? 1} / เลื่อนแผน 1 หน้า ${p.page ?? 1} ตามเลขในหน้านี้ครับ`}`,
+    `${item.title} ${money(item.amount)}${item.status ? ` · ${statusText(item.status)}` : ""}\n${p.type === "entry" ? "พิมพ์ แก้รายการล่าสุด 60 บาท หรือ ลบรายการล่าสุด หรือระบุเลขรายการจากรายการล่าสุดครับ" : `พิมพ์ จ่ายบิล 1 หน้า ${p.page ?? 1} / เลื่อนแผน 1 หน้า ${p.page ?? 1} ตามเลขในหน้านี้ครับ`}`,
   );
 }
 

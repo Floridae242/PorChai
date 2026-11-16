@@ -235,7 +235,7 @@ export function templateFor(f: Facts): string {
   } else if (f.verdict === "tight") {
     lines.push(`ตึงหน่อย ⚠ ${head}`, `ถ้าจ่าย งบต่อวันเหลือ ${n(f.dailyAfter)} บาท ต่ำกว่าค่ากินค่ารถ ${n(f.essentialPerDay)}/วัน (ขาดวันละ ${n(f.shortPerDay)})`);
   } else {
-    lines.push(`ไม่พอ ✗ ${head}`, `ขาด ${n(f.shortfall)} บาท (ไม่นับเงินที่จะเข้าทีหลัง)`);
+    lines.push(`ไม่พอ ✗ ${head}`, `ถ้าซื้อ เงินไม่พอกันบิล เงินออม และเงินเผื่อ ขาด ${n(f.shortfall)} บาท (ไม่นับเงินที่จะเข้าทีหลัง)`);
   }
   if (f.options.length > 0) lines.push("ทางเลือก:");
   for (const o of f.options) {
