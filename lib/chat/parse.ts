@@ -54,6 +54,8 @@ function clean(raw: string): string {
   return raw
     .replace(/[๐-๙]/g, (d) => String(THAI_DIGITS.indexOf(d)))
     .replace(/(\d),(?=\d{3}(?!\d))/g, "$1") // 1,200 → 1200
+    // «ข้าว 1k» was 1 baht named «ข้าว k» (16 Nov): «k» right after a number is a thousand, «1kg» is not
+    .replace(/(\d+(?:\.\d+)?)\s*[kK](?![a-zA-Z])/g, (_, n: string) => String(Math.round(Number(n) * 100_000) / 100))
     .replace(/^[\s/\\]+/, "")
     .replace(/\s+/g, " ")
     .trim();

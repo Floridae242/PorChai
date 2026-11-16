@@ -66,7 +66,7 @@ import { inferReadIntent } from "./infer";
 import { sponsorCarousel } from "@/lib/line/sponsor-card";
 import { installmentSchedule, parseInstallment } from "./installments";
 import { addInstallments } from "@/lib/db/installments";
-import { isQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isQuestion } from "@/lib/advice/question";
 import { simulatePurchase } from "@/lib/calc/budget";
 import { spendingInsights } from "@/lib/db/spending-insights";
 import { spendingCategories,saveSpendingCategory } from "@/lib/db/spending-categories";
@@ -630,7 +630,7 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
   }
 }
 
-function setup(p: SetupPending): Answer {
+function setup(p: SetupPending, unclear = false): Answer {
   const prompts = {
     source: "เงินหลักมาจากไหนครับ? พิมพ์ เงินจากบ้าน/ทุน, งานพิเศษ หรือ อื่นๆ",
     frequency: "รับเงินเป็นรอบแบบไหนครับ? รายสัปดาห์, รายเดือน หรือ ไม่แน่นอน",
@@ -642,56 +642,65 @@ function setup(p: SetupPending): Answer {
     food: "กันค่าอาหารวันละกี่บาทครับ? ใส่ 0 หรือพิมพ์ ข้าม เพื่อยังไม่ตั้งค่าใช้จ่ายจำเป็น",
     transport: "กันค่าเดินทางวันละกี่บาทครับ? ใส่ 0 ได้",
   };
-  return say(prompts[p.field], p);
+  return say(unclear ? `ยังไม่เข้าใจคำตอบครับ ${prompts[p.field]}\nหรือพิมพ์ ยกเลิก เพื่อออกจากการเริ่มรอบเงิน` : prompts[p.field], p);
+}
+
+// Mid-setup «ข้าว 50», «วันนี้ใช้ได้เท่าไหร่», «ดูแต้ม»: another request, not an answer, so the setup ends (16 Nov)
+function leavesSetup(body: string): boolean {
+  if (parseIntent(body, thaiDate(new Date()))) return true;
+  if (isBalanceQuestion(body) || isPaydayQuestion(body) || isEnoughQuestion(body)) return true;
+  const parsed = parseExpense(body);
+  return parsed.kind === "income" || (parsed.kind === "entry" && /\p{L}/u.test(parsed.title));
 }
 async function setupReply(
   userId: string,
   p: SetupPending,
   body: string,
-): Promise<Answer> {
+): Promise<Answer | null> {
   const input = { ...p.input },
     n = statedMoney(body),
     today = thaiDate(new Date());
   const next = (field: SetupPending["field"]) => setup({ ...p, input, field });
+  const unclear = () => (leavesSetup(body) ? null : setup(p, true));
   switch (p.field) {
     case "source":
       if (/บ้าน|ทุน|family/u.test(body)) input.incomeSource = "family";
       else if (/งานพิเศษ|side_job/u.test(body)) input.incomeSource = "side_job";
       else if (/^(อื่นๆ?|other)$/u.test(body.trim()))
         input.incomeSource = "other";
-      else return setup(p);
+      else return unclear();
       return next("frequency");
     case "frequency":
       if (/สัปดาห์/u.test(body)) input.incomeFrequency = "weekly";
       else if (/เดือน/u.test(body)) input.incomeFrequency = "monthly";
       else if (/ไม่แน่นอน/u.test(body)) input.incomeFrequency = "irregular";
-      else return setup(p);
+      else return unclear();
       return next("balance");
     case "balance":
-      if (n === undefined) return setup(p);
+      if (n === undefined) return unclear();
       input.balance = n;
       return next("payday");
     case "payday": {
       const date = statedDate(body, today);
-      if (!date) return setup(p);
+      if (!date) return unclear();
       input.payday = date;
       return next("savings");
     }
     case "savings":
-      if (n === undefined) return setup(p);
+      if (n === undefined) return unclear();
       input.savingsAmount = n;
       return next("buffer");
     case "buffer":
-      if (n === undefined) return setup(p);
+      if (n === undefined) return unclear();
       input.emergencyBuffer = n;
       return next("food");
     case "food":
       if (body.trim() === "ข้าม") break;
-      if (n === undefined) return setup(p);
+      if (n === undefined) return unclear();
       input.essentials = { food: n, transport: 0 };
       return next("transport");
     case "transport":
-      if (n === undefined) return setup(p);
+      if (n === undefined) return unclear();
       input.essentials = { food: input.essentials!.food, transport: n };
       break;
   }
@@ -792,7 +801,8 @@ export async function chatAction(
     }
     if (pending?.kind === "chat_list" && /^\d{1,2}$/.test(body.trim()))
       return await selected(userId, pending, Number(body.trim()) - 1);
-    if (isAction)
+    // A finished command («ยืนยัน» done) waits for nothing: the next message is answered as usual (16 Nov)
+    if (isAction && !(pending?.kind === "chat_command" && pending.closed))
       return say("ยังไม่ได้ทำรายการครับ พิมพ์ ยืนยัน, ยกเลิก หรือเริ่มคำสั่งใหม่ เช่น เมนู");
     const inferred = await inferReadIntent(body, thaiDate(new Date()));
     return inferred ? await run(userId, inferred) : null;

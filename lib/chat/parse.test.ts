@@ -135,3 +135,22 @@ it("«ไปรษณีย์ 30» keeps its name: only a trailing «ไป» g
   expect(parseExpense("ไปรษณีย์ 30")).toMatchObject({ kind: "entry", title: "ไปรษณีย์" });
 });
 it.each(["หม่าล่า", "หมาล่า"])("«%s» is food, however it is spelt", (title) => expect(categoryOf(title)).toBe("food"));
+
+// 16 Nov: «ข้าว 1k» was recorded as 1 baht named «ข้าว k»
+it.each([
+  ["ข้าว 1k", "ข้าว", 100000],
+  ["ข้าว 1.5k", "ข้าว", 150000],
+  ["ค่าหอ 3K บาท", "ค่าหอ", 300000],
+  ["ข้าว 2 k", "ข้าว", 200000],
+])("«%s» is a thousand: «%s» %i satang", (text, title, amount) => {
+  expect(parseExpense(text)).toMatchObject({ kind: "entry", title, amount });
+});
+it("«kfc 99» keeps its name: «k» is a thousand only after a number", () => {
+  expect(parseExpense("kfc 99")).toMatchObject({ kind: "entry", title: "kfc", amount: 9900 });
+});
+it("«ข้าวสาร 5kg» is not 5,000 baht: «kg» is a weight", () => {
+  expect(parseExpense("ข้าวสาร 5kg")).not.toMatchObject({ amount: 500000 });
+});
+it("«200k» is too large, asked back", () => {
+  expect(parseExpense("ข้าว 200k")).toEqual({ kind: "ask", reason: "too_large" });
+});

@@ -210,6 +210,10 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   // A social response ends the previous question; it is never the title of a pending amount.
   const routine = routineChat(body);
   if (routine?.kind === "chat" && routine.reply) return say(chatMessage(routine.reply));
+  // L6 card: «ยืนยัน» typed instead of [ยืนยันจ่ายจริง] is the same tap, saved once under the card's key (16 Nov)
+  if (pending?.kind === "hold" && /^(ยืนยัน|ยืนยันจ่ายจริง|จ่ายแล้ว|ตกลง|ใช่)$/u.test(body.trim())) {
+    return say(await onDraft(userId, { ...pending.draft, action: "pay" }));
+  }
   const amount = amountOnly(body);
   // Try card [ลองยอดอื่น] → «250»: try the new price (a new draft: paying it is a new spend)
   if (pending?.kind === "try" && pending.awaiting === "amount" && amount !== null) {
@@ -312,7 +316,7 @@ async function converse(
 async function spend(userId: string, draft: Draft): Promise<Answer> {
   const { budget } = await loadSummary(userId);
   if (budget.kind === "ok" && budget.todayRemaining >= 0 && draft.amount > budget.todayRemaining) {
-    return say(holdCard(draft, budget.todayRemaining));
+    return say(holdCard(draft, budget.todayRemaining), { kind: "hold", draft: { title: draft.title, amount: draft.amount, category: draft.category as UserCategory, key: draft.key } });
   }
   const { entry } = await record(userId, draft);
   return say(await recorded(userId, { ...draft, category: draft.category as UserCategory, id: entry.id }));
