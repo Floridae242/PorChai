@@ -118,6 +118,20 @@ export interface EntriesResponse {
   entries: Entry[];
 }
 
+// GET /api/income — money received this cycle (chat «ได้เงิน 50» or the app's จด › รายรับ), newest first
+export interface Income {
+  id: string;
+  amount: number; // satang
+  note: string | null;
+  receivedOn: string; // YYYY-MM-DD
+  source: "chat" | "form";
+  createdAt: string;
+}
+
+export interface IncomesResponse {
+  incomes: Income[];
+}
+
 // POST /api/simulate — W11–W14 "ลองก่อนจ่าย": nothing is saved
 export interface SimulateRequest {
   amount?: number; // the item to try; leave out to only try postponing
