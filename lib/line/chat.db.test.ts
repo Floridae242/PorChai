@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addDays, thaiDate } from "@/lib/calc/time";
 import { getDb } from "@/lib/db/client";
+import { loadSummary } from "@/lib/db/budget";
 import { generate } from "@/lib/ai/gemini";
 import * as installmentsDb from "@/lib/db/installments";
 import type { VerifyResult } from "@/lib/line/id-token";
@@ -115,6 +116,233 @@ async function screenEntries() {
 }
 
 describe("card 09: expenses from the chat", () => {
+  it("editing the latest amount never records the command as a new expense", async () => {
+    await figma();
+    await chat("ข้าว 50");
+    const original = (await screenEntries())[0];
+    await chat("แก้ยอดล่าสุด 40");
+    expect(await screenEntries()).toHaveLength(1);
+    expect(lastText()).toContain("ยืนยัน");
+    expect(lastText()).toContain("ข้าว");
+    await chat("ยืนยัน");
+    expect(await screenEntries()).toMatchObject([{ id: original.id, amount: 4000, note: "ข้าว", category: "food" }]);
+  });
+
+  it("a confirmation with an amount without a structured edit request never becomes a new expense", async () => {
+    await figma();
+    await chat("ข้าว 50");
+    await chat("ใช่ 40");
+    expect(await screenEntries()).toHaveLength(1);
+    expect((await screenEntries())[0]).toMatchObject({amount:5000,note:"ข้าว"});
+    expect(lastText()).not.toContain("จดแล้ว");
+  });
+
+  it("an amount reply to the stored edit question keeps the entry identity and category", async () => {
+    await figma(); await chat("ข้าว 50");
+    const original = (await screenEntries())[0];
+    await chat("แก้รายการล่าสุด");
+    await chat("ใช่ 40");
+    expect((await screenEntries())[0].amount).toBe(5000);
+    expect(lastText()).toContain("ยืนยัน");
+    await chat("ยืนยัน"); await chat("ยืนยัน");
+    expect(await screenEntries()).toMatchObject([{id:original.id,amount:4000,note:"ข้าว",category:"food"}]);
+  });
+
+  it("changing a preview amount retires the old confirmation card", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("แก้ยอดล่าสุด 60");
+    const oldConfirm = lastButtons().find(b=>b.label === "ยืนยัน")!.data!;
+    await chat("ใช่ 40");
+    const newConfirm = lastButtons().find(b=>b.label === "ยืนยัน")!.data!;
+    expect(newConfirm).not.toBe(oldConfirm);
+    await tap(oldConfirm);
+    expect((await screenEntries())[0].amount).toBe(5000);
+    await tap(newConfirm); await tap(newConfirm);
+    expect(await screenEntries()).toMatchObject([{amount:4000,note:"ข้าว",category:"food"}]);
+  });
+
+  it.each(["ใช่ 40", "แก้เป็น 40 บาท", "เปลี่ยนเป็น ๔๐ บาทครับ"])("the recorded card edit accepts %s without creating another expense", async answer => {
+    await figma(); await chat("ข้าว 50");
+    const original = (await screenEntries())[0];
+    await tap(lastButtons().find(b=>b.label === "แก้")!.data!);
+    await chat(answer);
+    expect(await screenEntries()).toMatchObject([{id:original.id,amount:4000,note:"ข้าว",category:"food"}]);
+    expect(lastText()).toContain("แก้แล้ว");
+  });
+
+  it("AI clarification text cannot authorize an amount-only confirmation to record anything", async () => {
+    await figma(); await chat("ข้าว 50");
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    await db.from("chat_messages").insert({user_id:owner.data!.id,role:"bot",body:"หมายถึงรายการข้าวที่จดไป 50 บาทใช่ไหมครับ ต้องการเปลี่ยนเป็นยอดเท่าไรแจ้งได้เลยครับ",pending:null});
+    await chat("ใช่ 40");
+    expect(await screenEntries()).toMatchObject([{amount:5000,note:"ข้าว",category:"food"}]);
+    expect(lastText()).toContain("ยังไม่ได้บันทึกหรือแก้รายการ");
+    await chat("แก้ยอดล่าสุด 40"); await chat("ยืนยัน");
+    expect(await screenEntries()).toMatchObject([{amount:4000,note:"ข้าว",category:"food"}]);
+  });
+
+  it("the reported 500-to-400 edit restores 100 baht without extra entries or points", async () => {
+    await figma(); await chat("ข้าว 500");
+    await tap(lastButtons().find(b=>b.label === "ยืนยันจ่ายจริง")!.data!);
+    const original = (await screenEntries())[0];
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    const before = await loadSummary(owner.data!.id);
+    await chat("แก้ยอดล่าสุด 400"); await chat("ยืนยัน"); await chat("ยืนยัน");
+    expect(await screenEntries()).toMatchObject([{id:original.id,amount:40000,note:"ข้าว",category:"food"}]);
+    const after = await loadSummary(owner.data!.id);
+    expect(after.balance-before.balance).toBe(10000);
+    expect(before.spentToday-after.spentToday).toBe(10000);
+    expect((await db.from("points_ledger").select("id").eq("user_id",owner.data!.id)).data).toHaveLength(1);
+  });
+
+  it("ordinary Thai names starting with แก้ว still record normally", async () => {
+    await figma(); await chat("แก้วน้ำ 50 บาท");
+    expect(await screenEntries()).toMatchObject([{amount:5000,note:"แก้วน้ำ"}]);
+    expect(lastText()).toContain("จดแล้ว");
+  });
+
+  it.each([
+    "ใช่ 40", "ใช่ครับ 40 บาท", "ใช่ค่ะ 40", "ใช่40บาทครับ", "ไม่ใช่ 40",
+    "ตกลง 40", "ยืนยัน 40", "เปลี่ยนเป็น 40", "ยอดใหม่ 40", "ยอดใหม่คือ 40",
+    "เป็น 40 บาท", "แก้ให้เป็น 40", "ขอแก้ข้าว 40", "ต้องการแก้ยอด 40",
+  ])("an orphan correction cannot create an expense: %s", async answer => {
+    await figma(); await chat("ข้าว 50");
+    await chat(answer);
+    expect(await screenEntries()).toMatchObject([{amount:5000,note:"ข้าว",category:"food"}]);
+  });
+
+  it.each(["-40", "+40", "1e4", "฿-40"])("a malformed numeric reply to the card edit cannot become a new expense: %s", async answer => {
+    await figma(); await chat("ข้าว 50");
+    await tap(lastButtons().find(b=>b.label === "แก้")!.data!);
+    await chat(answer);
+    expect(await screenEntries()).toMatchObject([{amount:5000,note:"ข้าว",category:"food"}]);
+  });
+
+  it("a replacement explicit edit command retires the previous card", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("แก้ยอดล่าสุด 60");
+    const oldConfirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;
+    await chat("แก้ยอดล่าสุด 40");
+    const newConfirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;
+    await tap(oldConfirm);
+    expect((await screenEntries())[0].amount).toBe(5000);
+    await tap(newConfirm);
+    expect(await screenEntries()).toMatchObject([{amount:4000,note:"ข้าว"}]);
+  });
+
+  it.each([
+    "แก้ยอดล่าสุด 40", "แก้ไขยอดล่าสุด 40 บาท", "ขอแก้ยอดล่าสุด ๔๐ บาทครับ",
+    "ช่วยแก้รายการล่าสุด 40", "เปลี่ยนยอดล่าสุด 40", "แก้ยอดเมื่อกี้ 40",
+    "แก้จำนวนเงินล่าสุด 40", "ต้องการแก้ยอดล่าสุด 40",
+  ])("edit wording changes the same record only after confirmation: %s", async command => {
+    await figma(); await chat("ข้าว 50"); const [entry]=await screenEntries();
+    await chat(command);
+    expect(await screenEntries()).toMatchObject([{id:entry.id,amount:5000}]);
+    expect(lastText()).toContain("ยืนยัน");
+    await chat("ยืนยัน");
+    expect(await screenEntries()).toMatchObject([{id:entry.id,amount:4000,note:"ข้าว",category:"food"}]);
+  });
+
+  it.each([
+    "40", "๔๐ บาท", "ใช่ 40", "ใช่ครับ 40", "ใช่ค่ะ ๔๐ บาท", "ใช่40บาทครับ",
+    "แก้เป็น 40", "เปลี่ยนเป็น 40", "ยอดใหม่ 40", "ยอดใหม่คือ40", "เป็น40ค่ะ",
+  ])("a structured edit form accepts %s without premature mutation", async answer => {
+    await figma(); await chat("ข้าว 50"); const [entry]=await screenEntries();
+    await chat("แก้รายการล่าสุด"); await chat(answer);
+    expect(await screenEntries()).toMatchObject([{id:entry.id,amount:5000}]);
+    expect(lastText()).toContain("ยืนยัน");
+    await chat("ยืนยัน");
+    expect(await screenEntries()).toMatchObject([{id:entry.id,amount:4000,note:"ข้าว",category:"food"}]);
+  });
+
+  it.each([
+    "-40", "+40", "฿-40", "0", "๐", "40.001", "40 หรือ 50", "ประมาณ40",
+    "1e4", "100001", "NaN", "Infinity", "ใช่ -40", "ใช่ 40 หรือ 50", "−40", "–40", "—40",
+  ])("an invalid card-edit amount is read-only and can be corrected: %s", async answer => {
+    await figma(); await chat("ข้าว 50"); const [entry]=await screenEntries();
+    await tap(lastButtons().find(b=>b.label === "แก้")!.data!);
+    await chat(answer);
+    expect(await screenEntries()).toMatchObject([{id:entry.id,amount:5000,note:"ข้าว"}]);
+    await chat("40");
+    expect(await screenEntries()).toMatchObject([{id:entry.id,amount:4000,note:"ข้าว"}]);
+  });
+
+  it.each(["ยกเลิก", "ไม่เอา", "cancel"])("cancelling an edit closes its confirmation: %s", async cancel => {
+    await figma(); await chat("ข้าว 50"); await chat("แก้ยอดล่าสุด 40");
+    const confirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;
+    await chat(cancel); await tap(confirm); await chat("ยืนยัน");
+    expect(await screenEntries()).toMatchObject([{amount:5000,note:"ข้าว"}]);
+  });
+
+  it("a concurrent change makes the preview stale instead of overwriting the new amount", async () => {
+    await figma(); await chat("ข้าว 50"); const [entry]=await screenEntries();
+    await chat("แก้ยอดล่าสุด 40");
+    const updated=await db.from("entries").update({amount:5500}).eq("id",entry.id);
+    expect(updated.error).toBeNull();
+    await chat("ยืนยัน");
+    expect(lastText()).toContain("ข้อมูลเปลี่ยนไปแล้ว");
+    expect(await screenEntries()).toMatchObject([{id:entry.id,amount:5500,note:"ข้าว"}]);
+  });
+
+  it("a stale entry selection retains the selected identity when another expense arrives", async () => {
+    await figma(); await chat("ข้าว 50"); const [entry]=await screenEntries();
+    await chat("แก้รายการล่าสุด");
+    const row=await db.from("entries").select("user_id,cycle_id,spent_on").eq("id",entry.id).single();
+    expect(row.error).toBeNull();
+    const incoming=await db.from("entries").insert({...row.data!,amount:2000,note:"กาแฟ",category:"food",source:"chat",idempotency_key:`incoming-${run}-${eventIds.length}`});
+    expect(incoming.error).toBeNull();
+    await chat("ใช่40"); await chat("ยืนยัน");
+    const entries=await screenEntries();
+    expect(entries).toHaveLength(2);
+    expect(entries.find((e:{id:string})=>e.id === entry.id)).toMatchObject({amount:4000,note:"ข้าว"});
+    expect(entries.find((e:{id:string})=>e.id !== entry.id)).toMatchObject({amount:2000,note:"กาแฟ"});
+  });
+
+  it("an edit confirmation expires after the chat memory window", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("แก้ยอดล่าสุด 40");
+    const confirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    const expired=await db.from("chat_messages").update({created_at:new Date(Date.now()-35*60_000).toISOString()}).eq("user_id",owner.data!.id);
+    expect(expired.error).toBeNull();
+    await tap(confirm);
+    expect(await screenEntries()).toMatchObject([{amount:5000,note:"ข้าว"}]);
+    expect(lastText()).toContain("หมดอายุ");
+  });
+
+  it("asking for help interrupts an edit form without recording example amounts", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("แก้รายการล่าสุด");
+    await chat("ขอวิธีใช้"); await chat("ใช่ 40"); await chat("ยืนยัน");
+    expect(await screenEntries()).toMatchObject([{amount:5000,note:"ข้าว"}]);
+  });
+
+  it("a new real expense during edit confirmation stays separate and invalidates its old budget basis", async () => {
+    await figma(); await chat("ข้าว 50"); const [entry]=await screenEntries();
+    await chat("แก้ยอดล่าสุด 40");
+    const oldConfirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;
+    await chat("กาแฟ 20"); await tap(oldConfirm);
+    expect(await screenEntries()).toHaveLength(2);
+    expect((await screenEntries()).find((e:{id:string})=>e.id === entry.id).amount).toBe(5000);
+    expect(lastText()).toContain("ข้อมูลเปลี่ยนไปแล้ว");
+  });
+
+  it("editing without any entries creates neither an expense nor a point", async () => {
+    await figma(); await chat("แก้ยอดล่าสุด 40"); await chat("ใช่ 40"); await chat("ยืนยัน");
+    expect(await screenEntries()).toEqual([]);
+    const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
+    expect((await db.from("points_ledger").select("id").eq("user_id",owner.data!.id)).data).toEqual([]);
+  });
+
+  it.each(["-40", "+40", "−40", ".40", "$40", "ประมาณ40", "ใช่ -40", "ยอดใหม่ -40", "40 หรือ 50"])("malformed structured preview revisions cannot create an expense: %s", async answer => {
+    await figma(); await chat("ข้าว 50"); const [entry]=await screenEntries();
+    await chat("แก้ยอดล่าสุด 60");
+    const oldConfirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;
+    await chat(answer);
+    expect(await screenEntries()).toMatchObject([{id:entry.id,amount:5000,note:"ข้าว"}]);
+    await chat("40");
+    const confirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;
+    await tap(oldConfirm);
+    expect((await screenEntries())[0].amount).toBe(5000);
+    await tap(confirm);
+    expect(await screenEntries()).toMatchObject([{id:entry.id,amount:4000,note:"ข้าว"}]);
+  });
   it.each(["ขอวิธีใช้","ขอวิธีจดรายรับ 1000 บาท","จดข้าว 50 ยังไงครับ","ขอวิธีผ่อนโทรศัพท์","ทำยังไงถึงได้แต้ม"])("asking how to use never records examples or awards points: %s",async body=>{
     await figma();expect((await chat(body)).status).toBe(200);expect(last().type).toBe("flex");expect(await screenEntries()).toEqual([]);
     const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();

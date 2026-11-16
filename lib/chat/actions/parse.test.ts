@@ -12,6 +12,15 @@ describe("chat command boundaries", () => {
     ["ดูแผน", "plans"],
     ["ยกเลิกการจ่ายบิล 1", "plan_action"],
     ["แก้รายการล่าสุด 60 บาท", "entry_edit"],
+    ["แก้ยอดล่าสุด 400", "entry_edit"],
+    ["แก้ไขยอดล่าสุด ๔๐๐ บาท", "entry_edit"],
+    ["ขอแก้ยอดล่าสุด 400 บาทครับ", "entry_edit"],
+    ["เปลี่ยนยอดล่าสุด 400", "entry_edit"],
+    ["แก้ยอดเมื่อกี้ 400", "entry_edit"],
+    ["แก้ยอดข้าว 400", "entry_edit"],
+    ["แก้ยอดเงิน 400", "balance"],
+    ["แก้ยอดเงิน๔๐๐", "balance"],
+    ["แก้ยอดเงินจริง 400", "balance"],
     ["เปิดสรุปรายวัน เวลา 20:00", "notifications"],
     ["ปิดแจ้งเตือน", "notifications"],
     ["เริ่มรอบเงิน", "setup"],
@@ -55,6 +64,8 @@ describe("chat command boundaries", () => {
     expect(statedMoney(message)).toBeUndefined();
   });
   it("keeps index, amount, date and time separate", () => {
+    expect(parseIntent("แก้ยอดล่าสุด 400", today)).toMatchObject({tool:"entry_edit",target:"latest",amount:40000});
+    expect(parseIntent("แก้ยอดเมื่อกี้ ๔๐๐", today)).toMatchObject({tool:"entry_edit",target:"latest",amount:40000});
     expect(
       fields(
         "แก้รายการ 2 เป็น 50 บาท วันที่ 2026-11-14 เวลา 20:00",
