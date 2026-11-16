@@ -75,6 +75,7 @@ import { suggestSpending } from "@/lib/ai/spending-suggestions";
 import { addEntry } from "@/lib/db/entries";
 import { parseNewEntry } from "@/lib/validate";
 import { categoryCommand } from "./personal-categories";
+import { splitExplicitExpenses } from "@/lib/chat/multi-expense";
 import type {
   ActionPending,
   CommandPending,
@@ -103,7 +104,7 @@ const action = (label: string, data: string): QuickReplyAction => ({
   displayText: label,
 });
 const help =
-  "ทำในแชตได้เลยครับ เช่น\n• ได้รับเงิน 1000 บาท / ข้าว 50\n• วันนี้ใช้ได้เท่าไหร่ / ดูรายงานวันนี้ / ดูรายงานเดือนนี้\n• ค้นรายจ่าย ข้าว / ดูรายการ\n• เพิ่มบิล ค่าหอ 500 บาท / ดูแผน / จ่ายบิล 1\n• ผ่อน โทรศัพท์ ยอดรวม 12000 บาท 12 งวด เริ่ม 2026-12-01\n• แก้รายการล่าสุด 60 บาท / ลบรายการล่าสุด\n• ปรับยอด 2000 บาท / กันเงินเผื่อ 100 บาท\n• เปลี่ยนวันรับเงิน 2026-12-01\n• ตั้งค่าอาหาร 50 ค่ารถ 20\n• เปิดสรุปรายวัน เวลา 20:00 / ปิดแจ้งเตือน\n• เปิดเตือนจด / ดูแต้ม / เช็กครบแล้ว / แลกของ\n• เริ่มรอบเงิน / ดูคูปอง\n• ดูภาพรวม / วิเคราะห์ / AI วิเคราะห์ / ดูหมวด\n• เพิ่มหมวด ชานม กลุ่ม อาหาร งบ 500 บาท\nจดวันนี้รับแต้มอัตโนมัติวันละ 1 แต้ม\nส่งรูปใบเสร็จ หรือถามก่อนจ่ายได้ด้วยครับ";
+  "ให้น้องพอใช้ช่วยในแชตได้เลยครับ เช่น\n• ได้รับเงิน 1000 บาท / ข้าว 50\n• วันนี้ใช้ได้เท่าไหร่ / ดูรายงานวันนี้ / ดูรายงานเดือนนี้\n• ค้นรายจ่าย ข้าว / ดูรายการ\n• เพิ่มบิล ค่าหอ 500 บาท / ดูแผน / จ่ายบิล 1\n• ผ่อน โทรศัพท์ ยอดรวม 12000 บาท 12 งวด เริ่ม 2026-12-01\n• แก้รายการล่าสุด 60 บาท / ลบรายการล่าสุด\n• ปรับยอด 2000 บาท / กันเงินเผื่อ 100 บาท\n• เปลี่ยนวันรับเงิน 2026-12-01\n• ตั้งค่าอาหาร 50 ค่ารถ 20\n• เปิดสรุปรายวัน เวลา 20:00 / ปิดแจ้งเตือน\n• เปิดเตือนจด / ดูแต้ม / เช็กครบแล้ว / แลกของ\n• เริ่มรอบเงิน / ดูคูปอง\n• ดูภาพรวม / วิเคราะห์ / AI วิเคราะห์ / ดูหมวด\n• เพิ่มหมวด ชานม กลุ่ม อาหาร งบ 500 บาท\nจดวันนี้รับแต้มอัตโนมัติวันละ 1 แต้ม\nส่งรูปใบเสร็จ หรือถามก่อนจ่ายได้ด้วยครับ";
 const expired = () => say("คำขอนี้หมดอายุหรือไม่ใช่ของบัญชีนี้แล้วครับ พิมพ์คำสั่งใหม่ได้เลย");
 
 async function preview(
@@ -134,7 +135,7 @@ async function preview(
     basis,
   };
   return say(
-    `ยืนยัน ${label}\nยังไม่ได้เปลี่ยนข้อมูล กดหรือพิมพ์ “ยืนยัน” หรือ “ยกเลิก” ครับ`,
+    `ยืนยัน ${label}\nน้องพอใช้เตรียมร่างให้แล้วครับ ยังไม่ได้เปลี่ยนข้อมูล ตรวจให้ครบแล้วกดหรือพิมพ์ “ยืนยัน” หรือ “ยกเลิก” ครับ`,
     p,
     [action("ยืนยัน", `pc:yes:${p.key}`), action("ยกเลิก", `pc:no:${p.key}`)],
     "ตรวจข้อมูลก่อนยืนยัน",
@@ -477,7 +478,7 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
     case "points": {
       const r = await pointsState(userId);
       return say(
-        `คุณมี ${r.balance} แต้ม · ${r.claimedToday ? "เช็กครบแล้ววันนี้" : "พิมพ์ เช็กครบแล้ว เพื่อรับแต้มวันนี้"}`,
+        `คุณมี ${r.balance} แต้ม · ${r.claimedToday ? "เช็กครบแล้ววันนี้" : "จดรายการเพื่อรับแต้มอัตโนมัติ หรือพิมพ์ เช็กครบแล้ว เพื่อรับแต้มวันนี้"}`,
       );
     }
     case "claim_points": {
@@ -780,6 +781,9 @@ export async function chatAction(
           (intent.tool === "entry_edit" || intent.tool === "entry_delete")) await retireEdit(userId, pending);
       return await run(userId, intent);
     }
+    // A list/finished command is context, not a lock on the next independent message.
+    // Only explicit multi-item syntax can bypass it; ambiguous numbers still need clarification.
+    if ((pending?.kind === "chat_list" || pending?.kind === "chat_command") && splitExplicitExpenses(body)) return null;
     if (pending?.kind === "chat_command" && pending.action.op === "entry_edit" &&
         (looksLikeAmountReply(body) || isCorrectionReply(body))) {
       if (pending.closed) return expired();
@@ -814,9 +818,9 @@ export async function chatAction(
     }
     if (pending?.kind === "chat_list" && /^\d{1,2}$/.test(body.trim()))
       return await selected(userId, pending, Number(body.trim()) - 1);
-    // A finished command («ยืนยัน» done) waits for nothing: the next message is answered as usual (16 Nov)
+    // A finished command must allow the next message through read-intent inference.
     if (isAction && !(pending?.kind === "chat_command" && pending.closed))
-      return say("ยังไม่ได้ทำรายการครับ พิมพ์ ยืนยัน, ยกเลิก หรือเริ่มคำสั่งใหม่ เช่น เมนู");
+      return say("น้องพอใช้ยังไม่ได้บันทึกเพิ่มครับ ถ้าต้องการทำตามร่างล่าสุด พิมพ์ ‘ยืนยัน’ หรือพิมพ์ ‘ยกเลิก’ เพื่อเริ่มใหม่ได้เลยครับ");
     const inferred = await inferReadIntent(body, thaiDate(new Date()));
     return inferred ? await run(userId, inferred) : null;
   } catch (error) {

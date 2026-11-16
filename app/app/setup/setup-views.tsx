@@ -415,7 +415,7 @@ function EssentialsForm({ initial }: { initial: SetupDraft }) {
     <SetupFrame
       step={4}
       title="ตั้งค่า 4/4 · ค่าจำเป็นต่อวัน"
-      subtitle="บอกยอดขั้นต่ำที่ต้องใช้ทุกวัน เช่น ค่าอาหารและค่าเดินทาง เพื่อให้พอใช้ช่วยเตือนตอนลองซื้อของ"
+      subtitle="บอกยอดขั้นต่ำที่ต้องใช้ทุกวัน เช่น ค่าอาหารและค่าเดินทาง น้องพอใช้จะใช้ยอดนี้ช่วยดูแผนก่อนซื้อครับ"
       backHref="/app/setup/savings"
     >
       <div className="flex flex-col gap-5">

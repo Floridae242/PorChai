@@ -87,7 +87,7 @@ describe("parseExpense — unclear messages are asked, never recorded", () => {
   });
 
   it("zero or an absurd amount", () => {
-    expect(parseExpense("ข้าว 0")).toEqual({ kind: "ask", reason: "no_amount" });
+    expect(parseExpense("ข้าว 0")).toEqual({ kind: "ask", reason: "invalid_amount" });
     expect(parseExpense("ข้าว 99999999")).toEqual({ kind: "ask", reason: "too_large" });
   });
 
@@ -96,6 +96,10 @@ describe("parseExpense — unclear messages are asked, never recorded", () => {
     expect(r).toMatchObject({ kind: "entry", amount: 5000 });
     expect((r as { title: string }).title.length).toBe(40);
   });
+});
+
+it.each(["ข้าว -10", "ข้าว −10", "ข้าว - ๑๐", "ข้าว +10", "ข้าว 10.999", "รับ -10", "รับ 0"])("never drops an invalid amount sign or precision: %s", (message) => {
+  expect(parseExpense(message)).toEqual({ kind: "ask", reason: "invalid_amount" });
 });
 
 describe("amountOnly: the answer to «กี่บาท?»", () => {

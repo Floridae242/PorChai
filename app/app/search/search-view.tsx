@@ -93,8 +93,8 @@ export function SearchView() {
       </div>
       <p className="text-sm text-secondary">
         {mode === "entries"
-          ? "ค้นด้วยชื่อที่จด เช่น ข้าว กาแฟ ค่ารถ เฉพาะบัญชีของคุณ ไม่ส่งประวัติไปค้นเว็บ"
-          : "คำค้นส่งไป Gemini/Google Search โดยไม่แนบประวัติหรือยอดเงินของคุณ ราคาและโปรต้องตรวจสอบกับร้านอีกครั้ง"}
+          ? "ให้น้องพอใช้ค้นชื่อที่เคยจด เช่น ข้าว กาแฟ ค่ารถ ได้เลยครับ ค้นเฉพาะบัญชีของคุณ ไม่ส่งประวัติไปค้นเว็บ"
+          : "น้องพอใช้ส่งเฉพาะคำค้นไป Gemini/Google Search ครับ ไม่แนบประวัติหรือยอดเงิน ราคาและโปรอาจเปลี่ยน ตรวจเงื่อนไขกับร้านอีกครั้งก่อนซื้อครับ"}
       </p>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <label className="flex flex-col gap-2 text-sm font-semibold">
