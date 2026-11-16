@@ -2,11 +2,11 @@ import type { ReactNode } from "react";
 import type { TabKey } from "./tab-for-path";
 
 // Temporary inline outline icons (24px, currentColor) until the Figma icon set is exported.
-function Svg({ children }: { children: ReactNode }) {
+function Svg({ children, size = 24 }: { children: ReactNode; size?: number }) {
   return (
     <svg
-      width="24"
-      height="24"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -65,3 +65,22 @@ export const TAB_ICON: Record<Exclude<TabKey, "record">, () => ReactNode> = {
   perks: PerksIcon,
   settings: SettingsIcon,
 };
+
+// Direction of money in a list row: received (arrow comes in) and spent (arrow goes out).
+export function ArrowInIcon({ size = 18 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M17 7 7 17" />
+      <path d="M7 8v9h9" />
+    </Svg>
+  );
+}
+
+export function ArrowOutIcon({ size = 18 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M7 17 17 7" />
+      <path d="M8 7h9v9" />
+    </Svg>
+  );
+}

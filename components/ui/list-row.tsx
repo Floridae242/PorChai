@@ -6,7 +6,9 @@ export type ListRowProps = {
   subtitle?: string;
   /** Already formatted (e.g. "1,200 baht"); this component never formats money. */
   amount?: string;
-  /** "income" colours the amount green (money received); the +/− sign stays, colour is never the only cue. */
+  /** Something at the start of the row (e.g. <MoneyDirection />). */
+  leading?: ReactNode;
+  /** "income": money received. Green amount, a soft green row and a green bar on its left edge; the +/− sign stays, colour is never the only cue. */
   tone?: "default" | "income";
   badge?: ReactNode;
   href?: string;
@@ -16,9 +18,13 @@ export type ListRowProps = {
 const BASE =
   "flex w-full items-center gap-3 rounded-md bg-card px-4 py-3 text-left font-body outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)]";
 
-export function ListRow({ title, subtitle, amount, tone = "default", badge, href, onClick }: ListRowProps) {
+export function ListRow({ title, subtitle, amount, tone = "default", leading, badge, href, onClick }: ListRowProps) {
+  const income = tone === "income";
+  const base = `${BASE.replace("bg-card", income ? "bg-subtle" : "bg-card")} ${income ? "relative rounded-none" : ""}`;
   const content = (
     <>
+      {income ? <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-action-primary" /> : null}
+      {leading}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-base text-primary">{title}</span>
         {subtitle ? <span className="truncate text-sm text-secondary">{subtitle}</span> : null}
@@ -27,7 +33,7 @@ export function ListRow({ title, subtitle, amount, tone = "default", badge, href
       {amount ? (
         <span
           data-clarity-mask="true"
-          className={`shrink-0 text-base font-semibold ${tone === "income" ? "text-ok" : "text-primary"}`}
+          className={`shrink-0 text-base font-semibold ${income ? "text-ok" : "text-primary"}`}
         >
           {amount}
         </span>
@@ -36,17 +42,17 @@ export function ListRow({ title, subtitle, amount, tone = "default", badge, href
   );
   if (href) {
     return (
-      <Link href={href} onClick={onClick} className={BASE}>
+      <Link href={href} onClick={onClick} className={base}>
         {content}
       </Link>
     );
   }
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={BASE}>
+      <button type="button" onClick={onClick} className={base}>
         {content}
       </button>
     );
   }
-  return <div className={BASE}>{content}</div>;
+  return <div className={base}>{content}</div>;
 }

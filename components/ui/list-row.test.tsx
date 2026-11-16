@@ -35,6 +35,24 @@ describe("ListRow tone", () => {
   });
 });
 
+describe("ListRow income row", () => {
+  it("has a soft green row, a green bar on its left edge and the leading icon", () => {
+    const { container } = render(<ListRow title="a" amount="+50 บาท" tone="income" leading={<i data-testid="lead" />} />);
+    const row = container.firstElementChild as HTMLElement;
+    expect(row.className).toContain("bg-subtle");
+    expect(row.className).not.toContain("bg-card");
+    expect(row.className).toContain("relative");
+    expect(row.querySelector("span[aria-hidden].bg-action-primary")).toBeTruthy();
+    expect(screen.getByTestId("lead")).toBeTruthy();
+  });
+  it("a normal row has no bar and keeps the card background", () => {
+    const { container } = render(<ListRow title="a" amount="−45 บาท" />);
+    const row = container.firstElementChild as HTMLElement;
+    expect(row.className).toContain("bg-card");
+    expect(row.querySelector(".bg-action-primary")).toBeNull();
+  });
+});
+
 describe("ListRow link + onClick", () => {
   it("calls onClick on a link row", async () => {
     const onClick = vi.fn((e?: unknown) => void e);
