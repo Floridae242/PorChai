@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/shell/app-header";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonClass } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { CategoryDonut } from "./category-donut";
 import { DailyChart, type ReportView } from "./daily-chart";
 import { useApi } from "@/lib/client/use-api";
 import { useDataRevision } from "@/lib/client/use-data-revision";
@@ -260,46 +261,37 @@ export function ReportsView() {
               </Chip>
             ))}
           </div>
-          <DailyChart
-            days={report.days}
-            view={view}
-            focused={
-              focusedDay ??
-              (report.days.some((d) => d.date === report.asOf)
-                ? report.asOf
-                : null)
-            }
-            onFocus={setFocusedDay}
-          />
+          {period === "month" ? (
+            <DailyChart
+              days={report.days}
+              view={view}
+              focused={
+                focusedDay ??
+                (report.days.some((d) => d.date === report.asOf)
+                  ? report.asOf
+                  : null)
+              }
+              onFocus={setFocusedDay}
+            />
+          ) : null}
           {view !== "income" ? (
-            <section className="rounded-md border border-line bg-card p-4">
-              <h2 className="mb-3 font-bold text-primary">แยกตามหมวด</h2>
-              <ul className="flex flex-col gap-3">
-                {report.categories.map((c) => (
-                  <li key={c.category}>
-                    <div className="flex justify-between gap-3 text-sm">
-                      <span>
-                        {CATEGORY_LABELS[c.category]} · {c.count} รายการ
-                      </span>
-                      <strong className="tabular-nums">
-                        {formatBaht(c.amount)} บาท
-                      </strong>
-                    </div>
-                    <div
-                      className="mt-1 h-2 rounded-pill bg-subtle"
-                      aria-hidden="true"
-                    >
-                      <div
-                        className="h-2 rounded-pill bg-secondary"
-                        style={{
-                          width: `${report.spending ? (c.amount / report.spending) * 100 : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <CategoryDonut
+              categories={report.categories}
+              spending={report.spending}
+              title={
+                period === "day" ? "รายจ่ายของวันนี้ แบ่งตามหมวด" : "แยกตามหมวด"
+              }
+            />
+          ) : period === "day" ? (
+            <p className="rounded-md border border-line bg-card p-4 text-sm text-secondary">
+              รายรับของวันนี้อยู่ในช่องรายรับด้านบน · รายรับไม่แบ่งเป็นหมวด ดูรายการได้ที่{" "}
+              <Link
+                href="/app/plan?tab=list"
+                className="font-semibold text-link"
+              >
+                แผนเงิน › รายรับ
+              </Link>
+            </p>
           ) : null}
         </>
       )}

@@ -60,7 +60,9 @@ it("shows income and spending per day with a legend, and switches between all, s
   expect(within(chart).getAllByText("รายรับ").length).toBeGreaterThan(0);
   expect(within(chart).getAllByText("รายจ่าย").length).toBeGreaterThan(0);
   // the day that has both says both
-  expect(screen.getByRole("button", { name: /รายรับ 300 บาท รายจ่าย 45 บาท/ })).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: /รายรับ 300 บาท รายจ่าย 45 บาท/ }),
+  ).toBeTruthy();
 
   fireEvent.click(screen.getByRole("button", { name: "รายจ่าย" }));
   await screen.findByRole("heading", { name: "รายจ่ายแต่ละวัน" });
@@ -72,7 +74,9 @@ it("shows income and spending per day with a legend, and switches between all, s
   await screen.findByRole("heading", { name: "รายรับแต่ละวัน" });
   expect(screen.queryByRole("heading", { name: "แยกตามหมวด" })).toBeNull(); // income has no categories
   expect(screen.getByRole("button", { name: /รายรับ 300 บาท/ })).toBeTruthy();
-  expect(screen.getByRole("link", { name: "แผนเงิน › รายรับ" }).getAttribute("href")).toBe("/app/plan?tab=list");
+  expect(
+    screen.getByRole("link", { name: "แผนเงิน › รายรับ" }).getAttribute("href"),
+  ).toBe("/app/plan?tab=list");
 });
 
 it("tapping a day shows its income and spending (green plus, grey minus), and future days say so", async () => {
@@ -84,12 +88,16 @@ it("tapping a day shows its income and spending (green plus, grey minus), and fu
       <ReportsView />
     </ApiContext.Provider>,
   );
-  const day = await screen.findByRole("button", { name: /รายรับ 300 บาท รายจ่าย 45 บาท/ });
+  const day = await screen.findByRole("button", {
+    name: /รายรับ 300 บาท รายจ่าย 45 บาท/,
+  });
   fireEvent.click(day);
   const detail = screen.getByRole("status");
   expect(within(detail).getByText("+300 บาท").className).toContain("text-ok");
   expect(within(detail).getByText("−45 บาท")).toBeTruthy();
   const future = screen.getAllByRole("button", { name: /ยังไม่ถึงวันนี้/ })[0];
   fireEvent.click(future);
-  expect(within(screen.getByRole("status")).getByText("ยังไม่ถึงวันนี้")).toBeTruthy();
+  expect(
+    within(screen.getByRole("status")).getByText("ยังไม่ถึงวันนี้"),
+  ).toBeTruthy();
 });
