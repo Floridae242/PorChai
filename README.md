@@ -215,6 +215,8 @@ npm run bench:scale   # creates 1,000 temporary local accounts, runs budget requ
 
 คำสั่งใช้งานผ่านแชต LINE และข้อจำกัด: [CHAT-COMMANDS.md](docs/CHAT-COMMANDS.md)
 
+สำหรับสาธิตให้ลูกค้า: [สถานการณ์และสคริปต์เดโม LINE](docs/LINE-CUSTOMER-DEMO.md) · [ตาราง keywords แชต LINE (CSV)](docs/LINE-CHAT-KEYWORDS.csv)
+
 แต้มอัตโนมัติ หมวด/งบส่วนตัว และวิเคราะห์พฤติกรรม: [PERSONAL-FINANCE.md](docs/PERSONAL-FINANCE.md) ต้องใช้ migration `20261116030000_personal_categories_auto_points.sql` ก่อนเปิดใช้บน hosting
 
 Carousel ต้อนรับ วิธีใช้ในแชตและ MINI App และคลังการ์ดทุก flow ที่รองรับ: [LINE-ONBOARDING.md](docs/LINE-ONBOARDING.md)
