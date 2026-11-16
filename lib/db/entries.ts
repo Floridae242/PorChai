@@ -72,6 +72,7 @@ export async function addEntry(
     .single();
   if (!error) return { entry: toEntry(data as Row), created: true };
   if(error.code === "SC404" || error.code === "SC422")throw new HttpError(422,"invalid_category","ไม่พบหมวดของบัญชีนี้ หรือเลือกกลุ่มไม่ตรงกับหมวดครับ");
+  if (error.code === "23503") throw GONE(); // the account was deleted after the cycle was read
   if (error.code !== "23505") throw error;
 
   const existing = await db
@@ -93,6 +94,7 @@ async function ownEntry(userId: string, id: string): Promise<Row> {
   return data as Row;
 }
 
+const GONE = () => new HttpError(409, "no_cycle", "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าก่อนเริ่มใช้");
 const CANCELLED = () => new HttpError(409, "entry_cancelled", "รายการนี้ถูกยกเลิกแล้ว");
 
 // The chat card's buttons (card 10): the owner's entry and whether it was cancelled; 404 for anyone else

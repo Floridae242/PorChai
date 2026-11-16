@@ -46,7 +46,7 @@ describe("parseExpense — unclear messages are asked, never recorded", () => {
   it("no amount", () => {
     expect(parseExpense("ข้าว")).toEqual({ kind: "ask", reason: "no_amount" });
     expect(parseExpense("Hey")).toEqual({ kind: "ask", reason: "no_amount" });
-    expect(parseExpense("ข้าวห้าสิบ")).toEqual({ kind: "ask", reason: "no_amount" }); // number words: not supported
+    expect(parseExpense("ข้าวห้าสิบ")).toEqual({ kind: "ask", reason: "number_word" }); // number words: asked in digits (16 Nov)
   });
 
   it("more than one amount", () => {
@@ -171,4 +171,15 @@ it("«ครับ 50» alone has no name left", () => {
 });
 it("a word that only ends like «นะ» keeps it when written together", () => {
   expect(parseExpense("ขนมนะ 20")).toMatchObject({ title: "ขนมนะ" });
+});
+
+// 16 Nov: «ค่า 50», «ซื้อ 50» were recorded named «ค่า», «ซื้อ»; «7-11 85» was asked as a range
+it.each(["ค่า 50", "ซื้อ 50", "จ่าย 50", "ค่าใช้จ่าย 50", "รายจ่าย 50"])("«%s» has no name: asked what for", (text) => {
+  expect(parseExpense(text)).toEqual({ kind: "ask", reason: "no_title" });
+});
+it.each(["7-11 85", "7-eleven 85", "เซเว่น 85"])("«%s» is the shop, 85 baht", (text) => {
+  expect(parseExpense(text)).toMatchObject({ kind: "entry", title: "เซเว่น", amount: 8500 });
+});
+it("«ข้าว 40-50» is still a range", () => {
+  expect(parseExpense("ข้าว 40-50")).toEqual({ kind: "ask", reason: "approximate" });
 });

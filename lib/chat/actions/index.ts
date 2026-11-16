@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { thaiDate } from "@/lib/calc/time";
+import { addDays, thaiDate } from "@/lib/calc/time";
+import { formatThaiDate } from "@/lib/format/date";
 import { editReplyAmount, isCorrectionReply, looksLikeAmountReply } from "@/lib/chat/correction";
 import { formatBaht } from "@/lib/format/money";
 import {
@@ -391,7 +392,7 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
     case "insights": {
       const data=await spendingInsights(userId);
       const ai=/^AI\s*(?:แนะนำ|วิเคราะห์)/iu.test(i.query??"")?await suggestSpending(data):undefined;
-      return say(`วิเคราะห์รายการที่จด ${data.from} ถึง ${data.until} (ไม่รวมวันสุดท้าย)\n${data.observations.slice(0,6).join("\n")}\n${data.suggestions.slice(0,3).map(s=>`จุดเริ่มงบ ${s.label}: ${money(s.amount)} จากยอดเดือนนี้ ยังไม่ใช่ประมาณการเต็มเดือน`).join("\n")}\n${ai??""}\nใช้ ตั้งงบ ชื่อหมวด จำนวนบาท เพื่อปรับหลังตรวจแผน หรือพิมพ์ AI วิเคราะห์ เพื่อขอคำแนะนำเพิ่มเติม`);
+      return say(`วิเคราะห์รายการที่จด ${formatThaiDate(data.from, "short")} – ${formatThaiDate(addDays(data.until, -1), "short")}\n${data.observations.slice(0,6).join("\n")}\n${data.suggestions.slice(0,3).map(s=>`จุดเริ่มงบ ${s.label}: ${money(s.amount)} จากยอดเดือนนี้ ยังไม่ใช่ประมาณการเต็มเดือน`).join("\n")}\n${ai??""}\nใช้ ตั้งงบ ชื่อหมวด จำนวนบาท เพื่อปรับหลังตรวจแผน หรือพิมพ์ AI วิเคราะห์ เพื่อขอคำแนะนำเพิ่มเติม`);
     }
     case "installments": {
       const raw = i.query ?? "",
@@ -462,7 +463,7 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
         `${r.answer}\n${
           r.entries
             ?.slice(0, 5)
-            .map((e) => `${e.spentOn} ${e.note ?? "รายจ่าย"} ${money(e.amount)}`)
+            .map((e) => `${formatThaiDate(e.spentOn, "short")} ${e.note ?? "รายจ่าย"} ${money(e.amount)}`)
             .join("\n") ?? ""
         }`,
       );

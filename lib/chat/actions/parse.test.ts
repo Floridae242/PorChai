@@ -131,3 +131,19 @@ describe("«วันที่ N» on a new bill or plan is the next such day", 
     expect(parseIntent(message, "2026-11-15")?.date).toBeUndefined();
   });
 });
+
+// 16 Nov: «ค้นหา ข้าว», «ตั้งเตือน 20:00», «ปิดเตือน» got «ตอบไม่ได้»
+describe("shorter search and reminder words", () => {
+  it("«ค้นหา ข้าว» searches entries for ข้าว", () => {
+    expect(parseIntent("ค้นหา ข้าว", today)).toMatchObject({ tool: "search", query: "ข้าว" });
+  });
+  it("«ค้นหาเว็บ ราคา iPhone» is not an entry search", () => {
+    expect(parseIntent("ค้นหาเว็บ ราคา iPhone", today)?.tool).not.toBe("search");
+  });
+  it("«ตั้งเตือน 20:00» sets the reminder to record at 20:00", () => {
+    expect(parseIntent("ตั้งเตือน 20:00", today)).toMatchObject({ tool: "reminders", time: "20:00" });
+  });
+  it.each([["ปิดเตือน", false], ["เปิดเตือน", true]])("«%s» turns the reminder %s", (text, enabled) => {
+    expect(parseIntent(text, today)).toMatchObject({ tool: "reminders", enabled });
+  });
+});

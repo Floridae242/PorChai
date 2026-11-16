@@ -77,7 +77,7 @@ export function fields(message: string, tool: Tool, today: string): Intent {
     time: time?.padStart(5, "0"),
     food: namedMoney(message, "ค่ากิน|ค่าอาหาร|อาหาร"),
     transport: namedMoney(message, "ค่าเดินทาง|ค่ารถ"),
-    enabled: /^(?:ช่วย)?\s*เปิด/u.test(message)
+    enabled: /^(?:ช่วย)?\s*(?:เปิด|ตั้งเตือน)/u.test(message)
       ? true
       : /^(?:ช่วย)?\s*ปิด/u.test(message)
         ? false
@@ -111,11 +111,12 @@ export function parseIntent(message: string, today: string): Intent | null {
     )
   )
     return fields(s, "report", today);
-  if (/^ค้นรายจ่าย|^ค้น(?:หา)?(?:รายการ|รายจ่าย)/u.test(s))
+  // «ค้นหา ข้าว» too (16 Nov); «ค้นหาเว็บ» is the web
+  if (/^ค้นรายจ่าย|^ค้น(?:หา)?(?:รายการ|รายจ่าย)|^ค้นหา(?=\s)/u.test(s))
     return {
       ...fields(s, "search", today),
       query: s
-        .replace(/^ค้นรายจ่าย|^ค้น(?:หา)?(?:รายการ|รายจ่าย)/u, "")
+        .replace(/^ค้นรายจ่าย|^ค้น(?:หา)?(?:รายการ|รายจ่าย)|^ค้นหา(?=\s)/u, "")
         .replace(/วันนี้|เดือนนี้|ย้อนหลัง\s*1\s*ปี/gu, "")
         .trim(),
     };
@@ -142,7 +143,8 @@ export function parseIntent(message: string, today: string): Intent | null {
     )
   )
     return fields(s, "notifications", today);
-  if (/^(?:เปิด|ปิด|ดู|ตั้ง(?:ค่า)?)(?:การเตือนจด|เตือนจด|เตือนรายการ)/u.test(s))
+  // «ตั้งเตือน 20:00», «ปิดเตือน» (16 Nov): the reminder to record, the one a student sets most
+  if (/^(?:เปิด|ปิด|ดู|ตั้ง(?:ค่า)?)(?:การเตือนจด|เตือนจด|เตือนรายการ)|^(?:เปิด|ปิด|ตั้ง)เตือน(?:\s|\d|$)/u.test(s))
     return fields(s, "reminders", today);
   const balanceEdit = /^แก้ยอดเงิน(?:จริง)?(?:\s|[๐-๙\d]|$)/u.test(s);
   if (/^(?:แก้(?:ไข)?|เปลี่ยนยอด)(?:รายการ|รายจ่าย)/u.test(s) ||

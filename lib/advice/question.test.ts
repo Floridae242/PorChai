@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isQuestion, numbersIn, onlyKnownNumbers, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isQuestion, isTomorrowQuestion, numbersIn, onlyKnownNumbers, readQuestion } from "@/lib/advice/question";
 
 it.each(["อยากกินหมูกระทะวันศุกร์", "อยากซื้อหูฟัง 199", "อยากดื่มกาแฟ 50", "อยากสั่งข้าว 45"])(
   "future purchase intent is a what-if, never an immediate payment: %s", (text) => expect(isQuestion(text)).toBe(true),
@@ -186,5 +186,15 @@ describe("isEnoughQuestion", () => {
   );
   it.each(["ถ้าซื้อข้าว 50 จะพอไหม", "ชาบู 300 พอไหม", "กินชาบูพอไหม", "พอ", "ไหวไหม", "พอใช้", "สวัสดี", ""])(
     "«%s» is not (an item or a price is a try, a bare word says nothing)", (t) => expect(isEnoughQuestion(t)).toBe(false),
+  );
+});
+
+// 16 Nov: «พรุ่งนี้ใช้ได้เท่าไหร่» got «ตอบไม่ได้»
+describe("isTomorrowQuestion", () => {
+  it.each(["พรุ่งนี้ใช้ได้เท่าไหร่", "พรุ่งนี้ใช้ได้เท่าไร", "พรุ่งนี้ใช้เงินได้กี่บาท", "งบพรุ่งนี้เท่าไหร่ครับ", "พรุ่งนี้เหลือใช้เท่าไร"])(
+    "«%s» asks tomorrow's budget", (t) => expect(isTomorrowQuestion(t)).toBe(true),
+  );
+  it.each(["พรุ่งนี้กินชาบู 300 ไหวไหม", "วันนี้ใช้ได้เท่าไหร่", "พรุ่งนี้เงินเข้าไหม", "พรุ่งนี้"])(
+    "«%s» is not", (t) => expect(isTomorrowQuestion(t)).toBe(false),
   );
 });

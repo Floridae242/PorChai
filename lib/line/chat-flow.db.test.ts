@@ -270,3 +270,53 @@ describe("«ไหวไหม» then buying it", () => {
     expect(lastText()).toContain("ไม่พอกันบิล เงินออม และเงินเผื่อ");
   });
 });
+
+// ---------- small (16 Nov) ----------
+
+describe("questions and commands that got «ตอบไม่ได้»", () => {
+  it("«พรุ่งนี้ใช้ได้เท่าไหร่» says tomorrow's budget", async () => {
+    await cycle(240000, 12); // 200 a day
+    await chat("ข้าว 90");
+    await chat("พรุ่งนี้ใช้ได้เท่าไหร่");
+    expect(lastText()).toContain("พรุ่งนี้ใช้ได้วันละ 210 บาท"); // (2,400 − 90) ÷ 11 days
+  });
+
+  it("«ปีนี้ใช้ไปเท่าไร» says where to look instead", async () => {
+    await cycle(240000, 12);
+    await chat("ปีนี้ใช้ไปเท่าไร");
+    expect(lastText()).toContain("ดูรายงานเดือนนี้");
+    expect(lastText()).not.toContain("ตอบข้อความนี้ไม่ได้");
+  });
+
+  it.each(["ห้าสิบ", "ข้าวห้าสิบบาท", "ชาเย็นสองร้อย"])("«%s» asks for the amount in digits (AI off)", async (t) => {
+    await cycle(240000, 12);
+    await chat(t);
+    expect(lastText()).toContain("ขอยอดเป็นตัวเลข");
+    expect(lastText()).not.toContain("กี่บาท");
+    expect(await entries()).toEqual([]);
+  });
+
+  it("«ค้นหา ข้าว» finds it, with Thai dates", async () => {
+    await cycle(240000, 12);
+    await chat("ข้าว 45");
+    await chat("ค้นหา ข้าว");
+    expect(lastText()).toContain("พบ 1 รายการ");
+    expect(lastText()).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  it("«วิเคราะห์» shows Thai dates", async () => {
+    await cycle(240000, 12);
+    await chat("วิเคราะห์");
+    expect(lastText()).toContain("วิเคราะห์รายการที่จด");
+    expect(lastText()).not.toMatch(/\d{4}-\d{2}-\d{2}|ไม่รวมวันสุดท้าย/);
+  });
+
+  it("«ตั้งเตือน 20:00» saves the reminder", async () => {
+    await cycle(240000, 12);
+    await chat("ตั้งเตือน 20:00");
+    if (/ยืนยัน/.test(lastText())) await chat("ยืนยัน");
+    const saved = await db.from("reminder_settings").select("enabled,remind_at").eq("user_id", await userId()).maybeSingle();
+    expect(saved.data).toMatchObject({ enabled: true });
+    expect(String(saved.data?.remind_at)).toMatch(/^20:00/);
+  });
+});

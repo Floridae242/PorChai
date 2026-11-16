@@ -154,6 +154,20 @@ export function enoughAnswer(s: Summary): string {
   return `พอครับ ถ้าใช้ไม่เกินวันละ ${baht(b.dailyBudget)} บาท ถึงวันเงินเข้า ${short(s.payday)}`;
 }
 
+// «พรุ่งนี้ใช้ได้เท่าไหร่»: tomorrow's daily budget if nothing more is spent today
+export function tomorrowAnswer(s: Summary, t: BudgetResult): string {
+  const b = s.budget;
+  if (b.kind === "payday-passed") return paydayPassed(s);
+  if (b.daysLeft <= 1) return `พรุ่งนี้เงินเข้าแล้วครับ (${short(s.payday)})`;
+  if (t.kind !== "ok") return "พรุ่งนี้ยังไม่พอครับ บิล เงินออม และเงินเผื่อมากกว่าเงินที่มี";
+  return `พรุ่งนี้ใช้ได้วันละ ${baht(t.dailyBudget)} บาท ถ้าวันนี้ไม่ใช้เพิ่ม`;
+}
+export const tomorrowCard = (s: Summary, t: BudgetResult): ReplyMessage =>
+  s.budget.kind === "ok" ? todayCard(s, tomorrowAnswer(s, t)) : text(tomorrowAnswer(s, t));
+// No yearly report in the chat (16 Nov, «ปีนี้ใช้ไปเท่าไร» got «ตอบไม่ได้»): say what there is
+export const yearAskMessage = (): TextMessage =>
+  text("รายงานทั้งปียังไม่มีในแชตครับ ดูทีละเดือนได้ พิมพ์ «ดูรายงานเดือนนี้» หรือ «เดือนที่แล้วใช้ไปเท่าไร»");
+
 // Payday passed has no today card: the answer alone says what to do
 export const paydayCard = (s: Summary): ReplyMessage =>
   s.budget.kind === "payday-passed" ? text(paydayAnswer(s)) : todayCard(s, paydayAnswer(s));

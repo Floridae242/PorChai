@@ -1,6 +1,7 @@
 import { getDb } from "./client";
 import { reportReads } from "./report-reads";
 import { addDays, thaiDate } from "@/lib/calc/time";
+import { formatThaiDate } from "@/lib/format/date";
 import { HttpError } from "@/lib/http";
 import { formatBaht } from "@/lib/format/money";
 import type { SearchResult } from "@/lib/reports/types";
@@ -42,6 +43,6 @@ export async function searchEntries(
     mode: "entries",
     sources: [],
     ...data,
-    answer: `พบ ${data.count} รายการที่มีคำว่า “${query}” รวม ${formatBaht(data.total)} บาท ในช่วง ${from} ถึง ${today}${data.count > 50 ? " · แสดง 50 รายการแรก" : ""}`,
+    answer: `พบ ${data.count} รายการที่มีคำว่า “${query}” รวม ${formatBaht(data.total)} บาท ในช่วง ${formatThaiDate(from, "short")} – ${formatThaiDate(today, "short")}${data.count > 50 ? " · แสดง 50 รายการแรก" : ""}`,
   };
 }

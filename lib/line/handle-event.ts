@@ -7,7 +7,7 @@ import { tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
 import { advise, dueOnOf } from "@/lib/advice/advise";
 import { findPriceHint } from "@/lib/advice/price-hint";
-import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isPurchaseWish, isQuestion, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isPurchaseWish, isQuestion, isTomorrowQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
   adviceCard,
@@ -49,6 +49,8 @@ import {
   recordedCard,
   todayCard,
   paydayCard,
+  tomorrowCard,
+  yearAskMessage,
   enoughCard,
   type RecordedEntry,
 } from "@/lib/chat/cards";
@@ -241,6 +243,11 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   }
 
   // «เหลือเท่าไร», «งบเหลือป่ะ»: the budget card, its numbers from the calculator (the AI is never asked)
+  if (isTomorrowQuestion(body)) {
+    const loaded = await loadBudget(userId);
+    return say(tomorrowCard(summaryOf(loaded), tomorrowBudget(loaded.input)));
+  }
+  if (/(?:ปีนี้|ทั้งปี|รายปี|ปีที่แล้ว).*(?:ใช้(?:เงิน)?ไป|รายงาน|สรุป)|(?:รายงาน|สรุป).*(?:ปีนี้|ทั้งปี|รายปี)/u.test(body)) return say(yearAskMessage());
   if (isBalanceQuestion(body)) return say(todayCard(await loadSummary(userId)));
   // «วันเงินเข้าเมื่อไร», «เงินพอถึงวันเงินเข้าไหม» (15 Nov): the same card, answering on top (never the AI)
   if (isPaydayQuestion(body)) return say(paydayCard(await loadSummary(userId)));
@@ -274,7 +281,7 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     return spend(userId, { title: parsed.title, amount: parsed.amount, category: parsed.category, key: eventId });
   }
   if (parsed.reason === "no_title" && amount !== null) return say(askTitleMessage(amount), { kind: "title", amount });
-  if (["too_large", "no_title", "income", "backdated"].includes(parsed.reason)) return say(askMessage(parsed.reason));
+  if (["too_large", "no_title", "income", "backdated", "number_word"].includes(parsed.reason)) return say(askMessage(parsed.reason));
 
   if (parsed.reason === "many_amounts") {
     const { budget } = await loadSummary(userId); // no cycle → set up first, before using the AI
