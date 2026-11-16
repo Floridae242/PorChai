@@ -11,7 +11,7 @@ import { defineConfig } from "@playwright/test";
 // Projects:
 //   pm-demo       headless full run (npm run test:e2e:all)
 //   pm-demo-slow  same tests with slowMo 300 ms so people can follow each tap (npm run test:e2e:watch)
-//   chromium      the live PM presentation, tests/e2e/pm-live-journey.spec.ts, headed + slowMo 600 (npm run demo:pm)
+//   chromium      the live PM presentation (LINE OA chat + MINI App), headed, slowMo 150, no trace (npm run demo:pm)
 //
 // The dev server is always started fresh (reuseExistingServer: false): a plain `npm run dev` already
 // on port 3004 lacks NEXT_PUBLIC_E2E_LIFF_MOCK and would show a real LINE login instead of the demo.
@@ -55,8 +55,9 @@ export default defineConfig({
   projects: [
     { name: "pm-demo", testMatch: /full-system-.*\.spec\.ts$/, use: { browserName: "chromium" } },
     { name: "pm-demo-slow", testMatch: /full-system-.*\.spec\.ts$/, use: { browserName: "chromium", launchOptions: { slowMo: 300 } } },
-    // Live PM presentation (npm run demo:pm): one visible phone-sized window, one continuous journey,
-    // 600 ms between actions so every tap and every typed number can be followed on screen.
+    // Live PM presentation (npm run demo:pm): one visible phone-sized window, one continuous journey
+    // across the LINE OA chat and the MINI App. slowMo 150 keeps typing and transitions smooth (the spec
+    // adds short reading pauses); no trace, so nothing slows the window down.
     // DEMO_HEADLESS=1 / DEMO_SLOWMO=0 give a fast unattended rehearsal of the same journey.
     {
       name: "chromium",
@@ -65,7 +66,8 @@ export default defineConfig({
       use: {
         browserName: "chromium",
         headless: process.env.DEMO_HEADLESS === "1",
-        launchOptions: { slowMo: Number(process.env.DEMO_SLOWMO ?? 600) },
+        launchOptions: { slowMo: Number(process.env.DEMO_SLOWMO ?? 150) },
+        trace: "off",
       },
     },
   ],

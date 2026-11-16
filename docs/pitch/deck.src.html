@@ -1,0 +1,1139 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>พอใช้ · Pitch Deck</title>
+<meta name="description" content="พอใช้ (Por-Chai) · ผู้ช่วยวางแผนเงินรายวันของนักศึกษาใน LINE" />
+<!--
+  Source of docs/pitch/porchai-pitch-deck.html. Edit THIS file, then run: npm run pitch:build
+  (the build inlines the SanamDeklen display font and the mascot images, so the deck is one offline file).
+  Design tokens copied from app/app/theme.css: same colors, radii, fonts as the MINI App.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+@font-face { font-family: "SanamDeklen"; src: url("__FONT_SANAM__") format("opentype"); font-display: swap; }
+
+:root {
+  /* app/app/theme.css · primitives */
+  --green-900: #12301B; --green-800: #1F4D2B; --green-700: #3B7A2E; --green-600: #6AAE3E; --green-500: #7EC151;
+  --lime-300: #B2D959; --lime-100: #E8F3CF; --lime-50: #F4F8E8;
+  --yellow-400: #FED24F; --yellow-50: #FFF6D6; --lemon-300: #FFF449;
+  --canvas-50: #F7F9F1; --white: #FFFFFF;
+  --sage-500: #4A5A48; --sage-400: #6F7D6B;
+  --line-200: #E1E8D3; --line-400: #B5C2A4;
+  --amber-600: #B5650A; --amber-50: #FCEFD9;
+  --red-600: #C0362C; --red-50: #FBE7E6;
+  --hero-gradient: linear-gradient(180deg, #0E2A17 0%, #1F4D2B 35%, #2F6B3A 75%, #3F7F35 100%);
+  --radius-sm: 8px; --radius-md: 12px; --radius-sheet: 20px; --radius-pill: 999px;
+  --font-body: "IBM Plex Sans Thai", "Noto Sans Thai", "Leelawadee UI", "Thonburi", Tahoma, sans-serif;
+  --font-display: "SanamDeklen", "IBM Plex Sans Thai", "Noto Sans Thai", sans-serif;
+  --line-chat: #7494C0;
+  --ease: cubic-bezier(.22,.8,.24,1);
+  --notes-w: 0px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font-family: var(--font-body); color: var(--green-900); background: #0E2A17; overflow: hidden; -webkit-font-smoothing: antialiased; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--lemon-300); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ------------------------------------------------------------------ chrome */
+.topbar { position: fixed; z-index: 30; top: 0; left: 0; right: var(--notes-w); height: 64px; display: flex; align-items: center; gap: 16px; padding: 0 clamp(16px, 3cqw, 40px); transition: right .45s var(--ease), color .4s; color: var(--white); pointer-events: none; }
+.topbar > * { pointer-events: auto; }
+body[data-tone="light"] .topbar { color: var(--green-900); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+.brand-mark { width: 34px; height: 34px; border-radius: 50%; background: var(--lime-100) center/cover no-repeat; box-shadow: 0 0 0 2px rgba(255,255,255,.35); }
+.brand small { font-weight: 500; opacity: .7; }
+.counter { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; opacity: .75; font-size: 14px; }
+.pill-btn { border: 1.5px solid currentColor; background: transparent; color: inherit; border-radius: var(--radius-pill); padding: 7px 14px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; opacity: .9; }
+.pill-btn:hover { opacity: 1; background: rgba(255,255,255,.08); }
+body[data-tone="light"] .pill-btn:hover { background: rgba(18,48,27,.06); }
+.pill-btn kbd { font: 600 11px/1 var(--font-body); border: 1px solid currentColor; border-radius: 5px; padding: 2px 5px; opacity: .8; }
+
+.dots { position: fixed; z-index: 30; right: calc(var(--notes-w) + clamp(12px, 1.6cqw, 24px)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; transition: right .45s var(--ease); }
+.dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,.65); background: transparent; padding: 0; position: relative; transition: transform .25s, background .25s; }
+body[data-tone="light"] .dot { border-color: rgba(18,48,27,.45); }
+.dot[aria-current="true"] { background: var(--yellow-400); border-color: var(--yellow-400); transform: scale(1.3); }
+.dot::after { content: attr(data-label); position: absolute; right: 22px; top: 50%; transform: translateY(-50%); white-space: nowrap; background: var(--green-900); color: var(--white); font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: var(--radius-pill); opacity: 0; pointer-events: none; transition: opacity .2s; }
+.dot:hover::after, .dot:focus-visible::after { opacity: 1; }
+
+.progress { position: fixed; z-index: 30; left: 0; bottom: 0; height: 4px; background: var(--yellow-400); width: 0; transition: width .6s var(--ease); }
+.hint { position: fixed; z-index: 30; left: clamp(16px, 3cqw, 40px); bottom: 14px; font-size: 12px; color: rgba(255,255,255,.55); transition: opacity .5s; }
+body[data-tone="light"] .hint { color: rgba(18,48,27,.5); }
+.hint.gone { opacity: 0; }
+
+/* ------------------------------------------------------------------ slides */
+.deck { position: fixed; inset: 0 var(--notes-w) 0 0; transition: right .45s var(--ease); overflow: hidden; }
+.slide { container-type: inline-size; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 76px clamp(24px, 5cqw, 88px) 40px; opacity: 0; visibility: hidden; transform: translateX(48px); transition: opacity .6s var(--ease), transform .6s var(--ease), visibility 0s .6s; overflow: hidden; }
+.slide.is-before { transform: translateX(-48px); }
+.slide.is-active { opacity: 1; visibility: visible; transform: none; transition: opacity .6s var(--ease), transform .6s var(--ease), visibility 0s; }
+.slide.dark { background: var(--hero-gradient); color: var(--white); }
+.slide.light { background: var(--canvas-50); color: var(--green-900); }
+.slide.lime { background: radial-gradient(120% 90% at 85% 10%, var(--lime-100) 0%, var(--canvas-50) 55%); color: var(--green-900); }
+.slide aside.notes { display: none; }
+
+.inner { width: 100%; max-width: 1400px; height: 100%; display: grid; align-items: center; gap: clamp(24px, 4cqw, 64px); }
+.split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.split-wide { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }
+.stack { display: flex; flex-direction: column; gap: clamp(10px, 1.6vh, 18px); }
+
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: clamp(12px, 1.1cqw, 15px); font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 6px 12px; border-radius: var(--radius-pill); background: rgba(255,255,255,.12); width: fit-content; }
+.light .eyebrow, .lime .eyebrow { background: var(--lime-100); color: var(--green-700); }
+.eyebrow .n { font-variant-numeric: tabular-nums; opacity: .7; }
+h1, h2 { font-family: var(--font-display); font-weight: 400; margin: 0; line-height: 1.12; letter-spacing: .2px; }
+h1 { font-size: min(5.6cqw, 10vh); }
+h2 { font-size: min(4.2cqw, 7.6vh); }
+.lead { font-size: min(1.65cqw, 3vh); line-height: 1.55; margin: 0; opacity: .88; max-width: 34em; }
+.hl { color: var(--yellow-400); }
+.light .hl, .lime .hl { color: var(--green-700); }
+.sep { display: inline-block; width: .2em; height: .2em; border-radius: 50%; background: var(--green-500); vertical-align: middle; margin: 0 .3em; }
+.mark { background: linear-gradient(transparent 58%, var(--lemon-300) 58%); padding: 0 .1em; }
+.dark .sep { display: inline-block; width: .2em; height: .2em; border-radius: 50%; background: var(--green-500); vertical-align: middle; margin: 0 .3em; }
+.mark { background: linear-gradient(transparent 60%, rgba(254,210,79,.55) 60%); }
+
+.btn { border: none; border-radius: var(--radius-pill); padding: 12px 20px; font-weight: 700; font-size: min(1.25cqw, 2.2vh, 17px); display: inline-flex; align-items: center; gap: 8px; transition: transform .15s, background .2s, opacity .2s, box-shadow .2s; }
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--green-500); color: var(--green-900); box-shadow: 0 6px 18px rgba(126,193,81,.35); } /* text on green: never white (theme.css) */
+.btn-primary:hover { background: var(--green-600); }
+.btn-yellow { background: var(--yellow-400); color: var(--green-900); box-shadow: 0 6px 18px rgba(254,210,79,.35); }
+.btn-ghost { background: transparent; color: inherit; border: 1.5px solid currentColor; opacity: .8; }
+.btn-ghost:hover { opacity: 1; }
+.btn[disabled] { opacity: .35; cursor: not-allowed; box-shadow: none; transform: none; }
+
+.card { background: var(--white); color: var(--green-900); border-radius: var(--radius-sheet); border: 1px solid var(--line-200); box-shadow: 0 18px 50px rgba(18,48,27,.12); }
+.mascot { display: block; width: 100%; height: auto; filter: drop-shadow(0 18px 30px rgba(0,0,0,.18)); }
+
+/* entrance animations (re-run each time a slide becomes active) */
+.rv { opacity: 0; transform: translateY(18px); }
+.is-active .rv { animation: rise .7s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 110ms + 150ms); }
+@keyframes rise { to { opacity: 1; transform: none; } }
+@keyframes pop { 0% { transform: scale(.6); opacity: 0 } 70% { transform: scale(1.06); opacity: 1 } 100% { transform: scale(1) } }
+@keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } .rv { opacity: 1; transform: none; } }
+
+/* ------------------------------------------------------------------ 1 · hook */
+.hook { grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); }
+.big-money { font-family: var(--font-display); font-size: min(15cqw, 24vh); line-height: 1.05; margin-top: .12em; font-variant-numeric: tabular-nums; color: var(--white); display: flex; align-items: baseline; gap: .18em; }
+.big-money small { font-size: .32em; color: var(--lime-300); }
+.days { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: min(2.2cqw, 4vh); font-weight: 700; }
+.days .tag { background: var(--yellow-400); color: var(--green-900); border-radius: var(--radius-pill); padding: 4px 16px; }
+.cal { display: flex; gap: 6px; }
+.cal i { width: min(2.4cqw, 4.2vh); aspect-ratio: 1; border-radius: 8px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); display: grid; place-items: center; font: 600 min(1cqw, 1.8vh)/1 var(--font-body); font-style: normal; color: rgba(255,255,255,.8); }
+.cal i.today { background: var(--yellow-400); color: var(--green-900); border-color: var(--yellow-400); }
+.perday { font-size: min(1.5cqw, 2.7vh); opacity: .85; }
+.perday b { color: var(--yellow-400); font-size: 1.25em; }
+.choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, 1.4cqw, 18px); margin-top: min(2vh, 18px); }
+.choice { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: var(--radius-sheet); padding: clamp(12px, 1.6cqw, 20px); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; transition: background .25s, transform .25s; color: inherit; text-align: left; }
+.choice:hover { background: rgba(255,255,255,.14); transform: translateY(-4px); }
+.choice svg { width: min(4.4cqw, 7.4vh); height: auto; }
+.choice b { font-size: min(1.45cqw, 2.6vh); }
+.choice span { font-size: min(1.05cqw, 1.9vh); opacity: .75; line-height: 1.45; }
+.hook-mascot { position: relative; justify-self: center; width: min(28cqw, 50vh); }
+.bubble-say { position: absolute; top: 4%; left: -14%; background: var(--white); color: var(--green-900); font-weight: 700; padding: 10px 16px; border-radius: 18px 18px 18px 4px; font-size: min(1.3cqw, 2.3vh); box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+
+/* ------------------------------------------------------------------ 2 · pain */
+.pain-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 2cqw, 28px); }
+.pain { padding: clamp(16px, 2cqw, 26px); display: flex; flex-direction: column; gap: 12px; position: relative; }
+.pain .x { position: absolute; top: 18px; right: 18px; width: 34px; height: 34px; border-radius: 50%; background: var(--red-50); color: var(--red-600); display: grid; place-items: center; font-weight: 800; }
+.pain h3 { margin: 0; font-size: min(1.75cqw, 3.1vh); }
+.pain p { margin: 0; color: var(--sage-500); font-size: min(1.15cqw, 2.05vh); line-height: 1.55; }
+.notebook { background: #FFFDF4; border-radius: var(--radius-md); border: 1px solid #EDE6C8; padding: 14px 18px 14px 44px; position: relative; font-family: var(--font-display); font-size: min(1.5cqw, 2.7vh); line-height: 1.75; color: #3E4A3C; background-image: repeating-linear-gradient(transparent 0 calc(1.75em - 1px), #E6DFC2 calc(1.75em - 1px) 1.75em); }
+.notebook::before { content: ""; position: absolute; left: 30px; top: 0; bottom: 0; width: 2px; background: #F1B7A9; }
+.notebook .scribble { text-decoration: line-through; text-decoration-color: var(--red-600); opacity: .7; }
+.notebook .q { color: var(--red-600); }
+.mini-app { background: var(--canvas-50); border-radius: var(--radius-md); border: 1px solid var(--line-200); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.mini-app .bal { font-size: min(1.05cqw, 1.9vh); color: var(--sage-500); }
+.mini-app .bal b { display: block; font-size: min(2.8cqw, 5vh); color: var(--green-900); font-variant-numeric: tabular-nums; }
+.mini-app .forgot { max-height: 0; overflow: hidden; transition: max-height .6s var(--ease); }
+.mini-app.revealed .forgot { max-height: 200px; }
+.forgot-row { display: flex; justify-content: space-between; padding: 8px 12px; background: var(--red-50); color: var(--red-600); border-radius: var(--radius-sm); font-weight: 700; font-size: min(1.1cqw, 2vh); }
+.real-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 12px; background: var(--amber-50); color: var(--amber-600); border-radius: var(--radius-sm); margin-top: 8px; font-weight: 700; font-size: min(1.1cqw, 2vh); }
+.mini-app.revealed .bal b { text-decoration: line-through; text-decoration-color: var(--red-600); opacity: .55; }
+.question { display: flex; align-items: center; gap: 16px; background: var(--green-900); color: var(--white); border-radius: var(--radius-sheet); padding: 16px 22px; font-size: min(1.6cqw, 2.9vh); font-weight: 600; }
+.question img { width: min(5cqw, 9vh); }
+
+/* ------------------------------------------------------------------ phones (3) */
+.phone-wrap { justify-self: center; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.phone { width: min(22cqw, 33vh); height: calc(min(22cqw, 33vh) * 18.5 / 9); overflow: hidden; border-radius: 34px; background: #0b1410; padding: 10px; box-shadow: 0 30px 70px rgba(0,0,0,.45), inset 0 0 0 2px rgba(255,255,255,.08); position: relative; }
+.screen { width: 100%; height: 100%; min-height: 0; border-radius: 26px; overflow: hidden; display: flex; flex-direction: column; background: var(--line-chat); }
+.lhead { flex: none; height: 46px; background: var(--white); display: flex; align-items: center; gap: 8px; padding: 0 12px; color: #111; font-weight: 700; font-size: 14px; }
+.lhead .av { width: 28px; height: 28px; border-radius: 50%; background: var(--lime-100) center/cover no-repeat; }
+.lhead .ok { width: 13px; height: 13px; border-radius: 50%; background: #06C755; color: #fff; font-size: 9px; display: inline-grid; place-items: center; }
+.chat { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 8px; scrollbar-width: none; }
+.chat::-webkit-scrollbar { display: none; }
+.msg { display: flex; gap: 6px; align-items: flex-end; animation: pop .35s var(--ease); }
+.msg.me { justify-content: flex-end; }
+.msg .av { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--lime-100) center/cover no-repeat; align-self: flex-start; }
+.txt { max-width: 78%; padding: 7px 11px; border-radius: 16px; font-size: 12.5px; line-height: 1.45; }
+.me .txt { background: #8DE055; color: #111; border-top-right-radius: 4px; }
+.bot .txt { background: var(--white); color: #111; border-top-left-radius: 4px; }
+.flex { width: 78%; background: var(--white); border-radius: 14px; overflow: hidden; color: var(--green-900); font-size: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.flex .fh { background: var(--lime-100); padding: 9px 12px; display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.flex .fh img { width: 30px; }
+.flex .fb { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.flex .row { display: flex; justify-content: space-between; }
+.flex .amt { font-weight: 700; font-size: 15px; }
+.flex .bar { height: 7px; border-radius: 99px; background: var(--line-200); overflow: hidden; }
+.flex .bar i { display: block; height: 100%; background: var(--green-500); border-radius: 99px; transition: width .8s var(--ease); }
+.flex .muted { color: var(--sage-500); font-size: 11px; }
+.flex .left { background: var(--lime-50); border-radius: 10px; padding: 8px 10px; }
+.flex .left b { font-size: 18px; }
+.flex .fbtns { display: flex; gap: 6px; padding: 0 10px 10px; }
+.flex .fbtns span, .flex .fbtns button { flex: 1; text-align: center; background: #E9ECEF; border: none; border-radius: 8px; padding: 6px 0; font-weight: 600; font-size: 11.5px; color: #111; }
+.flex .fbtns .go { background: var(--green-500); color: var(--green-900); }
+.slip-img { width: 110px; border-radius: 10px; background: linear-gradient(160deg, #F4FBF8, #DFF0EA); padding: 8px 10px; font-size: 9px; color: #2d3b37; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.slip-img b { display: block; font-size: 11px; }
+.slip-img .a { font-size: 15px; font-weight: 800; text-align: right; }
+.typing { display: inline-flex; gap: 3px; background: var(--white); border-radius: 14px; padding: 9px 12px; }
+.typing i { width: 5px; height: 5px; border-radius: 50%; background: #9aa5b1; animation: blink 1s infinite; }
+.typing i:nth-child(2) { animation-delay: .2s } .typing i:nth-child(3) { animation-delay: .4s }
+@keyframes blink { 50% { opacity: .25 } }
+.lcompose { flex: none; height: 44px; background: var(--white); display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 13px; color: #9aa; }
+.lcompose .in { flex: 1; height: 28px; border-radius: 14px; background: #F1F2F4; display: flex; align-items: center; padding: 0 10px; color: #333; overflow: hidden; white-space: nowrap; }
+.lcompose .send { color: #06C755; font-weight: 700; }
+.demo-btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.chips { display: flex; flex-direction: column; gap: 10px; }
+.chip { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); border-radius: var(--radius-md); padding: 12px 16px; font-size: min(1.2cqw, 2.15vh); }
+.chip .ic { width: 36px; height: 36px; flex: none; border-radius: 10px; background: var(--yellow-400); color: var(--green-900); display: grid; place-items: center; font-weight: 800; }
+.chip em { font-style: normal; opacity: .7; font-size: .92em; }
+
+/* ------------------------------------------------------------------ 4 · simulator */
+.steps { display: flex; flex-direction: column; gap: 12px; }
+.step { display: flex; align-items: center; gap: 14px; text-align: left; background: var(--white); border: 2px solid var(--line-200); border-radius: var(--radius-sheet); padding: 14px 18px; color: var(--green-900); transition: border-color .25s, box-shadow .25s, transform .2s, opacity .25s; }
+.step:hover:not([disabled]) { transform: translateX(4px); border-color: var(--green-500); }
+.step .num { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--lime-100); color: var(--green-700); }
+.step b { display: block; font-size: min(1.45cqw, 2.6vh); }
+.step span { color: var(--sage-500); font-size: min(1.02cqw, 1.85vh); }
+.step.done { border-color: var(--green-500); background: var(--lime-50); }
+.step.done .num { background: var(--green-500); color: var(--green-900); }
+.step.next { border-color: var(--yellow-400); box-shadow: 0 0 0 4px rgba(254,210,79,.35); }
+.step[disabled] { opacity: .45; cursor: not-allowed; }
+.step.done[disabled] { opacity: 1; cursor: default; }
+.panel { padding: clamp(18px, 2cqw, 28px); display: flex; flex-direction: column; gap: 18px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.stat { border-radius: var(--radius-md); background: var(--lime-50); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; transition: background .3s, box-shadow .3s; }
+.stat > span { font-size: min(1cqw, 1.8vh); color: var(--sage-500); font-weight: 600; }
+.stat b { font-size: min(2.4cqw, 4.3vh); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat em { font-style: normal; font-size: min(.95cqw, 1.7vh); color: var(--sage-400); min-height: 1.4em; }
+.stat.flash { background: var(--yellow-50); box-shadow: 0 0 0 2px var(--yellow-400); }
+.stat.hero { background: var(--hero-gradient); color: var(--white); }
+.stat.hero > span, .stat.hero em { color: rgba(255,255,255,.8); }
+.moneybar-label { display: flex; justify-content: space-between; font-size: min(1cqw, 1.8vh); color: var(--sage-500); font-weight: 600; }
+.moneybar { height: 54px; border-radius: 14px; overflow: hidden; display: flex; background: var(--line-200); }
+.seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: min(.95cqw, 1.7vh); font-weight: 700; white-space: nowrap; overflow: hidden; transition: flex-basis .8s var(--ease), background .4s, opacity .4s; flex: 0 0 auto; }
+.seg.bills { background: var(--green-800); color: var(--white); }
+.seg.save { background: var(--lime-300); color: var(--green-900); }
+.seg.item { background: repeating-linear-gradient(-45deg, var(--yellow-50) 0 8px, #FFE89A 8px 16px); color: var(--amber-600); border-left: 2px dashed var(--amber-600); border-right: 2px dashed var(--amber-600); }
+.seg.item.locked { background: var(--yellow-400); color: var(--green-900); border-style: solid; border-color: var(--green-900); }
+.seg.free { background: var(--green-500); color: var(--green-900); flex-grow: 1; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: min(.95cqw, 1.7vh); color: var(--sage-500); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.say { min-height: 3.2em; background: var(--green-900); color: var(--white); border-radius: var(--radius-md); padding: 12px 16px; font-size: min(1.15cqw, 2.05vh); line-height: 1.5; display: flex; gap: 12px; align-items: center; }
+.say img { width: 46px; flex: none; }
+
+/* ------------------------------------------------------------------ 5 · points */
+.wallet { background: var(--yellow-50); border: 1px solid #F3E2A6; border-radius: var(--radius-sheet); padding: clamp(18px, 2cqw, 26px); display: flex; flex-direction: column; gap: 16px; box-shadow: 0 18px 50px rgba(18,48,27,.12); }
+.wallet-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pts { display: flex; align-items: baseline; gap: 10px; }
+.pts b { font-family: var(--font-display); font-size: min(6cqw, 10.5vh); line-height: 1; font-variant-numeric: tabular-nums; }
+.pts span { font-weight: 700; color: var(--sage-500); }
+.streak { display: flex; gap: 6px; }
+.streak i { width: min(2.3cqw, 4vh); aspect-ratio: 1; border-radius: 50%; background: var(--white); border: 2px solid #F3E2A6; display: grid; place-items: center; font-style: normal; font-size: min(.8cqw, 1.4vh); font-weight: 700; color: var(--sage-400); }
+.streak i.on { background: var(--yellow-400); border-color: var(--yellow-400); color: var(--green-900); }
+.coupons { display: flex; flex-direction: column; gap: 12px; }
+.coupon { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; background: var(--white); border-radius: 16px; padding: 12px 14px; position: relative; border: 1px solid var(--line-200); transition: box-shadow .3s, border-color .3s; }
+.coupon::before, .coupon::after { content: ""; position: absolute; left: 70px; width: 16px; height: 16px; border-radius: 50%; background: var(--yellow-50); }
+.coupon::before { top: -9px; } .coupon::after { bottom: -9px; }
+.coupon .ico { width: 52px; height: 52px; border-radius: 12px; display: grid; place-items: center; font-size: 26px; background: var(--lime-100); }
+.coupon b { display: block; font-size: min(1.25cqw, 2.2vh); }
+.coupon small { color: var(--sage-500); font-size: min(.95cqw, 1.7vh); }
+.coupon .redeem { border: none; border-radius: var(--radius-pill); padding: 9px 14px; font-weight: 700; background: var(--green-500); color: var(--green-900); white-space: nowrap; }
+.coupon .redeem[disabled] { background: var(--line-200); color: var(--sage-400); cursor: not-allowed; }
+.coupon.ready { border-color: var(--green-500); box-shadow: 0 0 0 3px rgba(126,193,81,.3); }
+.coupon .code { font-family: ui-monospace, Consolas, monospace; font-weight: 700; color: var(--green-700); background: var(--lime-50); border: 1.5px dashed var(--green-600); border-radius: 8px; padding: 6px 10px; animation: pop .4s var(--ease); }
+.toast { position: absolute; left: 50%; top: -16px; transform: translateX(-50%); background: var(--green-900); color: var(--white); padding: 6px 14px; border-radius: var(--radius-pill); font-weight: 700; font-size: 14px; opacity: 0; pointer-events: none; }
+.toast.show { animation: toast 1.6s var(--ease); }
+@keyframes toast { 0% { opacity: 0; transform: translate(-50%, 6px) } 20%, 70% { opacity: 1; transform: translate(-50%, -8px) } 100% { opacity: 0; transform: translate(-50%, -18px) } }
+.rules { display: flex; flex-direction: column; gap: 10px; }
+.rule { display: flex; align-items: center; gap: 12px; font-size: min(1.25cqw, 2.2vh); }
+.rule b { background: var(--yellow-400); color: var(--green-900); border-radius: var(--radius-pill); padding: 2px 12px; font-size: .9em; }
+
+/* ------------------------------------------------------------------ 6 · business */
+.eco { width: 100%; height: auto; max-height: 34vh; display: block; }
+.eco .node rect { transition: stroke .3s; }
+.eco .flow { fill: none; stroke-width: 3; stroke-linecap: round; transition: stroke .3s, stroke-width .3s, opacity .3s; }
+.eco .flow-label { font: 600 13px var(--font-body); transition: opacity .3s; }
+.eco[data-focus] .flow, .eco[data-focus] .flow-label { opacity: .18; }
+.eco[data-focus="1"] .f1, .eco[data-focus="2"] .f2, .eco[data-focus="3"] .f3 { opacity: 1; stroke-width: 5; }
+.eco[data-focus] .flow-label.f1, .eco[data-focus] .flow-label.f2, .eco[data-focus] .flow-label.f3 { opacity: .18; }
+.eco[data-focus="1"] .flow-label.f1, .eco[data-focus="2"] .flow-label.f2, .eco[data-focus="3"] .flow-label.f3 { opacity: 1; }
+.rev { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.rev-card { text-align: left; background: var(--white); border: 2px solid var(--line-200); border-radius: var(--radius-sheet); padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; color: var(--green-900); transition: border-color .25s, transform .25s, box-shadow .25s; }
+.rev-card:hover, .rev-card:focus-visible, .rev-card.on { border-color: var(--green-500); transform: translateY(-4px); box-shadow: 0 14px 30px rgba(18,48,27,.12); }
+.rev-card .n { width: 30px; height: 30px; border-radius: 50%; background: var(--yellow-400); display: grid; place-items: center; font-weight: 800; }
+.rev-card b { font-size: min(1.25cqw, 2.2vh); }
+.rev-card span { color: var(--sage-500); font-size: min(.98cqw, 1.75vh); line-height: 1.5; }
+.free-badge { display: inline-flex; align-items: center; gap: 10px; background: var(--green-900); color: var(--white); border-radius: var(--radius-pill); padding: 8px 8px 8px 18px; font-weight: 700; width: fit-content; }
+.free-badge b { background: var(--yellow-400); color: var(--green-900); border-radius: var(--radius-pill); padding: 4px 12px; }
+
+/* ------------------------------------------------------------------ 7 · live demo */
+.term { background: #08150D; border: 1px solid rgba(255,255,255,.12); border-radius: var(--radius-sheet); overflow: hidden; box-shadow: 0 30px 70px rgba(0,0,0,.35); }
+.term-bar { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: rgba(255,255,255,.05); font-size: 12px; color: rgba(255,255,255,.55); }
+.term-bar i { width: 11px; height: 11px; border-radius: 50%; background: #F25F57; } .term-bar i:nth-child(2) { background: #FBBC2E; } .term-bar i:nth-child(3) { background: #2FC840; }
+.term-body { padding: 18px 20px; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: min(1.25cqw, 2.2vh); color: #D9F2C4; display: flex; align-items: center; gap: 14px; }
+.term-body .p { color: var(--green-500); }
+.term-body .copy { margin-left: auto; font-family: var(--font-body); font-size: 13px; }
+.term-out { padding: 0 20px 16px; font-family: ui-monospace, Consolas, monospace; font-size: min(.95cqw, 1.7vh); color: rgba(217,242,196,.6); line-height: 1.7; }
+.term-out .ok { color: var(--green-500); }
+.pipeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; position: relative; }
+.pipeline::before { content: ""; position: absolute; top: 34px; left: 8%; right: 8%; height: 3px; background: repeating-linear-gradient(90deg, rgba(255,255,255,.35) 0 10px, transparent 10px 18px); }
+.stage { position: relative; text-align: left; background: #24502F; border: 1.5px solid rgba(255,255,255,.18); border-radius: var(--radius-sheet); padding: 16px; display: flex; flex-direction: column; gap: 8px; color: var(--white); transition: background .25s, border-color .25s, transform .25s; }
+.stage:hover, .stage.on { background: #2C5E38; border-color: var(--yellow-400); transform: translateY(-4px); }
+.stage .badge { width: 40px; height: 40px; border-radius: 50%; background: var(--yellow-400); color: var(--green-900); font-weight: 800; display: grid; place-items: center; position: relative; z-index: 1; }
+.stage b { font-size: min(1.3cqw, 2.3vh); }
+.stage span { font-size: min(.98cqw, 1.75vh); opacity: .75; line-height: 1.5; }
+.stage ul { margin: 0; padding-left: 18px; font-size: min(.92cqw, 1.65vh); opacity: .85; line-height: 1.6; display: none; }
+.stage.on ul { display: block; }
+.facts { display: flex; flex-wrap: wrap; gap: 10px; }
+.fact { background: rgba(255,255,255,.1); border-radius: var(--radius-pill); padding: 6px 14px; font-size: min(1cqw, 1.8vh); font-weight: 600; }
+
+/* ------------------------------------------------------------------ 8 · closing */
+.nums { display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr; gap: 14px; }
+.num-card { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: var(--radius-sheet); padding: 18px 16px; display: flex; flex-direction: column; gap: 6px; }
+.num-card b { font-family: var(--font-display); font-weight: 400; font-size: min(3.6cqw, 7vh); line-height: 1; color: var(--yellow-400); font-variant-numeric: tabular-nums; }
+.num-card span { font-weight: 700; font-size: min(1.15cqw, 2.05vh); }
+.num-card em { font-style: normal; opacity: .7; font-size: min(.9cqw, 1.6vh); line-height: 1.45; }
+.quote { font-family: var(--font-display); font-size: min(3cqw, 5.4vh); line-height: 1.35; margin: 0; }
+.quote .hl { color: var(--lemon-300); }
+.closing { grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr); }
+.thanks { display: flex; align-items: center; gap: 14px; font-weight: 700; font-size: min(1.5cqw, 2.7vh); }
+
+/* ------------------------------------------------------------------ speaker notes */
+.notes-panel { position: fixed; z-index: 40; top: 0; right: 0; bottom: 0; width: min(440px, 92cqw); background: #0B1A11; color: #E9F2E3; transform: translateX(100%); transition: transform .45s var(--ease); display: flex; flex-direction: column; border-left: 1px solid rgba(255,255,255,.1); }
+body.notes-open .notes-panel { transform: none; }
+body.notes-open { --notes-w: min(440px, 92cqw); }
+.np-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.np-head h3 { margin: 0; font-size: 15px; }
+.np-head .timer { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--yellow-400); }
+.np-head button { background: rgba(255,255,255,.08); color: inherit; border: none; border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.np-body { flex: 1; overflow-y: auto; padding: 18px 20px 24px; }
+.np-body .slide-title { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--green-500); font-weight: 700; margin-bottom: 6px; }
+.np-body .time { display: inline-block; font-size: 12px; background: rgba(254,210,79,.15); color: var(--yellow-400); border-radius: 99px; padding: 2px 10px; margin-bottom: 12px; }
+.np-body p { font-size: 16.5px; line-height: 1.75; margin: 0 0 14px; }
+.np-body .cue { display: block; font-size: 13.5px; color: var(--lime-300); background: rgba(126,193,81,.1); border-left: 3px solid var(--green-500); padding: 6px 10px; border-radius: 0 8px 8px 0; margin: 4px 0 14px; }
+.np-body ul { margin: 0 0 14px; padding-left: 20px; line-height: 1.7; }
+.np-foot { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-top: 1px solid rgba(255,255,255,.1); font-size: 13px; }
+.np-foot .next { opacity: .7; margin-right: auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.np-foot button { background: rgba(255,255,255,.1); color: inherit; border: none; border-radius: 8px; padding: 8px 12px; font-weight: 700; }
+.np-help { font-size: 12px; opacity: .55; padding: 0 18px 12px; }
+
+@media (max-width: 860px) {
+  .split, .split-wide, .hook, .closing { grid-template-columns: 1fr; align-content: center; }
+  .hook-mascot, .closing .mascot-col { display: none; }
+  .pain-grid, .rev, .nums, .pipeline, .stats { grid-template-columns: 1fr 1fr; }
+  .slide { overflow-y: auto; align-items: flex-start; }
+  .inner { height: auto; }
+}
+</style>
+</head>
+<body data-tone="dark">
+
+<header class="topbar">
+  <div class="brand"><span class="brand-mark" style="background-image:url('__ASSET_greeting__')"></span> พอใช้ <small>Por-Chai</small></div>
+  <span class="counter" id="counter" aria-live="polite">01 / 08</span>
+  <button class="pill-btn" id="notes-btn" type="button" aria-expanded="false" aria-controls="notes-panel">สคริปต์พูด <kbd>S</kbd></button>
+</header>
+
+<nav class="dots" id="dots" aria-label="ไปที่สไลด์"></nav>
+<div class="progress" id="progress"></div>
+<div class="hint" id="hint">← → เปลี่ยนสไลด์ · S สคริปต์พูด · P หน้าต่างผู้พูด · F เต็มจอ</div>
+
+<main class="deck" id="deck">
+
+<!-- ================================================================ 1 · HOOK -->
+<section class="slide dark" data-title="ชีวิตจริงก่อนวันเงินเข้า" data-tone="dark">
+  <div class="inner hook">
+    <div class="stack">
+      <span class="eyebrow rv"><span class="n">01</span> ชีวิตจริงของนักศึกษา</span>
+      <div class="big-money rv" style="--d:1"><span id="hook-money">342</span><small>บาท</small></div>
+      <div class="days rv" style="--d:2">
+        <span class="tag">เหลืออีก 9 วัน</span>
+        <span class="cal" aria-label="ปฏิทิน 9 วันถึงวันเงินเข้า"><i class="today">11</i><i>12</i><i>13</i><i>14</i><i>15</i><i>16</i><i>17</i><i>18</i><i>19</i></span>
+      </div>
+      <p class="perday rv" style="--d:3">เฉลี่ยใช้ได้วันละ <b>38 บาท</b> · ข้าวจานเดียวยังไม่พอ</p>
+      <div class="choices">
+        <button class="choice rv" style="--d:4" type="button">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="18" y="6" width="28" height="52" rx="6" fill="#FED24F"/><rect x="22" y="13" width="20" height="34" rx="2" fill="#12301B"/><circle cx="32" cy="52" r="2.6" fill="#12301B"/><path d="M32 24c-2.5-3.6-8-1.8-8 2.2 0 3.6 8 8.6 8 8.6s8-5 8-8.6c0-4-5.5-5.8-8-2.2z" fill="#F25F57"/></svg>
+          <b>ขอที่บ้านเพิ่ม</b><span>รู้สึกผิด · โดนถามว่า "ใช้อะไรหมด"</span>
+        </button>
+        <button class="choice rv" style="--d:5" type="button">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="22" cy="20" r="9" fill="#B2D959"/><circle cx="43" cy="20" r="9" fill="#7EC151"/><path d="M8 50c0-9 6.5-15 14-15s14 6 14 15z" fill="#B2D959"/><path d="M29 50c0-9 6.5-15 14-15s14 6 14 15z" fill="#7EC151"/><circle cx="33" cy="44" r="8" fill="#FED24F" stroke="#12301B" stroke-width="2"/><text x="33" y="48" font-size="10" text-anchor="middle" font-weight="700" fill="#12301B">฿</text></svg>
+          <b>ยืมเพื่อน</b><span>เสียความสัมพันธ์ · หนี้วนไปเดือนหน้า</span>
+        </button>
+        <button class="choice rv" style="--d:6" type="button">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 30h48c0 14-10.7 24-24 24S8 44 8 30z" fill="#E8F3CF"/><path d="M8 30h48" stroke="#12301B" stroke-width="3" stroke-linecap="round"/><path d="M22 20c0-4 4-4 4-8M32 20c0-4 4-4 4-8M42 20c0-4 4-4 4-8" stroke="#E8F3CF" stroke-width="3" stroke-linecap="round" opacity=".55"/><path d="M20 40l24 0" stroke="#C0362C" stroke-width="3" stroke-linecap="round" opacity=".8"/></svg>
+          <b>อดมื้อกินมื้อ</b><span>สุขภาพแย่ · เรียนไม่รู้เรื่อง</span>
+        </button>
+      </div>
+    </div>
+    <div class="hook-mascot rv" style="--d:3">
+      <div style="animation:float 5s ease-in-out infinite"><img class="mascot" src="__ASSET_budgetTight__" alt="มาสคอตพอใช้ทำหน้ากังวล" /></div>
+      <span class="bubble-say">เงินจะพอถึงสิ้นเดือนไหมนะ…</span>
+    </div>
+  </div>
+  <aside class="notes" data-time="~1 นาที">
+    <p>สวัสดีครับ/ค่ะ ขอเริ่มด้วยตัวเลขนี้ก่อนนะครับ… <b>342 บาท</b> กับ <b>อีก 9 วัน</b>กว่าเงินจะเข้า</p>
+    <span class="cue">[หยุด 2 วินาที ให้คนดูอ่านตัวเลข]</span>
+    <p>ใครเคยอยู่ในสถานการณ์นี้บ้าง ยกมือได้เลย… ผมเชื่อว่าในห้องนี้หลายคนเคย เพราะนี่คือชีวิตจริงของนักศึกษาส่วนใหญ่ เงินค่าขนมจากที่บ้าน หรือเงินจากงานพาร์ทไทม์ เข้ามาเป็นก้อน แล้วเราก็ใช้ไปเรื่อยๆ โดยไม่รู้ว่าวันนี้ควรใช้ได้เท่าไหร่</p>
+    <p>342 บาทหาร 9 วัน เท่ากับวันละ 38 บาท ข้าวจานเดียวหน้ามอยังไม่พอเลย</p>
+    <p>พอถึงจุดนี้ นักศึกษามีแค่ 3 ทางเลือก</p>
+    <ul><li><b>ขอที่บ้านเพิ่ม</b> ซึ่งหลายคนรู้สึกผิด และต้องตอบคำถามว่าใช้อะไรหมด</li><li><b>ยืมเพื่อน</b> แล้วก็กลายเป็นหนี้ที่วนไปเดือนหน้า</li><li><b>อดมื้อกินมื้อ</b> ซึ่งกระทบทั้งสุขภาพและการเรียน</li></ul>
+    <p>ปัญหาไม่ใช่ว่านักศึกษาไม่มีเงิน แต่คือ<b>ไม่รู้ตั้งแต่ต้นว่าต้องแบ่งยังไง</b> ทีมเราเลยตั้งคำถามว่า ถ้ามีอะไรสักอย่างบอกเราได้ทุกวันว่า "วันนี้ใช้ได้เท่าไหร่" เรื่องนี้จะเปลี่ยนไปไหม</p>
+    <span class="cue">[กด → ไปสไลด์ 2]</span>
+  </aside>
+</section>
+
+<!-- ================================================================ 2 · PAIN -->
+<section class="slide light" data-title="ทำไมวิธีเดิมเอาไม่อยู่" data-tone="light">
+  <div class="inner" style="grid-template-rows:auto auto auto; align-content:center; gap:clamp(14px,2.4vh,26px)">
+    <div class="stack">
+      <span class="eyebrow rv"><span class="n">02</span> Pain Point</span>
+      <h2 class="rv" style="--d:1">วิธีเดิมๆ บอกแค่ว่า <span class="hl">"จ่ายอะไรไป"</span></h2>
+    </div>
+    <div class="pain-grid">
+      <article class="card pain rv" style="--d:2">
+        <span class="x" aria-hidden="true">✕</span>
+        <h3>📒 จดใส่สมุด</h3>
+        <div class="notebook" aria-label="ตัวอย่างสมุดจดเงิน">
+          <div>ข้าวเที่ยง ........ 45</div>
+          <div>ชานม ............ 55</div>
+          <div><span class="scribble">เหลือ 1,2__ ?</span> <span class="q">บวกใหม่อีกรอบ…</span></div>
+          <div>ค่าหอ ............ <span class="q">จ่ายยัง??</span></div>
+        </div>
+        <p>ยุ่งยาก ไม่มีสรุป ต้องนั่งบวกลบเอง · จดได้ 3 วันก็เลิก</p>
+      </article>
+      <article class="card pain rv" style="--d:3">
+        <span class="x" aria-hidden="true">✕</span>
+        <h3>📱 แอปจดบัญชีทั่วไป</h3>
+        <div class="mini-app" id="mini-app">
+          <div class="bal">ยอดเงินคงเหลือ <b>3,000 บาท</b></div>
+          <div class="forgot">
+            <div class="forgot-row"><span>ค่าหอที่ยังไม่จ่าย (ลืม)</span><span>−2,500</span></div>
+            <div class="real-row"><span>ใช้ได้จริง ÷ 9 วัน</span><span style="font-size:1.4em">≈ 55 บาท/วัน</span></div>
+          </div>
+          <button class="btn btn-ghost" id="reveal-btn" type="button" style="margin-top:auto; align-self:flex-start; padding:8px 14px;">👀 เผยสิ่งที่แอปไม่บอก</button>
+        </div>
+        <p>เห็นเงิน 3,000 แล้วรู้สึกรวย แต่<b>ลืมค่าหอ 2,500</b> ที่ต้องจ่ายสิ้นเดือน</p>
+      </article>
+    </div>
+    <div class="question rv" style="--d:4">
+      <img src="__ASSET_thinking__" alt="" />
+      <span>คำถามที่นักศึกษาอยากรู้จริงๆ คือ <span class="hl" style="color:var(--yellow-400)">"วันนี้ ฉันใช้ได้อีกเท่าไหร่?"</span></span>
+    </div>
+  </div>
+  <aside class="notes" data-time="~1 นาที">
+    <p>แล้วทำไมวิธีที่มีอยู่ถึงเอาไม่อยู่ เราลองดู 2 วิธีที่นักศึกษาใช้กันมากที่สุด</p>
+    <p><b>วิธีแรก จดใส่สมุด</b> ฟังดูดี แต่ในชีวิตจริงต้องนั่งบวกลบเองทุกครั้ง ไม่มีสรุป ไม่มีใครบอกว่าค่าหอจ่ายหรือยัง ส่วนใหญ่จดได้ 3 วันก็เลิก</p>
+    <p><b>วิธีที่สอง แอปจดบัญชีทั่วไป</b> ดีกว่าสมุด แต่ทุกแอปตอบแค่คำถามว่า "จ่ายอะไรไปแล้ว" ไม่ได้ตอบว่า "วันนี้ยังใช้ได้อีกเท่าไหร่"</p>
+    <span class="cue">[กดปุ่ม "เผยสิ่งที่แอปไม่บอก" บนสไลด์]</span>
+    <p>ดูตัวอย่างนี้ครับ แอปบอกว่าเรามีเงิน 3,000 บาท เรารู้สึกรวยเลย แต่ลืมไปว่ามีค่าหอ 2,500 ที่ยังไม่ได้จ่าย เงินที่ใช้ได้จริงเหลือแค่ 500 หาร 9 วัน ประมาณวันละ 55 บาทเท่านั้น</p>
+    <p>นี่คือช่องว่างที่เราเห็น นักศึกษาไม่ได้ต้องการบัญชีรายรับรายจ่ายที่ละเอียดขึ้น แต่ต้องการคำตอบเดียวทุกวัน: <b>"วันนี้ฉันใช้ได้อีกเท่าไหร่"</b></p>
+    <span class="cue">[กด → ไปสไลด์ 3]</span>
+  </aside>
+</section>
+
+<!-- ================================================================ 3 · LINE OA -->
+<section class="slide dark" data-title="แนะนำพอใช้ใน LINE" data-tone="dark">
+  <div class="inner split-wide">
+    <div class="stack">
+      <span class="eyebrow rv"><span class="n">03</span> Introducing พอใช้</span>
+      <h2 class="rv" style="--d:1">แค่<span class="hl">แอดเพื่อน</span>ใน LINE<br/>ชีวิตก็ง่ายขึ้น</h2>
+      <p class="lead rv" style="--d:2">ไม่ต้องโหลดแอปเพิ่ม · พิมพ์แชต หรือโยนสลิป ระบบจดให้ แล้วบอกงบวันนี้ทุกครั้ง</p>
+      <div class="chips">
+        <div class="chip rv" style="--d:3"><span class="ic">✎</span><div>พิมพ์ <b>"ข้าว 45"</b> <em>→ จดแล้ว พร้อมงบที่เหลือ</em></div></div>
+        <div class="chip rv" style="--d:4"><span class="ic">🧾</span><div>ส่ง<b>สลิป</b> <em>→ อ่านยอดให้ กดยืนยันครั้งเดียว</em></div></div>
+        <div class="chip rv" style="--d:5"><span class="ic">♡</span><div>ตัวเลข<b>ไม่ได้ไว้ดุ</b> <em>→ ไว้ช่วยวางแผนด้วยความเข้าใจ</em></div></div>
+      </div>
+    </div>
+    <div class="phone-wrap rv" style="--d:2">
+      <div class="phone">
+        <div class="screen">
+          <div class="lhead"><span style="font-size:18px">‹</span><span class="av" style="background-image:url('__ASSET_greeting__')"></span> พอใช้ <span class="ok">✓</span></div>
+          <div class="chat" id="chat" aria-live="polite"></div>
+          <div class="lcompose"><span>＋</span><span>🖼</span><span class="in" id="compose"></span><span class="send">ส่ง</span></div>
+        </div>
+      </div>
+      <div class="demo-btns">
+        <button class="btn btn-yellow" id="send-rice" type="button">💬 ส่ง "ข้าว 45"</button>
+        <button class="btn btn-primary" id="send-slip" type="button">🧾 ส่งสลิปอัตโนมัติ</button>
+        <button class="btn btn-ghost" id="chat-reset" type="button" aria-label="เริ่มแชตใหม่">↺</button>
+      </div>
+    </div>
+  </div>
+  <aside class="notes" data-time="~1.5 นาที">
+    <p>เราเลยสร้าง <b>"พอใช้"</b> ขึ้นมาครับ และเราตัดสินใจตั้งแต่วันแรกว่า<b>จะไม่ให้นักศึกษาต้องโหลดแอปใหม่</b></p>
+    <p>เพราะนักศึกษาทุกคนเปิด LINE อยู่แล้วทั้งวัน พอใช้จึงอยู่ใน LINE แค่แอดเพื่อนก็เริ่มได้เลย</p>
+    <span class="cue">[กดปุ่ม "ส่ง ข้าว 45"]</span>
+    <p>ลองดูนะครับ พิมพ์แค่ "ข้าว 45" เหมือนแชตกับเพื่อน บอทจดให้ทันที และบอกด้วยว่าวันนี้ใช้ไปแล้ว 45 จากงบ 134 บาท ยังเหลืออีก 89 บาท</p>
+    <span class="cue">[กดปุ่ม "ส่งสลิปอัตโนมัติ" แล้วกด "บันทึก" บนการ์ด]</span>
+    <p>หรือถ้าขี้เกียจพิมพ์ ก็แค่ส่งสลิปโอนเงินเข้ามา ระบบอ่านชื่อร้านกับยอดให้ แต่<b>จะยังไม่จดจนกว่าเราจะกดยืนยัน</b> เพราะเราไม่อยากให้ระบบเดาแทนผู้ใช้</p>
+    <p>อีกเรื่องที่ทีมให้ความสำคัญมาก คือตัวเลขงบรายวันนี้<b>ไม่ได้มีไว้ทำให้กังวลหรือรู้สึกผิด</b> น้ำเสียงของบอทเป็นเพื่อนที่ช่วยเตือนและช่วยวางแผน ถ้าวันไหนใช้เกิน มันจะบอกว่าพรุ่งนี้จะเหลือวันละเท่าไหร่ ให้เราปรับตัวได้ ไม่ใช่ดุเรา</p>
+    <span class="cue">[กด → ไปสไลด์ 4]</span>
+  </aside>
+</section>
+
+<!-- ================================================================ 4 · 3-STATE -->
+<section class="slide lime" data-title="ระบบ 3 สถานะ" data-tone="light">
+  <div class="inner split" style="grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr)">
+    <div class="stack">
+      <span class="eyebrow rv"><span class="n">04</span> The Secret Sauce</span>
+      <h2 class="rv" style="--d:1">ลอง<span class="sep"></span>กันไว้<span class="sep"></span>จ่ายจริง</h2>
+      <p class="lead rv" style="--d:2">ถามก่อนซื้อได้ทุกครั้ง โดยเงินจริงไม่ขยับจนกว่าจะจ่ายจริง</p>
+      <div class="steps rv" style="--d:3">
+        <button class="step next" id="st-1" type="button"><span class="num">1</span><div><b>ลองซื้อ 140 ฿</b><span>Simulate · ดูผลก่อนตัดสินใจ</span></div></button>
+        <button class="step" id="st-2" type="button" disabled><span class="num">2</span><div><b>กันไว้ 140 ฿</b><span>Reserve · ล็อกเงินออกจากงบรายวัน</span></div></button>
+        <button class="step" id="st-3" type="button" disabled><span class="num">3</span><div><b>จ่ายจริง 140 ฿</b><span>Paid · ตัดเงินจริงครั้งเดียว</span></div></button>
+      </div>
+      <button class="btn btn-ghost rv" id="sim-reset" type="button" style="--d:4; align-self:flex-start; color:var(--green-900)">↺ เริ่มใหม่</button>
+    </div>
+    <div class="card panel rv" style="--d:2">
+      <div class="stats">
+        <div class="stat" id="s-real"><span>เงินจริง</span><b><span data-v="real">2,400</span></b><em id="e-real">ยังอยู่ครบ</em></div>
+        <div class="stat" id="s-res"><span>กันไว้แล้ว</span><b><span data-v="res">550</span></b><em id="e-res">ค่าหอ + ค่าไฟ</em></div>
+        <div class="stat hero" id="s-day"><span>ใช้ได้ต่อวัน</span><b><span data-v="day">134</span></b><em id="e-day">อีก 12 วันถึงวันเงินเข้า</em></div>
+      </div>
+      <div>
+        <div class="moneybar-label"><span>เงิน 2,400 บาท ถูกแบ่งยังไง</span><span id="bar-total">2,400 บาท</span></div>
+        <div class="moneybar" id="moneybar" aria-hidden="true">
+          <div class="seg bills" style="flex-basis:22.9%">บิล 550</div>
+          <div class="seg save" style="flex-basis:10%">ออม 240</div>
+          <div class="seg item" id="seg-item" style="flex-basis:0%"></div>
+          <div class="seg free" id="seg-free">ใช้ได้ 1,610</div>
+        </div>
+      </div>
+      <div class="legend"><span><i style="background:var(--green-800)"></i>บิลที่กันไว้</span><span><i style="background:var(--lime-300)"></i>เงินออม 10%</span><span><i style="background:var(--yellow-400)"></i>ของที่กันไว้</span><span><i style="background:var(--green-500)"></i>ใช้ได้ ÷ 12 วัน</span></div>
+      <div class="say" id="sim-say"><img src="__ASSET_saveCoins__" alt="" /><span id="sim-text">มีเงิน 2,400 · หักบิลและเงินออมแล้ว ใช้ได้วันละ 134 บาท อยากได้เสื้อช็อป 140 ลองกดปุ่ม 1 ดูสิ</span></div>
+    </div>
+  </div>
+  <aside class="notes" data-time="~1.5 นาที">
+    <p>นี่คือหัวใจของพอใช้ ที่ทำให้เราต่างจากแอปจดเงินทั่วไป เราเรียกว่า <b>ระบบ 3 สถานะ: ลอง กันไว้ จ่ายจริง</b></p>
+    <p>สมมติผมมีเงิน 2,400 บาท มีค่าหอกับค่าไฟรวม 550 ที่กันไว้แล้ว ตั้งเป้าออม 10% คือ 240 บาท เหลือใช้ได้วันละ 134 บาท อีก 12 วัน</p>
+    <span class="cue">[กดปุ่ม 1 · ลองซื้อ 140]</span>
+    <p>ผมอยากได้เสื้อช็อป 140 บาท ก่อนจ่าย ผมกด "ลอง" ระบบบอกทันทีว่า ถ้าซื้อ งบต่อวันจะเหลือ 122.50 บาท แต่สังเกตว่า<b>เงินจริงยังอยู่ครบ 2,400</b> เพราะนี่แค่การลอง ไม่มีอะไรถูกบันทึก</p>
+    <span class="cue">[กดปุ่ม 2 · กันไว้]</span>
+    <p>ตัดสินใจจะซื้อ แต่ยังไม่ได้จ่ายวันนี้ ผมกด "กันไว้" เงิน 140 ถูก<b>ล็อกออกจากงบรายวัน</b> ยอดกันไว้ขึ้นเป็น 690 กันไม่ให้เผลอเอาเงินก้อนนี้ไปกินชานมหมด</p>
+    <span class="cue">[กดปุ่ม 3 · จ่ายจริง]</span>
+    <p>วันที่จ่ายจริง กด "จ่ายจริง" เงินจริงลดเหลือ 2,260 ยอดกันไว้กลับเป็น 550 และ<b>งบต่อวันยังเป็น 122.50 เท่าเดิม</b> เพราะเงินก้อนนี้ถูกนับไปแล้วตั้งแต่ตอนกันไว้ ระบบหัก 140 แค่ครั้งเดียว ไม่หักซ้ำ</p>
+    <p>ทั้งหมดนี้ทดสอบอัตโนมัติด้วยตัวเลขชุดเดียวกันนี้ทุกครั้งที่เราแก้โค้ด</p>
+    <span class="cue">[กด → ไปสไลด์ 5]</span>
+  </aside>
+</section>
+
+<!-- ================================================================ 5 · POINTS -->
+<section class="slide light" data-title="ยิ่งจด ยิ่งได้แต้ม" data-tone="light">
+  <div class="inner split">
+    <div class="stack">
+      <span class="eyebrow rv"><span class="n">05</span> Gamification</span>
+      <h2 class="rv" style="--d:1">ยิ่งจด <span class="hl">ยิ่งได้แต้ม</span><br/>แลกส่วนลดได้จริง</h2>
+      <p class="lead rv" style="--d:2">เปลี่ยนการจดเงินที่น่าเบื่อ ให้เป็นนิสัยที่อยากกลับมาทุกวัน</p>
+      <div class="rules">
+        <div class="rule rv" style="--d:3"><b>+1</b> จดรายจ่ายครั้งแรกของวัน</div>
+        <div class="rule rv" style="--d:4"><b>+1</b> หรือแค่พิมพ์ "เช็กครบแล้ว" (วันละครั้ง)</div>
+        <div class="rule rv" style="--d:5"><b>แลก</b> ของรางวัล · ส่วนลดร้านรอบมอ</div>
+      </div>
+      <img class="rv" src="__ASSET_reward__" alt="" style="--d:5; width:min(14cqw,24vh)" />
+    </div>
+    <div class="wallet rv" style="--d:2; position:relative">
+      <span class="toast" id="pts-toast"></span>
+      <div class="wallet-top">
+        <div><div style="font-weight:700;color:var(--sage-500)">แต้มของฉัน</div><div class="pts"><b id="pts">11</b><span>แต้ม</span></div></div>
+        <button class="btn btn-primary" id="claim" type="button">+1 รับแต้มวันนี้</button>
+      </div>
+      <div class="streak" aria-label="สะสมต่อเนื่อง 7 วัน"><i class="on">จ</i><i class="on">อ</i><i class="on">พ</i><i class="on">พฤ</i><i class="on">ศ</i><i class="on">ส</i><i id="streak-today">อา</i></div>
+      <div class="coupons" id="coupons">
+        <div class="coupon" data-cost="10"><span class="ico">🍛</span><div><b>ส่วนลด 10 บาท · ร้านข้าวหน้ามอ</b><small>ใช้ 10 แต้ม · ตัวอย่างร้านค้าพาร์ทเนอร์</small></div><button class="redeem" type="button">กดแลกคูปอง</button></div>
+        <div class="coupon" data-cost="15"><span class="ico">🧋</span><div><b>ชานมไข่มุก ลด 15%</b><small>ใช้ 15 แต้ม · ตัวอย่างร้านค้าพาร์ทเนอร์</small></div><button class="redeem" type="button">กดแลกคูปอง</button></div>
+        <div class="coupon" data-cost="10"><span class="ico">🌱</span><div><b>สติกเกอร์พอใช้</b><small>ใช้ 10 แต้ม · มีในแอปแล้ววันนี้</small></div><button class="redeem" type="button">กดแลกคูปอง</button></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes" data-time="~1 นาที">
+    <p>ปัญหาใหญ่ของแอปการเงินทุกตัวคือ <b>คนเลิกใช้</b> ใช้ 3 วันแล้วก็ลืม เราเลยออกแบบให้การจดเงินมีรางวัล</p>
+    <p>แค่จดรายจ่ายครั้งแรกของวัน หรือพิมพ์ "เช็กครบแล้ว" ในแชต ก็ได้ 1 แต้ม วันละครั้ง ระบบกันการกดซ้ำไว้แล้ว</p>
+    <span class="cue">[กด "+1 รับแต้มวันนี้" แล้วกด "กดแลกคูปอง" ที่ร้านข้าว]</span>
+    <p>แต้มที่สะสมเอาไปแลกของรางวัลได้จริง ตอนนี้ในแอปแลกสติกเกอร์ได้แล้ว และเป้าหมายต่อไปคือ<b>คูปองส่วนลดจากร้านรอบมหาวิทยาลัย</b> อย่างที่เห็นบนจอ กดแลกแล้วแต้มลดลง ได้โค้ดไปใช้ที่ร้านทันที</p>
+    <p>ถ้าแต้มไม่พอ ระบบไม่ให้แลกและไม่หักแต้ม</p>
+    <p>นักศึกษาได้ส่วนลด ร้านได้ลูกค้า และพอใช้ได้นิสัยการจดที่สม่ำเสมอ ซึ่งนำไปสู่สไลด์ถัดไป คือเราจะหารายได้จากไหน</p>
+    <span class="cue">หมายเหตุ: คูปองร้านข้าวกับชานมเป็น "ตัวอย่างพาร์ทเนอร์" ยังไม่ได้เซ็นสัญญากับร้านจริง · สติกเกอร์มีในแอปแล้ว</span>
+    <span class="cue">[กด → ไปสไลด์ 6]</span>
+  </aside>
+</section>
+
+<!-- ================================================================ 6 · BUSINESS -->
+<section class="slide lime" data-title="Business Model" data-tone="light">
+  <div class="inner" style="grid-template-rows:auto auto auto; align-content:center; gap:clamp(14px,2.2vh,26px)">
+    <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap">
+      <div class="stack">
+        <span class="eyebrow rv"><span class="n">06</span> Business Model</span>
+        <h2 class="rv" style="--d:1">ไม่เก็บเงินนักศึกษา<br/>แล้ว<span class="hl">พอใช้มีรายได้จากไหน?</span></h2>
+      </div>
+      <div class="free-badge rv" style="--d:2">นักศึกษาใช้ฟรี <b>0 บาท · No Subscription</b></div>
+    </div>
+    <div class="card rv" style="--d:2; padding:clamp(10px,1.4cqw,18px) clamp(14px,2cqw,26px)">
+      <svg class="eco" id="eco" viewBox="0 0 1000 300" role="img" aria-label="แผนภาพ นักศึกษา พอใช้ และร้านค้ารอบมหาวิทยาลัย">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#3B7A2E"/></marker>
+          <marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#B5650A"/></marker>
+        </defs>
+        <!-- flows -->
+        <path id="p-sp" class="flow" d="M235 112 C 330 70, 400 70, 425 105" stroke="#3B7A2E" marker-end="url(#ah)"/>
+        <path id="p-ps" class="flow f1 f2" d="M425 195 C 400 235, 330 235, 235 190" stroke="#3B7A2E" marker-end="url(#ah)"/>
+        <path id="p-cp" class="flow f1" d="M765 112 C 670 70, 600 70, 575 105" stroke="#B5650A" marker-end="url(#ah2)"/>
+        <path id="p-pc" class="flow f2 f3" d="M575 195 C 600 235, 670 235, 765 190" stroke="#B5650A" marker-end="url(#ah2)"/>
+        <text class="flow-label" x="330" y="62" text-anchor="middle" fill="#3B7A2E">จด · ลองก่อนจ่าย · ใช้ฟรี</text>
+        <text class="flow-label f1 f2" x="330" y="258" text-anchor="middle" fill="#3B7A2E">แต้ม · คูปอง · ร้านที่พอดีงบ</text>
+        <text class="flow-label f1" x="670" y="62" text-anchor="middle" fill="#B5650A">คูปอง · ค่าโปรโมตร้าน</text>
+        <text class="flow-label f2 f3" x="670" y="258" text-anchor="middle" fill="#B5650A">ลูกค้านักศึกษา · Insight ไม่ระบุตัวตน</text>
+        <!-- moving dots -->
+        <circle r="6" fill="#7EC151"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#p-sp"/></animateMotion></circle>
+        <circle r="6" fill="#FED24F"><animateMotion dur="2.6s" begin="1.3s" repeatCount="indefinite"><mpath href="#p-ps"/></animateMotion></circle>
+        <circle r="6" fill="#FED24F"><animateMotion dur="2.8s" repeatCount="indefinite"><mpath href="#p-cp"/></animateMotion></circle>
+        <circle r="6" fill="#7EC151"><animateMotion dur="2.8s" begin="1.4s" repeatCount="indefinite"><mpath href="#p-pc"/></animateMotion></circle>
+        <!-- nodes -->
+        <g class="node"><rect x="40" y="80" width="190" height="140" rx="20" fill="#FFFFFF" stroke="#E1E8D3" stroke-width="2"/>
+          <circle cx="135" cy="128" r="26" fill="#E8F3CF"/><circle cx="135" cy="120" r="10" fill="#3B7A2E"/><path d="M115 146c3-11 37-11 40 0" fill="#3B7A2E"/><path d="M118 104l17-8 17 8-17 8z" fill="#12301B"/>
+          <text x="135" y="180" text-anchor="middle" font-weight="700" font-size="20" fill="#12301B">นักศึกษา</text>
+          <text x="135" y="204" text-anchor="middle" font-size="14" fill="#4A5A48">ใช้ฟรี 0 บาท</text></g>
+        <g class="node"><rect x="420" y="60" width="160" height="180" rx="24" fill="#12301B"/>
+          <image href="__ASSET_greeting__" x="450" y="70" width="100" height="100"/>
+          <text x="500" y="196" text-anchor="middle" font-weight="700" font-size="22" fill="#FFFFFF">พอใช้</text>
+          <text x="500" y="220" text-anchor="middle" font-size="13" fill="#B2D959">ตัวกลางใน LINE</text></g>
+        <g class="node"><rect x="770" y="80" width="190" height="140" rx="20" fill="#FFFFFF" stroke="#E1E8D3" stroke-width="2"/>
+          <path d="M835 118h80l-6 -14h-68z" fill="#FED24F"/><rect x="841" y="118" width="68" height="34" rx="4" fill="#FFF6D6" stroke="#B5650A" stroke-width="2"/><rect x="866" y="130" width="18" height="22" fill="#B5650A"/>
+          <text x="865" y="180" text-anchor="middle" font-weight="700" font-size="20" fill="#12301B">ร้านค้ารอบมอ</text>
+          <text x="865" y="204" text-anchor="middle" font-size="14" fill="#4A5A48">ร้านอาหาร · คาเฟ่</text></g>
+      </svg>
+    </div>
+    <div class="rev">
+      <button class="rev-card rv" style="--d:3" data-focus="1" type="button"><span class="n">1</span><b>Voucher & Point Redemption</b><span>ร้านค้าร่วมแจกส่วนลดผ่านแต้ม เพื่อดึงนักศึกษาเข้าร้าน</span></button>
+      <button class="rev-card rv" style="--d:4" data-focus="2" type="button"><span class="n">2</span><b>Smart Contextual Recommendation</b><span>แนะนำร้านที่พอดีกับงบที่เหลือวันนี้ ร้านจ่ายค่าโปรโมต</span></button>
+      <button class="rev-card rv" style="--d:5" data-focus="3" type="button"><span class="n">3</span><b>Student Spending Insights</b><span>ภาพรวมพฤติกรรมแบบไม่ระบุตัวตน ช่วยร้านจัดโปรได้ตรงจุด</span></button>
+    </div>
+  </div>
+  <aside class="notes" data-time="~1.5 นาที">
+    <p>คำถามที่ทุกคนน่าจะสงสัย: ถ้า<b>ไม่เก็บเงินนักศึกษาเลย</b> พอใช้จะอยู่ได้ยังไง</p>
+    <p>เราตั้งใจให้นักศึกษาใช้ฟรี 0 บาท ไม่มี subscription เพราะคนที่เงินช็อตไม่ควรต้องจ่ายค่าแอปเพื่อช่วยให้เงินพอ รายได้ของเราจึงมาจาก<b>ร้านค้ารอบมหาวิทยาลัย</b> ซึ่งอยากได้ลูกค้านักศึกษาอยู่แล้ว</p>
+    <span class="cue">[ชี้/กดการ์ดทีละใบ แผนภาพจะไฮไลต์เส้นทางที่เกี่ยวข้อง]</span>
+    <p><b>ช่องทางที่ 1 Voucher & Point Redemption</b> ร้านค้าร่วมแจกคูปองส่วนลดผ่านระบบแต้มที่เราเพิ่งเห็น นักศึกษาได้ส่วนลด ร้านได้คนเข้าร้าน เราเก็บค่าบริการจากร้าน</p>
+    <p><b>ช่องทางที่ 2 Smart Contextual Recommendation</b> นี่คือจุดที่เราต่างจากแอปโฆษณาทั่วไป เรารู้ว่าวันนี้นักศึกษาคนนี้เหลืองบเท่าไหร่ เช่นเหลือ 60 บาท เราก็แนะนำร้านที่มีเมนูไม่เกิน 60 บาท ไม่ยัดโฆษณาที่ทำให้ใช้เงินเกินตัว ร้านจ่ายค่าโปรโมตต่อการแนะนำ</p>
+    <p><b>ช่องทางที่ 3 Student Spending Insights</b> ข้อมูลภาพรวม เช่น ช่วงสัปดาห์ก่อนเงินเข้านักศึกษาใช้จ่ายลดลงกี่เปอร์เซ็นต์ ช่วยร้านวางโปรได้ตรงจังหวะ ย้ำว่า<b>เป็นข้อมูลรวมแบบไม่ระบุตัวตนเท่านั้น</b> ไม่ขายข้อมูลรายบุคคล และขอความยินยอมตาม PDPA ตั้งแต่หน้าแรกที่เปิดแอป</p>
+    <span class="cue">[กด → ไปสไลด์ 7 · เตรียมสลับไปหน้าต่าง Terminal]</span>
+  </aside>
+</section>
+
+<!-- ================================================================ 7 · LIVE DEMO -->
+<section class="slide dark" data-title="Live Demo" data-tone="dark">
+  <div class="inner" style="grid-template-rows:auto auto auto auto; align-content:center; gap:clamp(14px,2.4vh,28px)">
+    <div class="stack">
+      <span class="eyebrow rv"><span class="n">07</span> Live Automated Demo</span>
+      <h2 class="rv" style="--d:1">ดูของจริงทั้งระบบ <span class="hl">ด้วยคำสั่งเดียว</span></h2>
+    </div>
+    <div class="term rv" style="--d:2">
+      <div class="term-bar"><i></i><i></i><i></i><span style="margin-left:8px">Terminal · D:\PorChai</span></div>
+      <div class="term-body"><span class="p">$</span><span id="cmd">npm run demo:pm</span><button class="btn btn-ghost copy" id="copy-cmd" type="button" style="padding:6px 12px;color:#D9F2C4">คัดลอก</button></div>
+      <div class="term-out">▶ เปิดเซิร์ฟเวอร์เอง · หน้าต่างมือถือ 390×844 · LINE OA ↔ LIFF ในหน้าต่างเดียว<br/><span class="ok">✓ 1 passed (≈1.5 นาที)</span></div>
+    </div>
+    <div class="pipeline">
+      <button class="stage rv" style="--d:3" type="button"><span class="badge">1</span><b>แอดเพื่อน LINE OA</b><span>การ์ดต้อนรับ → "เริ่มตั้งค่า"</span><ul><li>ริชเมนูจริง 5 ปุ่ม</li><li>เปิด MINI App จากแชต</li></ul></button>
+      <button class="stage rv" style="--d:4" type="button"><span class="badge">2</span><b>ตั้งค่าใน LIFF</b><span>1/4–4/4 · 150 → 154 → 134 บ./วัน</span><ul><li>ลองกรอกผิด ระบบเตือน</li><li>ลบบิลค่าน้ำ ตัวเลขคำนวณใหม่</li><li>ออม 10% = 240</li></ul></button>
+      <button class="stage rv" style="--d:5" type="button"><span class="badge">3</span><b>พิมพ์แชต & ส่งสลิป</b><span>"ข้าว 45" · แก้เป็น 65 · สลิป 50</span><ul><li>พิมพ์มั่ว → ตอบสุภาพ ไม่จด</li><li>"ข้าว 45 น้ำ 20" → ถามก่อน</li><li>"ไหวไหม" → เก็บไว้ในแผน</li></ul></button>
+      <button class="stage rv" style="--d:6" type="button"><span class="badge">4</span><b>แดชบอร์ด LIFF & แลกแต้ม</b><span>ข้อมูลจากแชตมาครบ</span><ul><li>จ่ายจริง → 2,145 หักครั้งเดียว</li><li>กดบันทึกรัว 3 ครั้ง → จดครั้งเดียว</li><li>แลกแต้ม · เตือน "ขาดอีก"</li></ul></button>
+    </div>
+    <div class="facts rv" style="--d:7"><span class="fact">⌨ คำสั่งเดียว เปิดทุกอย่างเอง</span><span class="fact">🔒 ไม่แตะ LINE / ฐานข้อมูลจริง</span><span class="fact">✓ ทุกตัวเลขบนจอถูกตรวจอัตโนมัติ</span></div>
+  </div>
+  <aside class="notes" data-time="~2–3 นาที (รวมเดโม)">
+    <p>ทั้งหมดที่เล่ามา ไม่ใช่แค่สไลด์ครับ เราจะให้ดูของจริงทั้งระบบ ด้วยคำสั่งเดียว</p>
+    <span class="cue">[สลับไปหน้าต่าง Terminal ที่เปิดไว้ใน D:\PorChai แล้วพิมพ์ npm run demo:pm · หรือกด "คัดลอก" บนสไลด์]</span>
+    <p>คำสั่งนี้เปิดเซิร์ฟเวอร์ให้เอง แล้วเปิดหน้าต่างขนาดมือถือขึ้นมา บอทจะเล่นเป็นผู้ใช้ใหม่ตั้งแต่ต้นจนจบ 4 ช่วง</p>
+    <ul>
+      <li><b>ช่วง 1</b> แอดเพื่อน LINE OA ได้การ์ดต้อนรับ กด "เริ่มตั้งค่า"</li>
+      <li><b>ช่วง 2</b> ตั้งค่าใน LIFF 4 ขั้น สังเกตตัวเลขงบรายวันเปลี่ยนจาก 150 เป็น 154 เมื่อลบบิลค่าน้ำ แล้วเป็น 134 เมื่อตั้งออม 10%</li>
+      <li><b>ช่วง 3</b> กลับมาที่แชต พิมพ์ "ข้าว 45" ลองพิมพ์มั่ว ลองพิมพ์ 2 รายการ แก้ยอดเป็น 65 ส่งสลิป และถามว่า "เสื้อช็อป 140 ไหวไหม" แล้วกดเก็บไว้ในแผน</li>
+      <li><b>ช่วง 4</b> เปิดแอปจากริชเมนู ทุกอย่างที่ทำในแชตมาอยู่บนแดชบอร์ดครบ จากนั้นจ่ายจริง ทดสอบกดบันทึกรัวๆ แลกแต้ม และเตือนเงินขาด</li>
+    </ul>
+    <p>ระหว่างที่บอททำงาน ทุกตัวเลขบนจอถูกตรวจอัตโนมัติ ถ้าผิดแม้แต่บาทเดียว เทสต์จะล้มทันที</p>
+    <span class="cue">ถ้าเน็ต/เครื่องมีปัญหา: เปิดวิดีโอสำรองจาก test-results/pm-demo/…/video.webm (อัดไว้ทุกครั้งที่รัน)</span>
+    <span class="cue">ข้อควรรู้ถ้ามีคนถาม: แชตในเดโมเป็นหน้าจำลองของ LINE ใช้โค้ดแปลงข้อความและการ์ดของแอปจริง แต่ไม่เรียก AI (Gemini) และไม่ส่งข้อความผ่าน LINE จริง</span>
+    <span class="cue">[เดโมจบ → กลับมาที่สไลด์ แล้วกด → ไปสไลด์ 8]</span>
+  </aside>
+</section>
+
+<!-- ================================================================ 8 · CLOSING -->
+<section class="slide dark" data-title="พร้อมใช้งานจริง" data-tone="dark">
+  <div class="inner closing">
+    <div class="stack" style="gap:clamp(14px,2.4vh,28px)">
+      <span class="eyebrow rv"><span class="n">08</span> Quality & Closing</span>
+      <h2 class="rv" style="--d:1">พร้อมใช้งานจริง<span class="hl">ในรั้วมหาวิทยาลัย</span></h2>
+      <div class="nums">
+        <div class="num-card rv" style="--d:2"><b data-count="2032">0</b><span>Automated Tests</span><em>unit tests ผ่านทั้งหมด 134 ไฟล์</em></div>
+        <div class="num-card rv" style="--d:3"><b data-count="20">0</b><span>E2E Scenarios</span><em>ทดสอบทั้งระบบเหมือนผู้ใช้จริง</em></div>
+        <div class="num-card rv" style="--d:4"><b>0</b><span>PII Leakage</span><em>ไม่มีข้อมูลส่วนตัวใน URL หรือ Analytics (TC-20)</em></div>
+        <div class="num-card rv" style="--d:5"><b>3</b><span>-State Engine</span><em>ลอง · กันไว้ · จ่ายจริง ไม่หักซ้ำ</em></div>
+      </div>
+      <p class="quote rv" style="--d:6">"เพราะการวางแผนการเงินที่ดี…<br/>คือจุดเริ่มต้นของ<span class="hl">ชีวิตนักศึกษาที่สบายใจ</span>"</p>
+      <div class="thanks rv" style="--d:7">ขอบคุณครับ/ค่ะ · พอใช้ Por-Chai 💚</div>
+    </div>
+    <div class="mascot-col rv" style="--d:4; justify-self:center; width:min(26cqw,48vh)">
+      <div style="animation:float 5s ease-in-out infinite"><img class="mascot" src="__ASSET_budgetOk__" alt="มาสคอตพอใช้ยิ้มสบายใจ" /></div>
+    </div>
+  </div>
+  <aside class="notes" data-time="~1 นาที">
+    <p>สิ่งที่เราอยากย้ำในสไลด์สุดท้าย คือพอใช้<b>ไม่ใช่แค่ไอเดีย แต่พร้อมใช้งานจริง</b></p>
+    <ul>
+      <li><b>2,032 automated tests</b> ผ่านทั้งหมด ครอบคลุมสูตรคำนวณเงินทุกกรณี ตั้งแต่เงินขาด วันเงินเข้าตรงกับวันนี้ ไปจนถึงทศนิยม</li>
+      <li><b>20 ฉากทดสอบ end-to-end</b> ที่เล่นเหมือนผู้ใช้จริงทั้งระบบ รวมถึงเดโมที่เพิ่งดูไป</li>
+      <li><b>0 การรั่วของข้อมูลส่วนตัว</b> เรามีเทสต์ที่ตรวจทุก URL และทุกอย่างที่ส่งไปเครื่องมือ analytics ว่าไม่มีชื่อ ไอดี LINE ยอดเงิน หรือชื่อรายการหลุดออกไป และยอดเงินบนจอถูกซ่อนจากการบันทึกหน้าจอของ analytics</li>
+      <li>และ<b>ระบบ 3 สถานะ</b> ที่รับประกันว่าเงินจะไม่ถูกหักซ้ำ</li>
+    </ul>
+    <p>กลับไปที่ 342 บาทกับอีก 9 วันตอนต้น… ถ้านักศึกษาคนนั้นมีพอใช้ตั้งแต่วันที่เงินเข้า เขาจะรู้ตั้งแต่วันแรกว่าใช้ได้วันละเท่าไหร่ และไม่ต้องเลือกระหว่างขอที่บ้าน ยืมเพื่อน หรืออดข้าว</p>
+    <p><b>"เพราะการวางแผนการเงินที่ดี คือจุดเริ่มต้นของชีวิตนักศึกษาที่สบายใจ"</b></p>
+    <p>ขอบคุณครับ/ค่ะ ยินดีตอบคำถามครับ</p>
+    <span class="cue">คำถามที่น่าจะเจอ: (1) ต่างจากแอปธนาคารยังไง → ธนาคารบอกยอดคงเหลือ พอใช้บอกงบที่ใช้ได้วันนี้หลังหักบิลและเงินออม (2) ข้อมูลปลอดภัยไหม → ยืนยันตัวตนผ่าน LINE ทุกคำขอ ผู้ใช้เห็นได้แค่ข้อมูลตัวเอง (มีเทสต์ TC-19) (3) ร้านค้าได้อะไร → ลูกค้านักศึกษาที่มีงบพอดีกับเมนู</span>
+  </aside>
+</section>
+
+</main>
+
+<!-- ================================================================ speaker notes -->
+<aside class="notes-panel" id="notes-panel" aria-label="สคริปต์พูด" aria-hidden="true">
+  <div class="np-head"><h3 id="np-title">สคริปต์พูด</h3><span class="timer" id="timer" title="เวลาตั้งแต่เปิดสไลด์แรก (กด T เพื่อเริ่มใหม่)">00:00</span><button type="button" id="np-popout" title="เปิดในหน้าต่างแยก (P)">⧉ แยกหน้าต่าง</button><button type="button" id="np-close" aria-label="ปิดสคริปต์">✕</button></div>
+  <div class="np-body" id="np-body"></div>
+  <div class="np-help">ถ้าต่อโปรเจกเตอร์แบบ "ขยายจอ" ให้กด P แล้วลากหน้าต่างสคริปต์ไปไว้จอของเรา คนดูจะไม่เห็น</div>
+  <div class="np-foot"><span class="next" id="np-next"></span><button type="button" id="np-prev">←</button><button type="button" id="np-nextbtn">→</button></div>
+</aside>
+
+<script>
+(() => {
+  const slides = [...document.querySelectorAll(".slide")];
+  const total = slides.length;
+  const dotsEl = document.getElementById("dots");
+  const counter = document.getElementById("counter");
+  const progress = document.getElementById("progress");
+  const notesBtn = document.getElementById("notes-btn");
+  const hint = document.getElementById("hint");
+  let current = 0;
+  const startedAt = { t: Date.now() };
+  const pad = (n) => String(n).padStart(2, "0");
+
+  // ------------------------------------------------------------ navigation
+  slides.forEach((s, i) => {
+    const d = document.createElement("button");
+    d.type = "button";
+    d.className = "dot";
+    d.dataset.label = `${i + 1} · ${s.dataset.title}`;
+    d.setAttribute("aria-label", `สไลด์ ${i + 1}: ${s.dataset.title}`);
+    d.addEventListener("click", () => go(i));
+    dotsEl.appendChild(d);
+  });
+  const dots = [...dotsEl.children];
+  const onEnter = {};
+
+  function go(i, fromHash = false) {
+    i = Math.max(0, Math.min(total - 1, i));
+    if (i === current && slides[i].classList.contains("is-active")) return;
+    slides.forEach((s, k) => {
+      s.classList.toggle("is-active", k === i);
+      s.classList.toggle("is-before", k < i);
+      s.setAttribute("aria-hidden", String(k !== i));
+      s.inert = k !== i;
+    });
+    dots.forEach((d, k) => d.setAttribute("aria-current", String(k === i)));
+    current = i;
+    document.body.dataset.tone = slides[i].dataset.tone;
+    counter.textContent = `${pad(i + 1)} / ${pad(total)}`;
+    progress.style.width = `${((i + 1) / total) * 100}%`;
+    if (!fromHash && location.hash !== `#${i + 1}`) history.replaceState(null, "", `#${i + 1}`);
+    if (i > 0) hint.classList.add("gone");
+    renderNotes();
+    onEnter[i]?.();
+  }
+  const next = () => go(current + 1);
+  const prev = () => go(current - 1);
+  window.__deck = { go, next, prev, get current() { return current; }, total };
+
+  window.addEventListener("hashchange", () => {
+    const n = parseInt(location.hash.slice(1), 10);
+    if (n >= 1 && n <= total) go(n - 1, true);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest("input, textarea, [contenteditable]")) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key;
+    if (k === "ArrowRight" || k === "PageDown" || k === " ") { e.preventDefault(); next(); }
+    else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); prev(); }
+    else if (k === "Home") go(0);
+    else if (k === "End") go(total - 1);
+    else if (k === "s" || k === "S" || k === "ห") toggleNotes();
+    else if (k === "p" || k === "P" || k === "ย") popout();
+    else if (k === "f" || k === "F" || k === "ด") toggleFullscreen();
+    else if (k === "t" || k === "T" || k === "ะ") { startedAt.t = Date.now(); tick(); }
+    else if (/^[1-9]$/.test(k) && +k <= total) go(+k - 1);
+  });
+
+  let touchX = null;
+  document.addEventListener("touchstart", (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener("touchend", (e) => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 60) (dx < 0 ? next : prev)();
+    touchX = null;
+  });
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+
+  // ------------------------------------------------------------ speaker notes
+  const panel = document.getElementById("notes-panel");
+  const npBody = document.getElementById("np-body");
+  const npTitle = document.getElementById("np-title");
+  const npNext = document.getElementById("np-next");
+  const timerEl = document.getElementById("timer");
+  let pop = null;
+
+  function notesHtml(i) {
+    const s = slides[i];
+    const n = s.querySelector("aside.notes");
+    return `<div class="slide-title">สไลด์ ${i + 1} / ${total} · ${s.dataset.title}</div>${n?.dataset.time ? `<span class="time">⏱ ${n.dataset.time}</span>` : ""}${n ? n.innerHTML : "<p>(ไม่มีสคริปต์)</p>"}`;
+  }
+  function nextLabel() {
+    return current < total - 1 ? `ถัดไป: ${current + 2} · ${slides[current + 1].dataset.title}` : "สไลด์สุดท้าย";
+  }
+  function renderNotes() {
+    npBody.innerHTML = notesHtml(current);
+    npBody.scrollTop = 0;
+    npTitle.textContent = `สคริปต์พูด · ${pad(current + 1)}`;
+    npNext.textContent = nextLabel();
+    renderPopout();
+  }
+  function toggleNotes(force) {
+    const open = typeof force === "boolean" ? force : !document.body.classList.contains("notes-open");
+    document.body.classList.toggle("notes-open", open);
+    panel.setAttribute("aria-hidden", String(!open));
+    notesBtn.setAttribute("aria-expanded", String(open));
+  }
+  notesBtn.addEventListener("click", () => toggleNotes());
+  document.getElementById("np-close").addEventListener("click", () => toggleNotes(false));
+  document.getElementById("np-prev").addEventListener("click", prev);
+  document.getElementById("np-nextbtn").addEventListener("click", next);
+  document.getElementById("np-popout").addEventListener("click", () => popout());
+
+  // Presenter window: same-origin about:blank written by this page, so it also works from file://.
+  function popout() {
+    if (pop && !pop.closed) { pop.focus(); return; }
+    pop = window.open("", "porchai-speaker-notes", "width=620,height=820");
+    if (!pop) { alert("เบราว์เซอร์บล็อกหน้าต่างใหม่ · อนุญาต pop-up สำหรับไฟล์นี้ แล้วกด P อีกครั้ง"); return; }
+    const css = [...document.querySelectorAll("style")].map((s) => s.textContent).join("\n");
+    pop.document.open();
+    pop.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8"><title>สคริปต์พูด · พอใช้</title><style>${css}
+      body{overflow:auto;background:#0B1A11;color:#E9F2E3}
+      .pp{display:flex;flex-direction:column;height:100vh}
+      .pp .np-body{flex:1}
+      .pp .np-body p{font-size:19px}
+    </style></head><body><div class="pp"><div class="np-head"><h3 id="t"></h3><span class="timer" id="tm">00:00</span></div><div class="np-body" id="b"></div><div class="np-foot"><span class="next" id="n"></span><button id="pv" type="button">← ก่อนหน้า</button><button id="nx" type="button">ถัดไป →</button></div></div></body></html>`);
+    pop.document.close();
+    pop.document.getElementById("pv").onclick = () => prev();
+    pop.document.getElementById("nx").onclick = () => next();
+    pop.document.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); next(); }
+      if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prev(); }
+    });
+    renderPopout();
+  }
+  function renderPopout() {
+    if (!pop || pop.closed) return;
+    const d = pop.document;
+    d.getElementById("t").textContent = `สไลด์ ${pad(current + 1)} / ${pad(total)}`;
+    d.getElementById("b").innerHTML = notesHtml(current);
+    d.getElementById("b").scrollTop = 0;
+    d.getElementById("n").textContent = nextLabel();
+  }
+  function tick() {
+    const s = Math.floor((Date.now() - startedAt.t) / 1000);
+    const txt = `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+    timerEl.textContent = txt;
+    if (pop && !pop.closed) pop.document.getElementById("tm").textContent = txt;
+  }
+  setInterval(tick, 1000);
+
+  // ------------------------------------------------------------ number tween
+  const fmt = (v, dec = 0) => v.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  function tween(el, to, { dec = 0, ms = 900, from } = {}) {
+    const start = from ?? (parseFloat(String(el.dataset.n ?? el.textContent).replace(/,/g, "")) || 0);
+    el.dataset.n = to;
+    const t0 = performance.now();
+    cancelAnimationFrame(el._raf);
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / ms);
+      const e = 1 - Math.pow(1 - p, 3);
+      el.textContent = fmt(start + (to - start) * e, dec);
+      if (p < 1) el._raf = requestAnimationFrame(step);
+    };
+    el._raf = requestAnimationFrame(step);
+  }
+
+  // ------------------------------------------------------------ 1 · hook: money drains to 342
+  onEnter[0] = () => tween(document.getElementById("hook-money"), 342, { from: 4000, ms: 1600 });
+
+  // ------------------------------------------------------------ 2 · reveal what the app hides
+  const mini = document.getElementById("mini-app");
+  const revealBtn = document.getElementById("reveal-btn");
+  revealBtn.addEventListener("click", () => {
+    const on = mini.classList.toggle("revealed");
+    revealBtn.textContent = on ? "↺ ซ่อน" : "👀 เผยสิ่งที่แอปไม่บอก";
+  });
+  onEnter[1] = () => { mini.classList.remove("revealed"); revealBtn.textContent = "👀 เผยสิ่งที่แอปไม่บอก"; };
+
+  // ------------------------------------------------------------ 3 · LINE chat mockup
+  const chat = document.getElementById("chat");
+  const compose = document.getElementById("compose");
+  const AV = "__ASSET_greeting__";
+  const DAILY = 134;
+  let spent = 0, slipSaved = false, slipShown = false, busy = false;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const scroll = () => { chat.scrollTo({ top: chat.scrollHeight, behavior: "smooth" }); requestAnimationFrame(() => setTimeout(() => (chat.scrollTop = chat.scrollHeight), 400)); };
+  function add(html, me = false) {
+    const row = document.createElement("div");
+    row.className = "msg " + (me ? "me" : "bot");
+    row.innerHTML = (me ? "" : `<span class="av" style="background-image:url('${AV}')"></span>`) + html;
+    chat.appendChild(row);
+    row.querySelectorAll("img").forEach((im) => im.addEventListener("load", scroll));
+    scroll();
+    return row;
+  }
+  async function botTyping(ms = 750) {
+    const t = add(`<span class="typing"><i></i><i></i><i></i></span>`);
+    await sleep(ms);
+    t.remove();
+  }
+  async function typeIn(text) {
+    compose.textContent = "";
+    for (const ch of text) { compose.textContent += ch; await sleep(70); }
+    await sleep(250);
+    compose.textContent = "";
+  }
+  function recordedCard(title, amount) {
+    spent += amount;
+    const left = DAILY - spent;
+    const pct = Math.min(100, (spent / DAILY) * 100);
+    return `<div class="flex"><div class="fh"><img src="${AV}" alt=""/>จดแล้ว ✓</div><div class="fb">
+      <div class="row"><span>${title}</span><span class="amt">${amount} บาท</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="muted">ใช้ไปแล้ว ${spent} / ${DAILY} บาท</div>
+      <div class="left">วันนี้ใช้ได้อีก <b>${left}</b> บาท</div>
+      <div class="muted">${left > 60 ? "ยังเหลืออีกเยอะ ใช้ได้สบาย ๆ ครับ" : "ใกล้ครบงบแล้ว ค่อย ๆ ใช้นะครับ"}</div></div>
+      <div class="fbtns"><span>แก้</span><span>เปลี่ยนหมวด</span><span>ลบ</span></div></div>`;
+  }
+  function welcome() {
+    chat.innerHTML = "";
+    spent = 0; slipSaved = false; slipShown = false;
+    add(`<div class="flex"><div class="fh"><img src="${AV}" alt=""/>สวัสดีครับ ฉันคือพอใช้</div><div class="fb"><div>ตั้งค่าเสร็จแล้ว งบวันนี้ <b>${DAILY} บาท</b></div><div class="muted">พิมพ์จดได้เลย เช่น «ข้าว 45» หรือส่งสลิปมาก็ได้ครับ</div></div></div>`);
+  }
+  async function guard(fn) { if (busy) return; busy = true; try { await fn(); } finally { busy = false; } }
+  document.getElementById("send-rice").addEventListener("click", () => guard(async () => {
+    await typeIn("ข้าว 45");
+    add(`<div class="txt">ข้าว 45</div>`, true);
+    await botTyping();
+    add(recordedCard("ข้าว", 45));
+  }));
+  document.getElementById("send-slip").addEventListener("click", () => guard(async () => {
+    if (slipShown && !slipSaved) return;
+    add(`<div class="slip-img" aria-label="รูปสลิปตัวอย่าง"><b>จ่ายบิลสำเร็จ ✓</b>ร้านเบอร์เกอร์<div class="a">50.00</div><span style="opacity:.6">ตัวอย่าง · ไม่ใช่สลิปจริง</span></div>`, true);
+    slipShown = true; slipSaved = false;
+    await botTyping(1100);
+    const draft = add(`<div class="flex"><div class="fh"><img src="__ASSET_scanReceipt__" alt=""/>อ่านสลิปได้แบบนี้</div><div class="fb"><div class="row"><span>ร้านเบอร์เกอร์</span><span class="amt">50 บาท</span></div><div class="muted">ยังไม่จด · กดบันทึกเพื่อยืนยัน</div></div><div class="fbtns"><button class="go" type="button">บันทึก</button><button type="button">แก้ยอด</button><button type="button">ยกเลิก</button></div></div>`);
+    draft.querySelector(".go").addEventListener("click", () => guard(async () => {
+      if (slipSaved) return;
+      slipSaved = true;
+      draft.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      add(`<div class="txt">(กด บันทึก)</div>`, true);
+      await botTyping();
+      add(recordedCard("ร้านเบอร์เกอร์", 50));
+    }));
+  }));
+  document.getElementById("chat-reset").addEventListener("click", () => { if (!busy) welcome(); });
+  welcome();
+
+  // ------------------------------------------------------------ 4 · 3-state simulator
+  const S = { real: 2400, bills: 550, save: 240, days: 12, item: 140 };
+  const V = (k) => document.querySelector(`[data-v="${k}"]`);
+  const step = [1, 2, 3].map((n) => document.getElementById(`st-${n}`));
+  const segItem = document.getElementById("seg-item");
+  const segFree = document.getElementById("seg-free");
+  const simText = document.getElementById("sim-text");
+  const flash = (id) => { const el = document.getElementById(id); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1400); };
+  const dailyOf = (real, held) => Math.floor(((real - held - S.save) / S.days) * 4) / 4; // app rounds down to 0.25
+  let simStage = 0;
+  function bar(real, itemAmt, locked) {
+    const pct = (v) => `${(v / real) * 100}%`;
+    document.querySelector(".seg.bills").style.flexBasis = pct(S.bills);
+    document.querySelector(".seg.save").style.flexBasis = pct(S.save);
+    segItem.style.flexBasis = pct(itemAmt);
+    segItem.textContent = itemAmt ? (locked ? "🔒140" : "140") : "";
+    segItem.classList.toggle("locked", !!locked);
+    segFree.textContent = `ใช้ได้ ${fmt(real - S.bills - S.save - itemAmt)}`;
+    document.getElementById("bar-total").textContent = `${fmt(real)} บาท`;
+  }
+  function setSteps() {
+    step.forEach((b, k) => {
+      b.classList.toggle("done", k < simStage);
+      b.classList.toggle("next", k === simStage);
+      b.disabled = k !== simStage;
+    });
+  }
+  function simReset() {
+    simStage = 0;
+    V("real").textContent = "2,400"; V("real").dataset.n = 2400;
+    V("res").textContent = "550"; V("res").dataset.n = 550;
+    V("day").textContent = "134"; V("day").dataset.n = 134;
+    document.getElementById("e-real").textContent = "ยังอยู่ครบ";
+    document.getElementById("e-res").textContent = "ค่าหอ + ค่าไฟ";
+    document.getElementById("e-day").textContent = "อีก 12 วันถึงวันเงินเข้า";
+    bar(S.real, 0, false);
+    simText.textContent = "มีเงิน 2,400 · หักบิลและเงินออมแล้ว ใช้ได้วันละ 134 บาท อยากได้เสื้อช็อป 140 ลองกดปุ่ม 1 ดูสิ";
+    setSteps();
+  }
+  step[0].addEventListener("click", () => {
+    simStage = 1;
+    tween(V("day"), dailyOf(S.real, S.bills + S.item), { dec: 2 });
+    document.getElementById("e-day").textContent = "ถ้าซื้อ (ยังไม่จริง)";
+    document.getElementById("e-real").textContent = "ไม่ขยับ ✓";
+    bar(S.real, S.item, false);
+    flash("s-day");
+    simText.textContent = "แค่ลอง: งบต่อวันจะเหลือ 122.50 บาท แต่เงินจริงยังอยู่ครบ 2,400 ไม่มีอะไรถูกบันทึก";
+    setSteps();
+  });
+  step[1].addEventListener("click", () => {
+    simStage = 2;
+    tween(V("res"), S.bills + S.item);
+    document.getElementById("e-res").textContent = "+ เสื้อช็อป 140 🔒";
+    document.getElementById("e-day").textContent = "ล็อกแล้ว ไม่เผลอใช้";
+    bar(S.real, S.item, true);
+    flash("s-res");
+    simText.textContent = "กันไว้: ล็อก 140 ออกจากงบรายวัน ยอดกันไว้เป็น 690 ป้องกันเผลอเอาไปใช้อย่างอื่น";
+    setSteps();
+  });
+  step[2].addEventListener("click", () => {
+    simStage = 3;
+    const real = S.real - S.item;
+    tween(V("real"), real);
+    tween(V("res"), S.bills);
+    document.getElementById("e-real").textContent = "หัก 140 ครั้งเดียว ✓";
+    document.getElementById("e-res").textContent = "คืนเป็นค่าหอ + ค่าไฟ";
+    document.getElementById("e-day").textContent = `ยังเท่าเดิม ${fmt(dailyOf(real, S.bills), 2)} ✓`;
+    bar(real, 0, false);
+    flash("s-real");
+    simText.textContent = "จ่ายจริง: เงินจริงเหลือ 2,260 ยอดกันไว้กลับเป็น 550 งบต่อวันไม่เปลี่ยน เพราะนับไปแล้วตอนกันไว้ ไม่หักซ้ำ";
+    setSteps();
+  });
+  document.getElementById("sim-reset").addEventListener("click", simReset);
+  simReset();
+  onEnter[3] = simReset; // every visit starts at 2,400 / 134 per day
+
+  // ------------------------------------------------------------ 5 · points & coupons
+  const ptsEl = document.getElementById("pts");
+  const toast = document.getElementById("pts-toast");
+  const claimBtn = document.getElementById("claim");
+  let points = 11, claimed = false;
+  const coupons = [...document.querySelectorAll(".coupon")];
+  function showToast(t) { toast.textContent = t; toast.classList.remove("show"); void toast.offsetWidth; toast.classList.add("show"); }
+  function refreshCoupons() {
+    coupons.forEach((c) => {
+      if (c.classList.contains("ready")) return;
+      const btn = c.querySelector(".redeem");
+      const cost = +c.dataset.cost;
+      btn.disabled = points < cost;
+      btn.textContent = points < cost ? "แต้มไม่พอ" : "กดแลกคูปอง";
+    });
+  }
+  claimBtn.addEventListener("click", () => {
+    if (claimed) return;
+    claimed = true;
+    tween(ptsEl, ++points, { ms: 500 });
+    claimBtn.textContent = "รับแต้มวันนี้แล้ว ✓";
+    claimBtn.disabled = true;
+    document.getElementById("streak-today").classList.add("on");
+    showToast("+1 แต้ม · สะสมครบ 7 วัน 🔥");
+    refreshCoupons();
+  });
+  // One listener for all coupons (buttons are recreated on reset).
+  document.getElementById("coupons").addEventListener("click", (e) => {
+    const btn = e.target.closest(".redeem");
+    if (!btn || btn.disabled) return;
+    const c = btn.closest(".coupon");
+    const i = coupons.indexOf(c);
+    const cost = +c.dataset.cost;
+    if (points < cost) return;
+    points -= cost;
+    tween(ptsEl, points, { ms: 700 });
+    c.classList.add("ready");
+    btn.outerHTML = `<span class="code" title="โค้ดตัวอย่าง">พร้อมใช้ ✓ ${["PC-7K2Q", "PC-M4TE", "RW-8HZ3"][i]}</span>`;
+    showToast(`แลกสำเร็จ · −${cost} แต้ม`);
+    refreshCoupons();
+  });
+  function pointsReset() {
+    points = 11; claimed = false; ptsEl.textContent = "11"; ptsEl.dataset.n = 11;
+    claimBtn.textContent = "+1 รับแต้มวันนี้"; claimBtn.disabled = false;
+    document.getElementById("streak-today").classList.remove("on");
+    coupons.forEach((c) => {
+      c.classList.remove("ready");
+      const code = c.querySelector(".code");
+      if (code) code.outerHTML = `<button class="redeem" type="button">กดแลกคูปอง</button>`;
+    });
+    refreshCoupons();
+  }
+  pointsReset();
+  onEnter[4] = pointsReset; // every visit starts from 11 points, ready to demo
+
+  // ------------------------------------------------------------ 6 · business focus
+  const eco = document.getElementById("eco");
+  document.querySelectorAll(".rev-card").forEach((card) => {
+    const on = () => { eco.dataset.focus = card.dataset.focus; document.querySelectorAll(".rev-card").forEach((c) => c.classList.toggle("on", c === card)); };
+    const off = () => { delete eco.dataset.focus; card.classList.remove("on"); };
+    card.addEventListener("mouseenter", on);
+    card.addEventListener("focus", on);
+    card.addEventListener("mouseleave", off);
+    card.addEventListener("blur", off);
+    card.addEventListener("click", () => (eco.dataset.focus === card.dataset.focus ? off() : on()));
+  });
+
+  // ------------------------------------------------------------ 7 · live demo
+  document.querySelectorAll(".stage").forEach((st) => st.addEventListener("click", () => {
+    const was = st.classList.contains("on");
+    document.querySelectorAll(".stage").forEach((x) => x.classList.remove("on"));
+    if (!was) st.classList.add("on");
+  }));
+  document.getElementById("copy-cmd").addEventListener("click", async (e) => {
+    try { await navigator.clipboard.writeText("npm run demo:pm"); e.target.textContent = "คัดลอกแล้ว ✓"; }
+    catch { e.target.textContent = "เลือกข้อความแล้วคัดลอกเอง"; }
+    setTimeout(() => (e.target.textContent = "คัดลอก"), 1800);
+  });
+
+  // ------------------------------------------------------------ 8 · count up
+  onEnter[7] = () => document.querySelectorAll("[data-count]").forEach((el) => tween(el, +el.dataset.count, { from: 0, ms: 1600 }));
+
+  // ------------------------------------------------------------ start
+  const fromHash = parseInt(location.hash.slice(1), 10);
+  current = -1;
+  go(fromHash >= 1 && fromHash <= total ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>

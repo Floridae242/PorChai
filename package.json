@@ -19,7 +19,8 @@
     "test:e2e:watch": "playwright test tests/e2e/full-system-pm-demo.spec.ts --project=pm-demo-slow --headed",
     "test:e2e:report": "playwright show-report",
     "test:e2e:mock": "playwright test -c playwright.mock.config.ts",
-    "demo:pm": "playwright test tests/e2e/pm-live-journey.spec.ts --project=chromium"
+    "demo:pm": "playwright test tests/e2e/pm-live-journey.spec.ts --project=chromium",
+    "pitch:build": "node docs/pitch/build-deck.mjs"
   },
   "dependencies": {
     "@line/liff": "^2.32.0",

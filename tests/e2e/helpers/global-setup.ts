@@ -1,4 +1,5 @@
 import type { FullConfig } from "@playwright/test";
+import { ensureMockSlip } from "./generate-mock-slip";
 
 // `next dev` compiles each route on its first request. Warming them up here keeps the recorded
 // videos free of long blank compile pauses. Failures are ignored: the tests themselves will report.
@@ -31,6 +32,8 @@ const ROUTES = [
 ];
 
 export default async function globalSetup(config: FullConfig) {
+  // The live demo sends this sample slip in the LINE OA chat; generated once when missing.
+  await ensureMockSlip();
   const baseURL = config.projects[0]?.use.baseURL ?? "http://localhost:3004";
   for (const route of ROUTES) {
     try {

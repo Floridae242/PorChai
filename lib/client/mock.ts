@@ -389,7 +389,8 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       return { entries: entries.filter((e) => e.cancelledAt === null).map(publicEntry).reverse() };
     },
 
-    async addEntry(req, key) {
+    // `source` is not part of PorchaiApi: the E2E LINE OA demo bot passes "chat" / "ocr" like the webhook does.
+    async addEntry(req, key, source: Entry["source"] = "form") {
       const c = requireCycle();
       const known = entryKeys.get(key);
       if (known) return { entry: publicEntry(findEntry(known)), summary: summaryOf(c) };
@@ -397,7 +398,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       if (!(req.amount > 0)) throw new ApiError(422, "invalid_input", "จำนวนเงินไม่ถูกต้อง");
       if (spentOn > today) throw new ApiError(422, "invalid_input", "วันที่ใช้จ่ายต้องไม่เกินวันนี้");
       if(req.categoryId){const cat=spendingCats.find(x=>x.id===req.categoryId);if(!cat || cat.parent!==req.category)throw new ApiError(422,"invalid_category","หมวดไม่ถูกต้อง");}
-      const e = pushEntry(req.amount, req.category, req.note ?? null, spentOn, "form");
+      const e = pushEntry(req.amount, req.category, req.note ?? null, spentOn, source);
       if(req.categoryId)e.categoryId=req.categoryId;
       awardRecording(spentOn);
       entryKeys.set(key, e.id);
