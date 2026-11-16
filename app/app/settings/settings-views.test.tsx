@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Plan } from "@/lib/api-types";
@@ -61,7 +61,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("H3 main", () => {
-  it("shows only the Figma rows and no Plus or package card", async () => {
+  it("groups settings, exposes existing destinations, and separates deletion", async () => {
     renderWith(apiWith({}), <SettingsMainView />);
     for (const t of [
       "รอบเงินและวันเงินเข้า",
@@ -77,10 +77,24 @@ describe("H3 main", () => {
     expect(screen.queryByText("แพ็กเกจของคุณ")).toBeNull();
     expect(screen.queryByText(/แต้ม/)).toBeNull();
     expect(screen.queryByRole("link", { name: /Plus/ })).toBeNull();
+    expect(within(screen.getByRole("region", { name: "แผนเงินของคุณ" })).getAllByRole("link")).toHaveLength(4);
+    expect(screen.getByRole("link", { name: /สรุปและเตือนงบ/ }).getAttribute("href")).toBe("/app/notifications");
+    expect(within(screen.getByRole("region", { name: "จัดการข้อมูลส่วนตัว" })).getByRole("link").getAttribute("href")).toBe("/app/settings/delete");
   });
 });
 
 describe("R1 reminders", () => {
+  it("rejects an empty reminder time without saving and links to bill notifications", async () => {
+    const saveReminderSettings = vi.fn();
+    renderWith(apiWith({ saveReminderSettings }), <SettingsNotificationsView />);
+    const time = await screen.findByLabelText("เวลาเตือน");
+    fireEvent.change(time, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+    expect(screen.getByText("เลือกเวลาเตือนก่อนบันทึก")).toBeTruthy();
+    expect(saveReminderSettings).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: /เตือนบิลประจำ/ }).getAttribute("href")).toBe("/app/settings/bills");
+  });
+
   it("not_implemented -> banner, disabled controls, no habits", async () => {
     renderWith(apiWith({ reminderSettings: notImpl }), <SettingsNotificationsView />);
     expect(await screen.findByText(/ยังไม่พร้อมใช้งาน/)).toBeTruthy();
@@ -153,7 +167,7 @@ describe("H5 privacy", () => {
   it("shows the static design text", () => {
     renderWith(apiWith({}), <SettingsPrivacyView />);
     expect(screen.getByText("พอใช้เก็บข้อมูลเท่าที่จำเป็น")).toBeTruthy();
-    expect(screen.getByText(/ไม่เชื่อมบัญชีธนาคาร ไม่ขอสลิป/)).toBeTruthy();
+    expect(screen.getByText(/ไม่เชื่อมบัญชีธนาคาร และไม่ขอรหัสผ่านธนาคาร/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "เข้าใจแล้ว" })).toBeTruthy();
   });
 });
@@ -297,13 +311,11 @@ describe("H8 savings / buffer / essentials", () => {
     expect(setEssentials).toHaveBeenCalledWith({ food: 7000, transport: 0 });
   });
 
-  it("savings and buffer adjustments say ยังไม่พร้อมใช้งาน", async () => {
+  it("shows unsupported savings and buffer changes as unavailable before tapping", async () => {
     renderWith(apiWith({}), <SettingsSavingsView />);
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "ปรับเป้าออม" }));
-    expect(await screen.findByText(/ปรับเป้าออมยังใช้ไม่ได้/)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "ปรับเงินเผื่อ" }));
-    expect(await screen.findByText(/ปรับเงินเผื่อยังใช้ไม่ได้/)).toBeTruthy();
+    expect((await screen.findByRole("button", { name: "ปรับเป้าออม" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "ปรับเงินเผื่อ" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getAllByText(/หน้านี้ยังไม่พร้อมใช้งาน/)).toHaveLength(2);
   });
 
   it("an invalid essentials amount is not sent", async () => {
@@ -315,7 +327,22 @@ describe("H8 savings / buffer / essentials", () => {
     await user.type(field, "abc");
     await user.click(screen.getByRole("button", { name: "บันทึก" }));
     expect(setEssentials).not.toHaveBeenCalled();
-    expect(screen.getByText("ใส่เป็นตัวเลขเท่านั้น เช่น 400 หรือ 1,250.50")).toBeTruthy();
+    expect(screen.getByText("ใส่เป็นตัวเลข เช่น 480")).toBeTruthy();
+  });
+
+  it("allows zero daily essentials and blocks edits while saving", async () => {
+    const base = createMockApi();
+    let finish!: (value: Awaited<ReturnType<PorchaiApi["setEssentials"]>>) => void;
+    const setEssentials = vi.fn<PorchaiApi["setEssentials"]>(() => new Promise(resolve => { finish = resolve; }));
+    renderWith(apiWith({ setEssentials }), <SettingsSavingsView />);
+    const field = await screen.findByLabelText("ยอดต่อวัน (บาท)") as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+    expect(field.disabled).toBe(true);
+    expect(setEssentials).toHaveBeenCalledWith({ food: 0, transport: 0 });
+    finish(await base.setEssentials({ food: 0, transport: 0 }));
+    await screen.findByText("บันทึกค่าจำเป็นต่อวันแล้ว");
+    expect(field.disabled).toBe(false);
   });
 });
 
