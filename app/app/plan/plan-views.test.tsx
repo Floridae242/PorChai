@@ -98,7 +98,7 @@ describe("PlanMainView — tabs and filters (a11y)", () => {
     expect(await screen.findByText("เป้าออมรอบนี้")).toBeTruthy();
   });
 
-  it("filter chips use aria-pressed; รายรับ shows the normal empty state", async () => {
+  it("filter chips use aria-pressed; รายรับ with none received shows the normal empty state", async () => {
     renderWith(mk(), <PlanMainView />);
     const user = userEvent.setup();
     const all = await screen.findByRole("button", { name: "ทั้งหมด" });
@@ -108,6 +108,36 @@ describe("PlanMainView — tabs and filters (a11y)", () => {
     expect(income.getAttribute("aria-pressed")).toBe("true");
     expect(all.getAttribute("aria-pressed")).toBe("false");
     expect(screen.getByText("ยังไม่มีรายการในหมวดนี้")).toBeTruthy();
+  });
+
+  // 16 Nov: «ได้เงิน 50» from the chat was saved but รายรับ stayed empty
+  it("รายรับ lists money received; ทั้งหมด has both; รายจ่าย has only spends", async () => {
+    const api = mk();
+    await api.addEntry({ amount: 4500, category: "food", note: "ข้าวมันไก่" }, "e-1");
+    await api.addIncome({ amount: 5000, note: "แม่โอนให้" }, "i-1");
+    renderWith(api, <PlanMainView />);
+    const user = userEvent.setup();
+    expect(await screen.findByText("แม่โอนให้")).toBeTruthy();
+    expect(screen.getByText("+50 บาท")).toBeTruthy();
+    expect(screen.getByText("ข้าวมันไก่")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "รายรับ" }));
+    expect(screen.getByText("แม่โอนให้")).toBeTruthy();
+    expect(screen.queryByText("ข้าวมันไก่")).toBeNull();
+    expect(screen.getByText(/^รายรับ · /)).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "รายจ่าย" }));
+    expect(screen.getByText("ข้าวมันไก่")).toBeTruthy();
+    expect(screen.queryByText("แม่โอนให้")).toBeNull();
+  });
+
+  it("an income with no note is named รายรับ", async () => {
+    const api = mk();
+    await api.addIncome({ amount: 5000 }, "i-1");
+    renderWith(api, <PlanMainView />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "รายรับ" }));
+    expect(await screen.findByText("+50 บาท")).toBeTruthy();
+    expect(screen.getAllByText("รายรับ").length).toBeGreaterThan(1); // the chip and the row title
   });
 });
 

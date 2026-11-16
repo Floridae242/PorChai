@@ -7,7 +7,8 @@ import { invalid } from "@/lib/validate";
 export function statedMoney(message: string): number | undefined {
   const source = normalizeMoneyText(message)
     .replace(/\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}/gu, " ")
-    .replace(/(?:รายการ|แผน|บิล|ลำดับ)\s*\d+/gu, " ");
+    .replace(/(?:รายการ|แผน|บิล|ลำดับ)\s*\d+/gu, " ")
+    .replace(/วันที่\s*\d{1,2}(?!\d)(?!\s*บาท)/gu, " ");
   if (/[+\-−–—]\s*(?:฿\s*)?\d|ประมาณ|ราว|เกือบ|กว่า|\d[eE][+-]?\d/u.test(source))
     return undefined;
   const numbers = source.match(/[+-]?\d+(?:\.\d+)?/g) ?? [];
@@ -38,6 +39,19 @@ function namedMoney(text: string, names: string): number | undefined {
   );
   return match ? statedMoney(match[1]) : undefined;
 }
+// «เพิ่มบิล ค่าไฟ 500 วันที่ 20» kept no date (16 Nov): the next 20th from today, today included.
+// A month without that day («วันที่ 31» in November) takes its last day.
+function nextDayOfMonth(message: string, today: string): string | undefined {
+  const day = Number(normalizeMoneyText(message).match(/วันที่\s*(\d{1,2})(?!\d)/u)?.[1]);
+  if (!day || day > 31) return undefined;
+  const [y, m] = today.split("-").map(Number);
+  const on = (year: number, month: number) => {
+    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(day, last)).padStart(2, "0")}`;
+  };
+  const thisMonth = on(y, m);
+  return thisMonth >= today ? thisMonth : m === 12 ? on(y + 1, 1) : on(y, m + 1);
+}
 export function fields(message: string, tool: Tool, today: string): Intent {
   const normalized = normalizeMoneyText(message),
     time = normalized.match(/(?:^|\s|เวลา)([0-2]?\d:[0-5]\d)(?:\s|$)/)?.[1];
@@ -53,7 +67,7 @@ export function fields(message: string, tool: Tool, today: string): Intent {
     ? addDays(`${today.slice(0, 7)}-01`, -1)
     : /(?:สัปดาห์|อาทิตย์)ที่แล้ว/u.test(message)
     ? addDays(today, -7)
-    : statedDate(message, today);
+    : statedDate(message, today) ?? (tool === "add_bill" || tool === "add_plan" ? nextDayOfMonth(message, today) : undefined);
   const target = /ล่าสุด|เมื่อกี้/u.test(message)
     ? "latest"
     : Number(normalized.match(/(?:รายการ|แผน|บิล|ลำดับ)\s*(\d+)/u)?.[1]) ||
@@ -70,7 +84,7 @@ export function fields(message: string, tool: Tool, today: string): Intent {
     time: time?.padStart(5, "0"),
     food: namedMoney(message, "ค่ากิน|ค่าอาหาร|อาหาร"),
     transport: namedMoney(message, "ค่าเดินทาง|ค่ารถ"),
-    enabled: /^(?:ช่วย)?\s*เปิด/u.test(message)
+    enabled: /^(?:ช่วย)?\s*(?:เปิด|ตั้งเตือน)/u.test(message)
       ? true
       : /^(?:ช่วย)?\s*ปิด/u.test(message)
         ? false
@@ -111,11 +125,12 @@ export function parseIntent(message: string, today: string): Intent | null {
     )
   )
     return fields(s, "report", today);
-  if (/^ค้นรายจ่าย|^ค้น(?:หา)?(?:รายการ|รายจ่าย)/u.test(s))
+  // «ค้นหา ข้าว» too (16 Nov); «ค้นหาเว็บ» is the web
+  if (/^ค้นรายจ่าย|^ค้น(?:หา)?(?:รายการ|รายจ่าย)|^ค้นหา(?=\s)/u.test(s))
     return {
       ...fields(s, "search", today),
       query: s
-        .replace(/^ค้นรายจ่าย|^ค้น(?:หา)?(?:รายการ|รายจ่าย)/u, "")
+        .replace(/^ค้นรายจ่าย|^ค้น(?:หา)?(?:รายการ|รายจ่าย)|^ค้นหา(?=\s)/u, "")
         .replace(/วันนี้|เดือนนี้|ย้อนหลัง\s*1\s*ปี/gu, "")
         .trim(),
     };
@@ -142,7 +157,8 @@ export function parseIntent(message: string, today: string): Intent | null {
     )
   )
     return fields(s, "notifications", today);
-  if (/^(?:เปิด|ปิด|ดู|ตั้ง(?:ค่า)?)(?:การเตือนจด|เตือนจด|เตือนรายการ)/u.test(s))
+  // «ตั้งเตือน 20:00», «ปิดเตือน» (16 Nov): the reminder to record, the one a student sets most
+  if (/^(?:เปิด|ปิด|ดู|ตั้ง(?:ค่า)?)(?:การเตือนจด|เตือนจด|เตือนรายการ)|^(?:เปิด|ปิด|ตั้ง)เตือน(?:\s|\d|$)/u.test(s))
     return fields(s, "reminders", today);
   const balanceEdit = /^แก้ยอดเงิน(?:จริง)?(?:\s|[๐-๙\d]|$)/u.test(s);
   if (/^(?:แก้(?:ไข)?|เปลี่ยนยอด)(?:รายการ|รายจ่าย)/u.test(s) ||

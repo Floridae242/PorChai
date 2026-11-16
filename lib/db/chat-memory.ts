@@ -20,6 +20,7 @@ export type Pending =
   | ActionPending
   | { kind: "amount"; title: string } // «ข้าว» → asked how much
   | { kind: "title"; amount: number } // «45» → asked what for
+  | { kind: "hold"; draft: { title: string; amount: number; category: UserCategory; key: string } } // L6 card → «ยืนยัน»
   | { kind: "items"; key: string; items: ProposedItem[] } // several spends → [จดทั้งหมด][ไม่ใช่]
   | { kind: "edit"; entryId: string; title: string } // card [แก้] → «50»
   | { kind: "reminder"; reminderId: string } // card 58 [แก้ยอด] → «60»
@@ -35,6 +36,7 @@ export interface TryDraft {
   category: UserCategory;
   key: string; // the first message's webhookEventId: paying or keeping it happens once under this key
   dueOn: string | null; // a question about another day
+  fits?: boolean; // answered «ไหว ✓» for today: typing the same spend next records it (16 Nov)
 }
 
 // OCR (layer 4): what the AI read from a slip, until the user saves or cancels it. The photo is not kept.

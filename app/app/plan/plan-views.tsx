@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InputField } from "@/components/ui/input-field";
 import { ListRow } from "@/components/ui/list-row";
 import { Mascot } from "@/components/ui/mascot";
-import type { Entry, Plan, Summary } from "@/lib/api-types";
+import type { Entry, Income, Plan, Summary } from "@/lib/api-types";
 import { ApiError } from "@/lib/client/errors";
 import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import type { PlanActionName } from "@/lib/client/types";
@@ -143,6 +143,10 @@ function PlanRow({
   );
 }
 
+type ListItem =
+  | { kind: "expense"; entry: Entry; on: string; at: string }
+  | { kind: "income"; income: Income; on: string; at: string };
+
 export function PlanMainView() {
   const api = useApi();
   const router = useRouter();
@@ -158,6 +162,7 @@ export function PlanMainView() {
   const [filter, setFilter] = useState<"all" | "expense" | "income">("all");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [incomes, setIncomes] = useState<Income[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -172,11 +177,12 @@ export function PlanMainView() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api.summary(), api.entries(), api.plans()])
-      .then(([s, e, p]) => {
+    Promise.all([api.summary(), api.entries(), api.plans(), api.incomes()])
+      .then(([s, e, p, i]) => {
         if (cancelled) return;
         setSummary(s);
         setEntries(e.entries);
+        setIncomes(i.incomes);
         setPlans(p.plans);
         setLoadState("ready");
       })
@@ -240,8 +246,11 @@ export function PlanMainView() {
   const purchasePlans = plans.filter((p) => p.kind === "purchase" && p.status !== "cancelled");
   const billPlans = plans.filter((p) => p.kind === "bill");
 
-  // API entries are expenses only: the income filter shows the normal empty state.
-  const filteredEntries = filter === "income" ? [] : entries;
+  // Spends and money received in one list, newest day first (16 Nov: รายรับ was always empty)
+  const rows: ListItem[] = [
+    ...(filter === "income" ? [] : entries.map((entry): ListItem => ({ kind: "expense", entry, on: entry.spentOn, at: entry.createdAt }))),
+    ...(filter === "expense" ? [] : incomes.map((income): ListItem => ({ kind: "income", income, on: income.receivedOn, at: income.createdAt }))),
+  ].sort((a, b) => b.on.localeCompare(a.on) || b.at.localeCompare(a.at));
 
   return (
     <main className="flex flex-col gap-4 py-4 font-body">
@@ -308,7 +317,7 @@ export function PlanMainView() {
               </Chip>
             </div>
 
-            {filteredEntries.length === 0 ? (
+            {rows.length === 0 ? (
               <EmptyState
                 title="ยังไม่มีรายการในหมวดนี้"
                 body="กดปุ่ม ＋ จด ด้านล่างเพื่อบันทึกรายจ่ายหรือรายรับของคุณ"
@@ -316,15 +325,25 @@ export function PlanMainView() {
               />
             ) : (
               <section className="divide-y divide-line rounded-md border border-line bg-card px-4">
-                {filteredEntries.map((entry) => (
-                  <ListRow
-                    key={entry.id}
-                    title={entry.note ?? CATEGORY_LABELS[entry.category]}
-                    subtitle={`${CATEGORY_LABELS[entry.category]} · ${formatThaiDate(entry.spentOn, "short")}`}
-                    amount={`−${formatBaht(entry.amount)} บาท`}
-                    href={`/app/record/${entry.id}`}
-                  />
-                ))}
+                {rows.map((row) =>
+                  row.kind === "expense" ? (
+                    <ListRow
+                      key={row.entry.id}
+                      title={row.entry.note ?? CATEGORY_LABELS[row.entry.category]}
+                      subtitle={`${CATEGORY_LABELS[row.entry.category]} · ${formatThaiDate(row.entry.spentOn, "short")}`}
+                      amount={`−${formatBaht(row.entry.amount)} บาท`}
+                      href={`/app/record/${row.entry.id}`}
+                    />
+                  ) : (
+                    // Money received has no edit screen yet: the row is not a link
+                    <ListRow
+                      key={row.income.id}
+                      title={row.income.note ?? "รายรับ"}
+                      subtitle={`รายรับ · ${formatThaiDate(row.income.receivedOn, "short")}`}
+                      amount={`+${formatBaht(row.income.amount)} บาท`}
+                    />
+                  ),
+                )}
               </section>
             )}
           </div>

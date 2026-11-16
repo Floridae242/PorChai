@@ -1,6 +1,6 @@
 import type { Entry } from "@/lib/api-types";
 import { getDb } from "@/lib/db/client";
-import { requireActiveCycle } from "@/lib/db/budget";
+import { requireActiveCycle, requireInCycle } from "@/lib/db/budget";
 import { HttpError } from "@/lib/http";
 import type { EntryPatch, NewEntry } from "@/lib/validate";
 
@@ -54,6 +54,7 @@ export async function addEntry(
 ): Promise<{ entry: Entry; created: boolean }> {
   const db = getDb();
   const cycle = await requireActiveCycle(userId);
+  requireInCycle(input.spentOn, cycle.started_at);
   const { data, error } = await db
     .from("entries")
     .insert({
@@ -71,6 +72,7 @@ export async function addEntry(
     .single();
   if (!error) return { entry: toEntry(data as Row), created: true };
   if(error.code === "SC404" || error.code === "SC422")throw new HttpError(422,"invalid_category","ไม่พบหมวดของบัญชีนี้ หรือเลือกกลุ่มไม่ตรงกับหมวดครับ");
+  if (error.code === "23503") throw GONE(); // the account was deleted after the cycle was read
   if (error.code !== "23505") throw error;
 
   const existing = await db
@@ -92,6 +94,7 @@ async function ownEntry(userId: string, id: string): Promise<Row> {
   return data as Row;
 }
 
+const GONE = () => new HttpError(409, "no_cycle", "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าก่อนเริ่มใช้");
 const CANCELLED = () => new HttpError(409, "entry_cancelled", "รายการนี้ถูกยกเลิกแล้ว");
 
 // The chat card's buttons (card 10): the owner's entry and whether it was cancelled; 404 for anyone else
@@ -114,6 +117,11 @@ export async function editEntry(userId: string, id: string, patch: EntryPatch): 
   const row = await ownEntry(userId, id);
   checkPlanEntryEdit(row, patch);
   if (row.cancelled_at) throw CANCELLED();
+  if (patch.spentOn !== undefined) {
+    const owner = await getDb().from("entries").select("cycles(started_at)").eq("id", id).single();
+    if (owner.error) throw owner.error;
+    requireInCycle(patch.spentOn, (owner.data.cycles as unknown as { started_at: string }).started_at);
+  }
   const { data, error } = await getDb()
     .from("entries")
     .update({

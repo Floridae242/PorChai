@@ -96,7 +96,7 @@ describe("Flex Card Wording & Content Contract", () => {
       hasMatchingPromo: true,
     });
     const json = JSON.stringify(msg);
-    expect(json).toContain("เกินงบ 49 บาท");
+    expect(json).toContain("เกินที่ซื้อได้ 49 บาท");
     expect(json).toContain("เก็บไว้ในแผน");
     expect(json).toContain("ยืนยันจ่ายจริง");
     expect(json).toContain("ลองยอดอื่น");

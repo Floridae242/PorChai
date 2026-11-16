@@ -1,9 +1,20 @@
 import { requireUser } from "@/lib/auth";
 import { thaiDate } from "@/lib/calc/time";
 import { loadSummary } from "@/lib/db/budget";
-import { addIncome } from "@/lib/db/income";
+import type { IncomesResponse } from "@/lib/api-types";
+import { addIncome, listIncomes } from "@/lib/db/income";
 import { errorResponse, HttpError, readJson } from "@/lib/http";
 import { parseNewIncome } from "@/lib/validate";
+
+// แผนเงิน › รายรับ: this cycle's incomes from the chat and the app
+export async function GET(request: Request): Promise<Response> {
+  try {
+    const { userId } = await requireUser(request);
+    return Response.json({ incomes: await listIncomes(userId) } satisfies IncomesResponse);
+  } catch (err) {
+    return errorResponse(err);
+  }
+}
 
 // รายรับ: แอป › จด › รายรับ (lib/client addIncome). Needs an Idempotency-Key like POST /api/entries.
 export async function POST(request: Request): Promise<Response> {

@@ -34,6 +34,8 @@ describe("explicit expense lists without an AI service", () => {
     "ข้าว 50 น้ำ 20 วันที่ 15/11", "ข้าว 50 น้ำ 100001", "ข้าว 50 น้ำ 20 เบอร์ 0812345678",
     "ข้าว 1e3 บาท น้ำ 20 บาท", "ข้าว 1E3 น้ำ 20", "ข้าว 0x10 น้ำ 20", "ข้าว 1k น้ำ 20", "ข้าว 1พัน น้ำ 20", "ข้าว 50 น้ำ 20 ลด 10%", "ข้าว ๑e๓ น้ำ ๒๐",
     "ข้าว 1 น้ำ 2 กาแฟ 3 ขนม 4 รถ 5 สมุด 6",
+    // 16 Nov: «x» was an item of 2 baht, «ใบ» one of 300
+    "ข้าว 50 x2", "ข้าว 50x2 น้ำ 20", "ข้าว 50 × 2", "ข้าว 2x 100 น้ำ 20", "บัตร 2 ใบ 300", "ขนม 3 ห่อ 60 น้ำ 20", "ไข่ 10 ฟอง 50 น้ำ 20",
   ])("does not propose incomplete or ambiguous lists: %s", message => {
     expect(splitExplicitExpenses(message)).toBeNull();
   });

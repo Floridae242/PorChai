@@ -28,7 +28,7 @@ export function buildAiCompareCard(vm: AiCompareCardViewModel): FlexMessage {
   const pose = isOver ? "budgetTight" : "thinking";
 
   const statusHeading = isOver
-    ? `เกินงบ ${bahtText(vm.overBy)}`
+    ? `เกินที่ซื้อได้ ${bahtText(vm.overBy)}`
     : `อยู่ในงบ · เหลือวันละ ${bahtText(vm.afterDaily)}`;
 
   const defaultExplanation =
@@ -133,6 +133,17 @@ export function buildAiCompareCard(vm: AiCompareCardViewModel): FlexMessage {
       margin: "md",
       wrap: true,
     },
+    // Fits the cycle but not what is left today: said here, so paying it is no surprise (16 Nov)
+    ...(vm.overToday
+      ? [{
+          type: "text" as const,
+          text: `เกินงบวันนี้ ${bahtText(vm.overToday)} · จ่ายวันนี้แล้วงบวันต่อ ๆ ไปจะลดลง`,
+          size: "xs" as const,
+          color: FLEX_COLORS.green900,
+          margin: "sm" as const,
+          wrap: true,
+        }]
+      : []),
     {
       type: "text",
       text: subnote,

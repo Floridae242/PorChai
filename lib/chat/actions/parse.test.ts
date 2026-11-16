@@ -116,3 +116,40 @@ describe("chat command boundaries", () => {
     });
   });
 });
+
+// 16 Nov: «เพิ่มบิล ค่าไฟ 500 วันที่ 20» was saved with no date
+describe("«วันที่ N» on a new bill or plan is the next such day", () => {
+  it.each([
+    ["เพิ่มบิล ค่าไฟ 500 วันที่ 20", "2026-11-15", "2026-11-20"],
+    ["เพิ่มบิล ค่าไฟ 500 วันที่ 15", "2026-11-15", "2026-11-15"],
+    ["เพิ่มบิล ค่าไฟ 500 วันที่ 5", "2026-11-15", "2026-12-05"],
+    ["เพิ่มบิล ค่าเน็ต 300 ทุกวันที่ 31", "2026-11-15", "2026-11-30"],
+    ["เพิ่มบิล ค่าเน็ต 300 วันที่ 3", "2026-12-20", "2027-01-03"],
+    ["เพิ่มแผน รองเท้า 1500 วันที่ 25", "2026-11-15", "2026-11-25"],
+  ])("«%s» on %s → %s", (message, on, due) => {
+    const intent = parseIntent(message, on);
+    expect(intent).toMatchObject({ date: due });
+  });
+  it("the amount is still the money, not the day", () => {
+    expect(parseIntent("เพิ่มบิล ค่าไฟ 500 วันที่ 20", "2026-11-15")).toMatchObject({ amount: 50000 });
+  });
+  it.each(["เพิ่มบิล ค่าไฟ 500 วันที่ 0", "เพิ่มบิล ค่าไฟ 500 วันที่ 32"])("«%s» has no date", (message) => {
+    expect(parseIntent(message, "2026-11-15")?.date).toBeUndefined();
+  });
+});
+
+// 16 Nov: «ค้นหา ข้าว», «ตั้งเตือน 20:00», «ปิดเตือน» got «ตอบไม่ได้»
+describe("shorter search and reminder words", () => {
+  it("«ค้นหา ข้าว» searches entries for ข้าว", () => {
+    expect(parseIntent("ค้นหา ข้าว", today)).toMatchObject({ tool: "search", query: "ข้าว" });
+  });
+  it("«ค้นหาเว็บ ราคา iPhone» is not an entry search", () => {
+    expect(parseIntent("ค้นหาเว็บ ราคา iPhone", today)?.tool).not.toBe("search");
+  });
+  it("«ตั้งเตือน 20:00» sets the reminder to record at 20:00", () => {
+    expect(parseIntent("ตั้งเตือน 20:00", today)).toMatchObject({ tool: "reminders", time: "20:00" });
+  });
+  it.each([["ปิดเตือน", false], ["เปิดเตือน", true]])("«%s» turns the reminder %s", (text, enabled) => {
+    expect(parseIntent(text, today)).toMatchObject({ tool: "reminders", enabled });
+  });
+});
