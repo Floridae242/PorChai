@@ -6,6 +6,8 @@ export type ListRowProps = {
   subtitle?: string;
   /** Already formatted (e.g. "1,200 baht"); this component never formats money. */
   amount?: string;
+  /** "income" colours the amount green (money received); the +/− sign stays, colour is never the only cue. */
+  tone?: "default" | "income";
   badge?: ReactNode;
   href?: string;
   onClick?: () => void;
@@ -14,7 +16,7 @@ export type ListRowProps = {
 const BASE =
   "flex w-full items-center gap-3 rounded-md bg-card px-4 py-3 text-left font-body outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)]";
 
-export function ListRow({ title, subtitle, amount, badge, href, onClick }: ListRowProps) {
+export function ListRow({ title, subtitle, amount, tone = "default", badge, href, onClick }: ListRowProps) {
   const content = (
     <>
       <span className="flex min-w-0 flex-1 flex-col">
@@ -23,7 +25,10 @@ export function ListRow({ title, subtitle, amount, badge, href, onClick }: ListR
       </span>
       {badge ? <span className="shrink-0 text-xs text-secondary">{badge}</span> : null}
       {amount ? (
-        <span data-clarity-mask="true" className="shrink-0 text-base font-semibold text-primary">
+        <span
+          data-clarity-mask="true"
+          className={`shrink-0 text-base font-semibold ${tone === "income" ? "text-ok" : "text-primary"}`}
+        >
           {amount}
         </span>
       ) : null}

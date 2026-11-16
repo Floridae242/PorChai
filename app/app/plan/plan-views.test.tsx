@@ -120,6 +120,9 @@ describe("PlanMainView — tabs and filters (a11y)", () => {
     expect(await screen.findByText("แม่โอนให้")).toBeTruthy();
     expect(screen.getByText("+50 บาท")).toBeTruthy();
     expect(screen.getByText("ข้าวมันไก่")).toBeTruthy();
+    // money received is green, spends keep the normal colour (the +/− sign stays: colour is not the only cue)
+    expect(screen.getByText("+50 บาท").className).toContain("text-ok");
+    expect(screen.getByText("−45 บาท").className).toContain("text-primary");
 
     await user.click(screen.getByRole("button", { name: "รายรับ" }));
     expect(screen.getByText("แม่โอนให้")).toBeTruthy();

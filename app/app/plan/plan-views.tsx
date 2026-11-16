@@ -341,6 +341,7 @@ export function PlanMainView() {
                       title={row.income.note ?? "รายรับ"}
                       subtitle={`รายรับ · ${formatThaiDate(row.income.receivedOn, "short")}`}
                       amount={`+${formatBaht(row.income.amount)} บาท`}
+                      tone="income"
                     />
                   ),
                 )}

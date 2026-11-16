@@ -22,6 +22,19 @@ describe("ListRow", () => {
   });
 });
 
+describe("ListRow tone", () => {
+  it("income colours the amount green, default stays the normal text colour", () => {
+    render(
+      <>
+        <ListRow title="a" amount="+50 บาท" tone="income" />
+        <ListRow title="b" amount="−45 บาท" />
+      </>,
+    );
+    expect(screen.getByText("+50 บาท").className).toContain("text-ok");
+    expect(screen.getByText("−45 บาท").className).toContain("text-primary");
+  });
+});
+
 describe("ListRow link + onClick", () => {
   it("calls onClick on a link row", async () => {
     const onClick = vi.fn((e?: unknown) => void e);
