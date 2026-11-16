@@ -197,7 +197,7 @@ export function SummaryView() {
       />
 
       <div className="flex items-center justify-between rounded-md border border-line bg-card px-4 py-2.5 text-xs">
-        <span className="text-secondary">
+        <span data-testid="summary-balance-line" className="text-secondary">
           อัปเดตยอดล่าสุด {formatThaiTime(summary.balanceAsOf)} น. · คงเหลือจริง{" "}
           {formatBaht(summary.balance)} บาท
         </span>
@@ -214,7 +214,7 @@ export function SummaryView() {
             <span className="text-sm font-semibold text-primary">
               สะสมแต้มรายวัน
             </span>
-            <span className="rounded-pill bg-reward px-2 py-0.5 text-xs font-bold text-primary">
+            <span data-testid="summary-points" className="rounded-pill bg-reward px-2 py-0.5 text-xs font-bold text-primary">
               {points?.balance??"—"} แต้ม
             </span>
           </div>

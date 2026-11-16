@@ -654,7 +654,7 @@ export function PointsView() {
         <div>
           <span className="text-xs font-semibold text-secondary">แต้มสะสม</span>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-4xl font-bold tabular-nums text-primary">
+            <span data-testid="points-balance" className="text-4xl font-bold tabular-nums text-primary">
               {points?.balance??"—"}
             </span>
             <span className="text-sm font-semibold text-primary">แต้ม</span>
@@ -704,6 +704,7 @@ export function PointsView() {
           rewards.value.map((reward) => (
             <div
               key={reward.id}
+              data-testid={`reward-${reward.id}`}
               className="flex items-center justify-between gap-3 rounded-md border border-line bg-card p-4"
             >
               <div className="flex flex-col gap-0.5">

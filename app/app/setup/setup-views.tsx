@@ -543,7 +543,7 @@ function ReviewForm({ draft }: { draft: SetupDraft }) {
           <>
             <span className="text-sm font-medium text-secondary">ใช้ได้วันละ</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold tabular-nums text-primary">{formatBaht(budget.dailyBudget)}</span>
+              <span data-testid="review-daily-budget" className="text-4xl font-bold tabular-nums text-primary">{formatBaht(budget.dailyBudget)}</span>
               <span className="text-base font-semibold text-secondary">บาท/วัน</span>
             </div>
             <p className="text-xs text-secondary">
@@ -557,7 +557,7 @@ function ReviewForm({ draft }: { draft: SetupDraft }) {
           </>
         ) : (
           <>
-            <span className="text-sm font-medium text-danger">{`ยังขาดอีก ${formatBaht(budget.kind === "shortfall" ? budget.shortfall : 0)} บาท`}</span>
+            <span data-testid="review-shortfall" className="text-sm font-medium text-danger">{`ยังขาดอีก ${formatBaht(budget.kind === "shortfall" ? budget.shortfall : 0)} บาท`}</span>
             <p className="text-xs text-secondary">
               อีก {budget.daysLeft} วันถึงวันเงินเข้า ({paydayLabel}) · ตรวจตัวเลขที่กรอกอีกครั้ง
               หรือเลื่อนบิลที่จ่ายทีหลังได้ออกจากรอบนี้
@@ -585,7 +585,7 @@ function ReviewForm({ draft }: { draft: SetupDraft }) {
             >
               หักบิล {unpaidBills.length} รายการ {showBills ? "▴" : "▾"}
             </button>
-            <span className="font-semibold tabular-nums text-primary">−{formatBaht(preview.unpaidBillsTotal)} บาท</span>
+            <span data-testid="review-bills-total" className="font-semibold tabular-nums text-primary">−{formatBaht(preview.unpaidBillsTotal)} บาท</span>
           </div>
           {showBills && draft.bills.length > 0 ? (
             <ul className="flex flex-col gap-1 rounded-sm bg-subtle p-2.5 text-xs text-secondary">
@@ -603,7 +603,7 @@ function ReviewForm({ draft }: { draft: SetupDraft }) {
 
         <div className="flex items-center justify-between">
           <span className="text-secondary">เป้าออมรอบนี้</span>
-          <span className="font-semibold tabular-nums text-primary">−{formatBaht(preview.savingsSatang)} บาท</span>
+          <span data-testid="review-savings" className="font-semibold tabular-nums text-primary">−{formatBaht(preview.savingsSatang)} บาท</span>
         </div>
 
         <div className="flex items-center justify-between">

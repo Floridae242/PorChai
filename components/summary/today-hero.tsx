@@ -43,6 +43,8 @@ export function TodayHero({
 
   return (
     <section
+      data-testid="today-hero"
+      data-budget-kind={budget.kind}
       style={{ backgroundImage: "var(--hero-gradient)" }}
       className="flex flex-col gap-4 rounded-md p-5 text-on-hero"
     >
@@ -97,16 +99,16 @@ export function TodayHero({
           {budget.kind === "ok" ? (
             <>
               <div className="flex items-baseline gap-2">
-                <span className="text-[44px] leading-none font-bold tabular-nums text-on-hero">
+                <span data-testid="hero-today-remaining" className="text-[44px] leading-none font-bold tabular-nums text-on-hero">
                   {formatBaht(budget.todayRemaining)}
                 </span>
                 <span className="text-lg font-semibold text-white/85">บาท</span>
               </div>
-              <p className="text-sm text-white/85">
+              <p data-testid="hero-budget-line" className="text-sm text-white/85">
                 จากงบวันนี้ {formatBaht(budget.dailyBudget)} บาท · ใช้ไปแล้ว{" "}
                 {formatBaht(summary.spentToday)} บาท
               </p>
-              <p className="text-xs text-white/85">
+              <p data-testid="hero-days-line" className="text-xs text-white/85">
                 อีก {budget.daysLeft} วันถึงวันเงินเข้า ({paydayShort})
                 {budget.maxPurchase !== null
                   ? ` · ซื้อเพิ่มได้ไม่เกิน ${formatBaht(budget.maxPurchase)} บาท`
@@ -119,7 +121,7 @@ export function TodayHero({
                 ยอดที่ขาดในรอบนี้
               </span>
               <div className="flex items-baseline gap-2">
-                <span className="text-[44px] leading-none font-bold tabular-nums text-on-hero">
+                <span data-testid="hero-shortfall" className="text-[44px] leading-none font-bold tabular-nums text-on-hero">
                   {formatBaht(budget.shortfall)}
                 </span>
                 <span className="text-lg font-semibold text-white/85">บาท</span>
@@ -152,25 +154,25 @@ export function TodayHero({
             <div className="flex flex-col gap-1.5 rounded-sm bg-white/15 p-3 text-xs text-on-hero">
               <div className="flex justify-between">
                 <span>เงินที่มีตอนนี้</span>
-                <span className="tabular-nums">
+                <span data-testid="hero-balance" className="tabular-nums">
                   {formatBaht(summary.balance)} บาท
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>หักบิลและรายการในแผน</span>
-                <span className="tabular-nums">
+                <span data-testid="hero-reserved" className="tabular-nums">
                   −{formatBaht(summary.reserved)} บาท
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>หักเป้าออมรอบนี้</span>
-                <span className="tabular-nums">
+                <span data-testid="hero-savings" className="tabular-nums">
                   −{formatBaht(summary.savings)} บาท
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>หักเงินเผื่อฉุกเฉิน</span>
-                <span className="tabular-nums">
+                <span data-testid="hero-buffer" className="tabular-nums">
                   −{formatBaht(summary.emergencyBuffer)} บาท
                 </span>
               </div>

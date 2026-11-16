@@ -120,7 +120,7 @@ export function BillsCard({ bills, unpaidBillsTotal, onAdd, onUpdate, onDelete }
 
       <div className="flex items-center justify-between border-t border-line pt-3 text-sm">
         <span className="text-secondary">รวมบิลที่หักรอบนี้</span>
-        <span className="font-semibold tabular-nums text-primary">{formatBaht(unpaidBillsTotal)} บาท</span>
+        <span data-testid="bills-total" className="font-semibold tabular-nums text-primary">{formatBaht(unpaidBillsTotal)} บาท</span>
       </div>
 
       <Sheet

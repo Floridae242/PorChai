@@ -51,6 +51,7 @@ export interface MockOptions {
   scenario?: MockScenario;
   separateBills?: string[]; // bill titles paid from other money (status 'separate', not held)
   consented?: boolean;
+  idPrefix?: string; // prepended to generated ids; lets several mock accounts run side by side (E2E)
 }
 
 interface Cycle {
@@ -100,7 +101,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   const now = () => at(today);
 
   let nextId = 0;
-  const newId = (prefix: string) => `${prefix}-${++nextId}`;
+  const newId = (prefix: string) => `${opts.idPrefix ?? ""}${prefix}-${++nextId}`;
 
   let cycle: Cycle | null = null;
   const entries: StoredEntry[] = [];
