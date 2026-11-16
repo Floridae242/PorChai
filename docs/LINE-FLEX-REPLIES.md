@@ -14,7 +14,7 @@ PorChai now presents ordinary LINE chat replies as compact Flex Cards: AI wordin
 
 ## Preview and verification
 
-In development, open `/app/dev/flex-preview`. Batch C3 includes three synthetic examples: `CHAT-AI`, `CHAT-ASK` and `CHAT-STATUS`. The preview is disabled in production. It is an approximation of LINE rendering, not a native-device test.
+In development, open `/dev/flex-preview`. Batch C3 includes three synthetic examples: `CHAT-AI`, `CHAT-ASK` and `CHAT-STATUS`; batch C5 shows the real long chat answers (and every guide text) as the wrapper renders them. The preview is disabled in production. It is an approximation of LINE rendering, not a native-device test.
 
 The LINE `POST /v2/bot/message/validate/reply` API accepted all six synthetic payloads (HTTP 200): greeting, AI answer, amount question, clarification, thirteen quick replies and long Thai/emoji text. This validation did not deliver messages to any account and did not change the LINE channel.
 

@@ -58,14 +58,17 @@ const COPIES: Sample[] = [
 ];
 
 function guideSamples(): Sample[] {
-  const ids = [...Object.keys(EXTRA_HELP), ...ONBOARDING_STEPS.map((s) => s.id)];
+  const titles: Record<string, string> = {
+    ...Object.fromEntries(Object.entries(EXTRA_HELP).map(([id, h]) => [id, h.title])),
+    ...Object.fromEntries(ONBOARDING_STEPS.map((s) => [s.id, s.title])),
+  };
   const out: Sample[] = [];
-  for (const id of ids) {
+  for (const [id, title] of Object.entries(titles)) {
     const reply = onboardingHelp(`guide:${id}`);
     if (!reply) continue;
     out.push({
       id: `guide-${id}`,
-      title: `วิธีใช้: ${id}`,
+      title: `คู่มือ: ${title}`,
       userPrompt: `(กดปุ่มคู่มือ) guide:${id}`,
       source: "lib/line/onboarding.ts + help-request.ts (เติ้ล)",
       text: reply.text,
@@ -75,10 +78,10 @@ function guideSamples(): Sample[] {
 }
 
 export function buildLongTextScenarios(appOrigin?: string): FlexDemoScenario[] {
-  return [...COPIES, ...guideSamples()].map((s): FlexDemoScenario => ({
+  return [...COPIES, ...guideSamples()].map((s, i): FlexDemoScenario => ({
     id: `long-${s.id}`,
     batch: "C5",
-    code: `LONG-${s.id.toUpperCase().slice(0, 14)}`,
+    code: `L-${String(i + 1).padStart(2, "0")}`,
     title: `${s.title} · ${s.text.length} ตัวอักษร`,
     userPrompt: `${s.userPrompt}  ·  ที่มา: ${s.source}`,
     // Same quick replies the runtime adds to every answer (withAppButton in lib/line/reply.ts)
