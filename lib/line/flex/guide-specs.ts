@@ -189,7 +189,7 @@ export const GUIDE_SPECS: Record<string, Spec> = {
   // ---- onboarding topics (onboarding.ts) ----
   start: (o) => ({
     pose: "greeting",
-    title: "สวัสดีครับ น้องพอใช้เองครับ",
+    title: "สวัสดีครับ น้องพอใช้ครับ",
     lead: "เริ่มจากตั้งรอบเงินกันครับ",
     example: "เริ่มรอบเงิน",
     rows: [{ label: "ที่ต้องบอก", text: "แหล่งเงิน · ยอดที่มี · วันรับเงิน · ค่าใช้จ่ายจำเป็น" }],
