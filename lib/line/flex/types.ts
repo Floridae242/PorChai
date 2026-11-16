@@ -8,7 +8,9 @@ export type { Satang, UserCategory, MascotPose };
 
 export type FlexAction =
   | { type: "postback"; label: string; data: string; displayText?: string }
-  | { type: "uri"; label: string; uri: string };
+  | { type: "uri"; label: string; uri: string }
+  // Sends `text` as if the user typed it (LINE "message" action). Used by guide cards for read-only tries.
+  | { type: "message"; label: string; text: string };
 
 export interface FlexText {
   type: "text";

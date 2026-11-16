@@ -6,8 +6,8 @@ import type { BudgetResult } from "@/lib/calc/budget";
 import type { ProposedItem } from "@/lib/db/chat-memory";
 import { formatBaht } from "@/lib/format/money";
 import { appUrl } from "@/lib/liff/config";
-import { miniAppUrl } from "@/lib/line/flex/format";
-import { text, type QuickReplyAction, type TextMessage } from "@/lib/line/reply";
+import { text, type QuickReplyAction, type ReplyMessage, type TextMessage } from "@/lib/line/reply";
+import { guideCard } from "@/lib/line/flex/guide-specs";
 
 // What the bot says (card 09 / Figma L2, L6). Plain text for now; card 10 adds the edit buttons.
 
@@ -154,11 +154,8 @@ export function chatFallbackMessage(s: Summary | null): TextMessage {
 }
 
 // «ลบข้อมูลได้ไหม» (lib/chat/delete-data.ts): where it is done. Never from the chat: it cannot be undone
-export const deleteDataMessage = (): TextMessage =>
-  text(
-    "ลบข้อมูลได้ครับ ทำในแอปที่ ตั้งค่า › ลบข้อมูลของฉัน\nจะลบยอดเงิน รอบเงิน บิล รายการที่จด และแต้มทั้งหมด กู้คืนไม่ได้ พอใช้จึงไม่ลบให้จากแชต ต้องกดยืนยันในแอปเองครับ",
-    [{ type: "uri", label: "ไปหน้าลบข้อมูล", uri: miniAppUrl("/app/settings/delete") }],
-  );
+// A card: where to delete (Settings), what goes, that it cannot be undone
+export const deleteDataMessage = (): ReplyMessage => guideCard("delete-data")!;
 
 // Not about money or the app: never the AI's words, always this
 export const offTopicMessage = (): TextMessage =>

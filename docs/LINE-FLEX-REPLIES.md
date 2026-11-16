@@ -14,10 +14,14 @@ PorChai now presents ordinary LINE chat replies as compact Flex Cards: AI wordin
 
 ## Preview and verification
 
-In development, open `/app/dev/flex-preview`. Batch C3 includes three synthetic examples: `CHAT-AI`, `CHAT-ASK` and `CHAT-STATUS`. The preview is disabled in production. It is an approximation of LINE rendering, not a native-device test.
+In development, open `/dev/flex-preview`. Batch C3 includes three synthetic examples: `CHAT-AI`, `CHAT-ASK` and `CHAT-STATUS`; batch C5 shows the real long chat answers (and every guide text) as the wrapper renders them. The preview is disabled in production. It is an approximation of LINE rendering, not a native-device test.
 
 The LINE `POST /v2/bot/message/validate/reply` API accepted all six synthetic payloads (HTTP 200): greeting, AI answer, amount question, clarification, thirteen quick replies and long Thai/emoji text. This validation did not deliver messages to any account and did not change the LINE channel.
 
 Local verification: 19 new presentation tests plus 21 generated preview/limits cases; the full suite passed 1,482 unit/integration tests and 343 PostgreSQL tests. Lint, typecheck, production build, independent review and diff checks passed. Existing tests still check actual postback effects and raw AI conversation memory. No new provider-backed Gemini calls were needed for this presentation-only change.
 
 Changes remain on `Tle`. No commit, push, database migration or deployment was performed in this task. Native LINE rendering on iOS/Android remains a post-deployment check.
+
+## Guide cards (16 Nov)
+
+The long help answers are cards, not walls of text (`lib/line/flex/guide-specs.ts`, builder in `lib/line/flex/cards/guide-cards.ts`): "ทำอะไรได้", how to record, delete data, the installment how-to, the "nothing to correct" reply and every guide topic of the guide buttons. A card has a mascot header, short rows, one example the user can type, one note and at most two buttons, each with a reason: a read-only try (sent as a message: ดูรายการ, ค้นรายจ่าย ข้าว, ดูแผน …), the place in the app where the user does it, or "other topics". Nothing that changes money is a one-tap button. The in-app help page still reads the text version (`onboardingHelp`). Compare old and new in `/dev/flex-preview` (batches C5 and C5N, development only).

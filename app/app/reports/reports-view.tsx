@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonClass } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
+import { CategoryDonut } from "./category-donut";
+import { DailyChart, type ReportView } from "./daily-chart";
 import { useApi } from "@/lib/client/use-api";
 import { useDataRevision } from "@/lib/client/use-data-revision";
 import { CATEGORY_LABELS } from "@/lib/client/category-labels";
@@ -115,16 +118,27 @@ export function DashboardInsights() {
         className="flex min-h-12 items-center justify-between gap-3 rounded-md border border-line-strong bg-card px-4 py-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--green-700)]"
       >
         <span className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-semibold text-primary">ดูรายงานวัน / เดือน</span>
-          <span className="truncate text-xs text-secondary">กราฟและรายการแต่ละวัน</span>
+          <span className="truncate text-sm font-semibold text-primary">
+            ดูรายงานวัน / เดือน
+          </span>
+          <span className="truncate text-xs text-secondary">
+            กราฟและรายการแต่ละวัน
+          </span>
         </span>
         <span aria-hidden className="text-lg text-muted">
           ›
         </span>
       </Link>
-      <nav aria-label="เมนูรายงานและเครื่องมือ" className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-link">
+      <nav
+        aria-label="เมนูรายงานและเครื่องมือ"
+        className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-link"
+      >
         {DASHBOARD_LINKS.map((l) => (
-          <Link key={l.href} href={l.href} className="inline-flex min-h-8 items-center">
+          <Link
+            key={l.href}
+            href={l.href}
+            className="inline-flex min-h-8 items-center"
+          >
             {l.label} ›
           </Link>
         ))}
@@ -139,6 +153,7 @@ export function ReportsView() {
   const [period, setPeriod] = useState<"day" | "month">("month");
   const [anchor, setAnchor] = useState<string | undefined>();
   const [focusedDay, setFocusedDay] = useState<string | null>(null);
+  const [view, setView] = useState<ReportView>("all");
   const [attempt, setAttempt] = useState(0);
   const key = useMemo(
     () => ({ api, period, anchor, attempt, revision }),
@@ -166,7 +181,6 @@ export function ReportsView() {
       active = false;
     };
   }, [key]);
-  const max = Math.max(1, ...(report?.days.map((d) => d.spent ?? 0) ?? []));
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="รายงานของฉัน" back="/app" tone="default" />
@@ -226,77 +240,59 @@ export function ReportsView() {
           {report.entriesCount === 0 && report.income === 0 ? (
             <Banner kind="info" text="ยังไม่มีรายการที่จดในช่วงนี้" />
           ) : null}
-          <section className="rounded-md border border-line bg-card p-4">
-            <h2 className="mb-4 font-bold text-primary">รายจ่ายแต่ละวัน</h2>
-            <ol className="grid grid-cols-7 gap-2">
-              {report.days.map((d) => (
-                <li key={d.date}>
-                  <button
-                    type="button"
-                    aria-label={`${d.date}: ${d.spent === null ? "ยังไม่ถึงวันนี้" : `${formatBaht(d.spent)} บาท`}`}
-                    aria-pressed={focusedDay === d.date}
-                    onClick={() => setFocusedDay(d.date)}
-                    className="flex w-full flex-col items-center gap-1 rounded-sm bg-subtle px-1 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-                  >
-                    <span className="flex h-16 items-end" aria-hidden="true">
-                      <span
-                        className={
-                          d.spent === null
-                            ? "w-4 rounded-sm bg-line"
-                            : "w-4 rounded-sm bg-action-primary"
-                        }
-                        style={{
-                          height: `${d.spent === null ? 2 : Math.max(3, (d.spent / max) * 64)}px`,
-                        }}
-                      />
-                    </span>
-                    <span className="text-xs text-secondary">
-                      {Number(d.date.slice(-2))}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-            {focusedDay && report.days.some((d) => d.date === focusedDay) ? (
-              <p role="status" className="mt-3 text-sm text-primary">
-                {focusedDay} ·{" "}
-                {report.days.find((d) => d.date === focusedDay)?.spent === null
-                  ? "ยังไม่ถึงวันนี้"
-                  : `${formatBaht(report.days.find((d) => d.date === focusedDay)!.spent!)} บาท`}
-              </p>
-            ) : null}
-            <p className="mt-3 text-xs text-secondary">
-              แตะหรืออ่านแต่ละวันเพื่อดูยอด · ช่องอนาคตยังไม่มีข้อมูล
+          <div
+            role="group"
+            aria-label="เลือกข้อมูลที่แสดง"
+            className="flex flex-wrap gap-2"
+          >
+            {(
+              [
+                ["all", "ทั้งหมด"],
+                ["expense", "รายจ่าย"],
+                ["income", "รายรับ"],
+              ] as const
+            ).map(([key, label]) => (
+              <Chip
+                key={key}
+                selected={view === key}
+                onClick={() => setView(key)}
+              >
+                {label}
+              </Chip>
+            ))}
+          </div>
+          {period === "month" ? (
+            <DailyChart
+              days={report.days}
+              view={view}
+              focused={
+                focusedDay ??
+                (report.days.some((d) => d.date === report.asOf)
+                  ? report.asOf
+                  : null)
+              }
+              onFocus={setFocusedDay}
+            />
+          ) : null}
+          {view !== "income" ? (
+            <CategoryDonut
+              categories={report.categories}
+              spending={report.spending}
+              title={
+                period === "day" ? "รายจ่ายของวันนี้ แบ่งตามหมวด" : "แยกตามหมวด"
+              }
+            />
+          ) : period === "day" ? (
+            <p className="rounded-md border border-line bg-card p-4 text-sm text-secondary">
+              รายรับของวันนี้อยู่ในช่องรายรับด้านบน · รายรับไม่แบ่งเป็นหมวด ดูรายการได้ที่{" "}
+              <Link
+                href="/app/plan?tab=list"
+                className="font-semibold text-link"
+              >
+                แผนเงิน › รายรับ
+              </Link>
             </p>
-          </section>
-          <section className="rounded-md border border-line bg-card p-4">
-            <h2 className="mb-3 font-bold text-primary">แยกตามหมวด</h2>
-            <ul className="flex flex-col gap-3">
-              {report.categories.map((c) => (
-                <li key={c.category}>
-                  <div className="flex justify-between gap-3 text-sm">
-                    <span>
-                      {CATEGORY_LABELS[c.category]} · {c.count} รายการ
-                    </span>
-                    <strong className="tabular-nums">
-                      {formatBaht(c.amount)} บาท
-                    </strong>
-                  </div>
-                  <div
-                    className="mt-1 h-2 rounded-pill bg-subtle"
-                    aria-hidden="true"
-                  >
-                    <div
-                      className="h-2 rounded-pill bg-action-primary"
-                      style={{
-                        width: `${report.spending ? (c.amount / report.spending) * 100 : 0}%`,
-                      }}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
+          ) : null}
         </>
       )}
       <Link href="/app/notifications" className={buttonClass("secondary")}>

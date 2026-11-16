@@ -11,6 +11,7 @@ import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InputField } from "@/components/ui/input-field";
 import { ListRow } from "@/components/ui/list-row";
+import { MoneyDirection } from "@/components/ui/money-direction";
 import { Mascot } from "@/components/ui/mascot";
 import type { Entry, Income, Plan, Summary } from "@/lib/api-types";
 import { ApiError } from "@/lib/client/errors";
@@ -324,7 +325,7 @@ export function PlanMainView() {
                 mascotPose="greeting"
               />
             ) : (
-              <section className="divide-y divide-line rounded-md border border-line bg-card px-4">
+              <section className="divide-y divide-line overflow-hidden rounded-md border border-line bg-card">
                 {rows.map((row) =>
                   row.kind === "expense" ? (
                     <ListRow
@@ -332,6 +333,7 @@ export function PlanMainView() {
                       title={row.entry.note ?? CATEGORY_LABELS[row.entry.category]}
                       subtitle={`${CATEGORY_LABELS[row.entry.category]} · ${formatThaiDate(row.entry.spentOn, "short")}`}
                       amount={`−${formatBaht(row.entry.amount)} บาท`}
+                      leading={<MoneyDirection kind="expense" />}
                       href={`/app/record/${row.entry.id}`}
                     />
                   ) : (
@@ -341,6 +343,8 @@ export function PlanMainView() {
                       title={row.income.note ?? "รายรับ"}
                       subtitle={`รายรับ · ${formatThaiDate(row.income.receivedOn, "short")}`}
                       amount={`+${formatBaht(row.income.amount)} บาท`}
+                      tone="income"
+                      leading={<MoneyDirection kind="income" />}
                     />
                   ),
                 )}
