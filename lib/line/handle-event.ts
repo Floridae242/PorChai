@@ -205,6 +205,9 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
     if (amount !== null) return say(await editAmount(userId, pending.entryId, amount));
     if (looksLikeAmountReply(body) || isCorrectionReply(body)) return say(text("ยอดใหม่ยังไม่ชัดเจนครับ ใส่จำนวนที่มากกว่า 0 ไม่เกิน 100,000 บาท และทศนิยมไม่เกิน 2 ตำแหน่ง เช่น 400 หรือพิมพ์คำสั่งใหม่เพื่อเปลี่ยนรายการ"), pending, "ตรวจยอดใหม่");
   }
+  // Edit/setup handlers above own their numeric replies (some settings allow zero).
+  // A new invalid expense must never reach AI extraction or lose its sign.
+  if (parsed.kind === "ask" && parsed.reason === "invalid_amount") return say(askMessage(parsed.reason));
   const clarification = conversationBoundary(body);
   if (clarification) return converse(userId, body, history, { approximate: false, question: false, clarification });
   // A social response ends the previous question; it is never the title of a pending amount.

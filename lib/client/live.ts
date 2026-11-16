@@ -1,3 +1,4 @@
+import { APP_FEEDBACK } from "@/lib/copy/porchai";
 // Live PorchaiApi: calls the server routes in docs/frontend-api.md. Same-origin by default.
 // Never put the token or a user id in a URL and never log them.
 import { ApiError } from "./errors";
@@ -10,8 +11,8 @@ export interface LiveApiOptions {
   baseUrl?: string; // default "" = same origin
 }
 
-const MSG_NETWORK = "เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง";
-const MSG_UNKNOWN = "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง";
+const MSG_NETWORK = APP_FEEDBACK.network;
+const MSG_UNKNOWN = APP_FEEDBACK.unknown;
 const MSG_NOT_IMPLEMENTED = "ฟีเจอร์นี้ยังไม่พร้อมใช้งาน";
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

@@ -16,7 +16,7 @@ export function needsIntentClarification(message: string, reply: string): boolea
 // Anything matching these still reaches conversational AI, but cannot create an expense/pending payment.
 export function conversationBoundary(message: string): string | null {
   const text = message.normalize("NFKC").trim();
-  if (/ไม่(?:ได้|ต้อง|เอา|ซื้อ|จด|บันทึก)|อย่า(?:เพิ่ง)?(?:จด|บันทึก)|ยกเลิก|ช่างมัน|\b(?:cancel|never\s*mind|didn['’]?t|haven['’]?t|not\s+(?:buy|paid|pay))\b/iu.test(text)) {
+  if (/ยังไม่(?:ได้)?จ่าย|ไม่(?:ได้|ต้อง|เอา|ซื้อ|จด|บันทึก|จ่าย)|อย่า(?:เพิ่ง)?(?:จด|บันทึก)|ยกเลิก|ช่างมัน|\b(?:cancel|never\s*mind|didn['’]?t|haven['’]?t|not\s+(?:buy|paid|pay))\b/iu.test(text)) {
     return "ข้อความนี้ยังไม่ถูกบันทึกครับ ถ้าต้องการจดรายการใหม่ ส่งชื่อรายการกับยอดที่จ่ายจริงได้เลยครับ";
   }
   if (/โอน|ยืม|คืนเงิน|โอนคืน|\b(?:refund|transfer|split)\b|หาร\s*\d|คนละ|แชร์ค่า/iu.test(text)) {
@@ -35,7 +35,7 @@ export function conversationBoundary(message: string): string | null {
     return "กำลังวางแผนซื้อใช่ไหมครับ? ส่งชื่อรายการ ราคา และวันที่ต้องการลองก่อนจ่ายได้ครับ ยังไม่บันทึกรายจ่ายครับ";
   }
   if (/แกล้ง|สมมติว่าจด|บอกว่าจด|เพิ่มเงินให้|\bpretend\b/iu.test(text)) {
-    return "ผมช่วยดูแผนและจดตามการยืนยันจริงได้ครับ ต้องการลองก่อนจ่ายหรือจดรายจ่ายที่เกิดขึ้นแล้วครับ?";
+    return "น้องพอใช้ช่วยดูแผนและจดตามการยืนยันจริงได้ครับ ต้องการลองก่อนจ่ายหรือจดรายจ่ายที่เกิดขึ้นแล้วครับ?";
   }
   return null;
 }

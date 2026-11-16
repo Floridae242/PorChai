@@ -22,7 +22,7 @@ import type {
 export function buildWelcomeCard(vm: WelcomeCardViewModel = {}): FlexMessage {
   return {
     type: "flex",
-    altText: "สวัสดีครับ ฉันคือพอใช้ ก่อนเริ่มใช้ ตั้งค่าในแอปประมาณ 2 นาทีนะครับ",
+    altText: "สวัสดีครับ น้องพอใช้ครับ ก่อนเริ่มใช้ ตั้งค่าในแอปประมาณ 2 นาทีนะครับ",
     contents: {
       type: "bubble",
       size: "mega",
@@ -48,7 +48,7 @@ export function buildWelcomeCard(vm: WelcomeCardViewModel = {}): FlexMessage {
             contents: [
               {
                 type: "text",
-                text: "สวัสดีครับ ฉันคือพอใช้",
+                text: "สวัสดีครับ น้องพอใช้ครับ",
                 size: "md",
                 weight: "bold",
                 color: FLEX_COLORS.green900,

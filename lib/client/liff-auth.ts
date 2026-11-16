@@ -1,10 +1,11 @@
+import { APP_FEEDBACK } from "@/lib/copy/porchai";
 import type { Liff } from "@line/liff";
 import { ApiError } from "./errors";
 import { loginRedirectUri } from "@/lib/liff/login-redirect";
 
 const MSG_LOGIN_FAILED = "เข้าสู่ระบบ LINE ไม่สำเร็จ";
 const MSG_EXPIRED = "หมดเวลาเข้าสู่ระบบ ปิดแล้วเปิดพอใช้ใหม่อีกครั้ง";
-const MSG_LIFF = "เชื่อมต่อ LINE ไม่ได้ ลองใหม่อีกครั้ง";
+const MSG_LIFF = APP_FEEDBACK.liff;
 export const LOGIN_FLAG = "porchai.login-attempted";
 
 // Anything that is not already an ApiError becomes one, so raw LIFF errors never reach screens.

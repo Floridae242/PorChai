@@ -34,7 +34,7 @@ export function buildConversationCard(message: TextReplyMessage,heading?:string)
       size: "mega",
       header: {
         type: "box", layout: "vertical", paddingAll: "16px", backgroundColor: FLEX_COLORS.lime100,
-        contents: [{ type: "text", text: heading?.trim() && heading.length<=60 ? `พอใช้ · ${heading}` : "พอใช้ · PORCHAI", size: "sm", weight: "bold", color: FLEX_COLORS.green900, wrap: true }],
+        contents: [{ type: "text", text: heading?.trim() && heading.length<=60 ? `น้องพอใช้ · ${heading}` : "น้องพอใช้ · PORCHAI", size: "sm", weight: "bold", color: FLEX_COLORS.green900, wrap: true }],
       },
       body: {
         type: "box", layout: "vertical", paddingAll: "20px", backgroundColor: FLEX_COLORS.white,

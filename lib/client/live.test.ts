@@ -130,11 +130,11 @@ describe("createLiveApi", () => {
 
   it("maps network failure, non-JSON and unknown error shapes", async () => {
     const a = setup([new TypeError("fail")]);
-    await expect(a.api.me()).rejects.toMatchObject({ status: 0, code: "network", message: "เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง" });
+    await expect(a.api.me()).rejects.toMatchObject({ status: 0, code: "network", message: "น้องพอใช้เชื่อมต่อไม่ได้ครับ ตรวจอินเทอร์เน็ตแล้วลองโหลดข้อมูลอีกครั้ง" });
     const b = setup([new Response("<html>", { status: 502 })]);
     await expect(b.api.me()).rejects.toMatchObject({ status: 0, code: "network" });
     const c = setup([json(500, { oops: 1 })]);
-    await expect(c.api.me()).rejects.toMatchObject({ status: 500, code: "internal", message: "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง" });
+    await expect(c.api.me()).rejects.toMatchObject({ status: 500, code: "internal", message: "น้องพอใช้ยังยืนยันผลไม่ได้ครับ ลองโหลดข้อมูลล่าสุดก่อนทำรายการอีกครั้ง" });
   });
 
   it("(e) unimplemented endpoints throw 501 without fetch", async () => {

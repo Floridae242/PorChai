@@ -3,7 +3,7 @@ import type { UserCategory } from "@/lib/api-types";
 // Card 09: read a short chat message such as «ข้าว 50». Pure, so every rule is a unit test.
 // Anything unclear is asked back, never guessed (no number words, no AI: "ไม่ขยายรองรับภาษาทุกแบบ").
 
-export type AskReason = "no_amount" | "many_amounts" | "approximate" | "no_title" | "too_large" | "income" | "backdated";
+export type AskReason = "no_amount" | "invalid_amount" | "many_amounts" | "approximate" | "no_title" | "too_large" | "income" | "backdated";
 
 export type ParsedExpense =
   | { kind: "entry"; title: string; amount: number; category: UserCategory }
@@ -68,11 +68,13 @@ export function amountOnly(raw: string): number | null {
 }
 
 export function parseExpense(raw: string): ParsedExpense {
-  const text = clean(raw);
+  const text = clean(raw.normalize("NFC"));
 
   if (BACKDATED.test(text)) return { kind: "ask", reason: "backdated" };
   if (/(?:จะได้รับ|รอเงินเข้า|พรุ่งนี้|มะรืน|เดือนหน้า|เงินคืน|คืนเงิน)/u.test(text) && /เงิน|รับ|ให้/u.test(text)) return { kind: "ask", reason: "income" };
   if (APPROXIMATE.test(text)) return { kind: "ask", reason: "approximate" };
+  // Never strip a sign and silently book its absolute value, or split extra decimals.
+  if (/[+\-−–—]\s*(?:฿\s*)?\d|\d+\.\d{3,}/u.test(text)) return { kind: "ask", reason: "invalid_amount" };
   const income = INCOME.test(text);
   if (income && /[-+]\s*\d/.test(text)) return { kind: "ask", reason: "income" };
   const numbers = text.match(NUMBER) ?? [];
@@ -80,7 +82,7 @@ export function parseExpense(raw: string): ParsedExpense {
   if (numbers.length > 1) return { kind: "ask", reason: "many_amounts" };
 
   const amount = Math.round(Number(numbers[0]) * 100);
-  if (amount <= 0) return { kind: "ask", reason: income ? "income" : "no_amount" };
+  if (amount <= 0) return { kind: "ask", reason: "invalid_amount" };
   if (amount > MAX_AMOUNT) return { kind: "ask", reason: "too_large" };
   if (income) {
     const note = text.replace(INCOME, " ").replace(NUMBER, " ").replace(CURRENCY, " ").replace(/\s+/g, " ").trim();

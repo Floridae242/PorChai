@@ -28,6 +28,13 @@ describe("Flex Card Wording & Content Contract", () => {
     expect(json).toContain("วันนี้ใช้ได้อีก");
     expect(json).toContain("75 บาท");
     expect(json).toContain("ใช้ไปแล้ว 45 / 120 บาท");
+    // Full-width actions keep labels readable instead of splitting three narrow columns.
+    expect(msg.contents).toMatchObject({
+      type: "bubble",
+      footer: { layout: "vertical", contents: expect.arrayContaining([
+        expect.objectContaining({ action: expect.objectContaining({ label: "เปลี่ยนหมวด" }) }),
+      ]) },
+    });
   });
 
   it("C-4 Over-budget Card displays overspend and tomorrow budget adjustment", () => {

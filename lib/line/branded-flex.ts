@@ -124,7 +124,7 @@ export function flexWelcome(fallback: TextMessage): FlexMessage {
     {
       title: "พิมพ์จดได้เลย",
       subtitle: "ข้าว 50 · รถ 20",
-      body: "ส่งชื่อรายการกับยอดทีละรายการ พอใช้ช่วยจัดหมวดให้",
+      body: "ส่งชื่อกับยอดได้หลายรายการ เช่น ข้าว 45 น้ำ 20 น้องพอใช้จะแสดงร่างให้ตรวจ ก่อนกดจดทั้งหมดครับ",
       pose: "greeting",
       label: "เริ่มตั้งแผนเงิน",
       path: "/app/setup/income",
@@ -165,7 +165,7 @@ export function flexWelcome(fallback: TextMessage): FlexMessage {
         size: "mega",
         body: box(
           [
-            tx("พอใช้ · เพื่อนช่วยคิดเรื่องเงิน", "xs", muted),
+            tx("น้องพอใช้ · เพื่อนช่วยคิดเรื่องเงิน", "xs", muted),
             tx(c.title, "xl", ink, true),
             tx(c.subtitle, "md", green, true),
             ...mascot(c.pose),

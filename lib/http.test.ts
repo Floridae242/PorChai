@@ -13,7 +13,7 @@ describe("errorResponse", () => {
     const res = errorResponse(new Error("boom"));
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({
-      error: { code: "internal", message: "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง" },
+      error: { code: "internal", message: "น้องพอใช้ยังยืนยันผลไม่ได้ครับ ลองโหลดข้อมูลล่าสุดก่อนทำรายการอีกครั้ง" },
     });
   });
 });

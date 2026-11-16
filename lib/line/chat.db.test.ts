@@ -116,6 +116,40 @@ async function screenEntries() {
 }
 
 describe("card 09: expenses from the chat", () => {
+  it.each(["ข้าว -10", "ข้าว −10", "ข้าว 0", "ข้าว 10.999", "ยังไม่จ่าย 3 หน้า 1"])("live regression: invalid text never writes an expense: %s", async (message) => {
+    await figma(); await chat(message);
+    expect(await screenEntries()).toEqual([]);
+    expect(lastText()).not.toContain("จดแล้ว");
+  });
+  it.each(["ดูรายการ", "ดูแผน", "แก้ยอดล่าสุด 40 บาท"])("a fresh multi-line expense escapes the previous %s context", async (previous) => {
+    await figma(); await chat("ข้าว 50"); await chat(previous);
+    await chat("ข้าวเดโม 45\nรถเมล์เดโม 20\nน้ำเดโม 15");
+    expect(lastText()).toContain("80");
+    expect(lastButtons().some(b => b.label === "จดทั้งหมด")).toBe(true);
+    expect(await screenEntries()).toHaveLength(1);
+  });
+  it("unpaid wording reverses the selected bill only after confirmation", async () => {
+    await figma(); await chat("จ่ายบิล 1"); await chat("ยืนยัน");
+    expect(await screenEntries()).toHaveLength(1);
+    await chat("ยังไม่จ่าย 1 หน้า 1");
+    expect(lastText()).toContain("ยืนยัน");
+    expect(await screenEntries()).toHaveLength(1);
+    await chat("ยืนยัน"); expect(await screenEntries()).toEqual([]);
+  });
+  it("an impossible bill date names the error, without creating a pending amount", async () => {
+    await figma(); await chat("เพิ่มบิล ค่าเน็ต 30 บาท วันที่ 2026-02-30");
+    expect(lastText()).toContain("วันที่");
+    expect(lastText()).not.toContain("จำนวนกี่บาท");
+    await chat("ยืนยัน"); expect(await screenEntries()).toEqual([]);
+  });
+  it.each(["แก้ยอดล่าสุด −10", "แก้ยอดล่าสุด - 10", "ปรับยอด −10", "ปรับยอด - 10", "เพิ่มบิล ค่าไฟ −10", "เพิ่มบิล ค่าไฟ - 10"])("signed command cannot silently become a positive mutation: %s", async (message) => {
+    await figma(); await chat("ข้าว 50");
+    const before = await screenEntries();
+    await chat(message);
+    expect(lastButtons().some(b => b.data?.startsWith("pc:yes:"))).toBe(false);
+    await chat("ยืนยัน");
+    expect(await screenEntries()).toEqual(before);
+  });
   it("editing the latest amount never records the command as a new expense", async () => {
     await figma();
     await chat("ข้าว 50");
@@ -574,7 +608,7 @@ describe("card 09: expenses from the chat", () => {
     expect(lastText()).toContain("อาหาร");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 75 บาท");
     expect(lastText()).toContain("ใช้ไปแล้ว 45 / 120 บาท");
-    expect(lastText()).toContain("ยังเหลืออีกเยอะ ใช้ได้สบาย ๆ"); // a friendly last line, no AI
+    expect(lastText()).toContain("วันนี้ยังอยู่ในงบ"); // a friendly last line, no AI
 
     expect(await screenEntries()).toEqual([
       expect.objectContaining({ amount: 4500, category: "food", note: "ข้าว", source: "chat", spentOn: today() }),
@@ -610,7 +644,7 @@ describe("card 09: expenses from the chat", () => {
     await figma();
     vi.mocked(generate).mockClear();
     await chat("นายเป็นใคร");
-    expect(lastText()).toContain("ผมชื่อพอใช้");
+    expect(lastText()).toContain("น้องพอใช้ครับ");
     await chat("กาแฟ");
     expect(lastText()).toContain("จ่ายไปกี่บาท");
     expect(await screenEntries()).toEqual([]);
@@ -631,7 +665,7 @@ describe("card 09: expenses from the chat", () => {
     await figma();
     await chat("กาแฟ");
     await chat("นายเป็นใคร");
-    expect(lastText()).toContain("ผมชื่อพอใช้");
+    expect(lastText()).toContain("น้องพอใช้ครับ");
     await chat("45");
     expect(lastText()).toContain("ค่าอะไร");
     expect(await screenEntries()).toEqual([]);
@@ -663,7 +697,7 @@ describe("card 09: expenses from the chat", () => {
     eventIds.push(`F_${run}`);
     await deliver({ type: "follow", webhookEventId: `F_${run}`, replyToken: "rt-f", source: { type: "user", userId: lineA } });
     expect(last().type).toBe("flex"); // โฟรวิว's welcome card
-    expect(lastText()).toContain("สวัสดีครับ ฉันคือพอใช้");
+    expect(lastText()).toContain("สวัสดีครับ น้องพอใช้ครับ");
     const message=last();if(message.type!=="flex" || message.contents.type!=="carousel")throw new Error("Expected onboarding carousel");
     expect(message.contents.contents).toHaveLength(10);
     expect(lastButtons()).toContainEqual(expect.objectContaining({type:"postback",data:"guide:start"}));
@@ -931,9 +965,9 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     await chat("ช่วยดูให้หน่อย");
     expect(lastText()).toContain("ยังตอบข้อความนี้ไม่ได้");
     expect(lastText()).toContain("วันนี้ใช้ได้อีก 120 บาท");
-    expect(lastText()).toContain("เมนูพอใช้");
+    expect(lastText()).toContain("วิธีใช้");
     expect(lastText()).not.toContain("สวัสดี");
-    expect(lastText()).not.toContain("ผมชื่อพอใช้");
+    expect(lastText()).not.toContain("น้องพอใช้ครับ");
     expect(lastText()).not.toContain("3 อย่าง");
     aiSays({ intent: "chat", topic: "money", item: null, reply: "เหลือ 999 บาทจ้า" });
     await chat("ควรเก็บเงินยังไงดี");
@@ -1149,7 +1183,7 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
     aiSays({ items: [{ title: "ข้าว", amount_baht: 45 }, { title: "น้ำ", amount_baht: 20 }] });
     await chat("ข้าว 45 น้ำ 20");
     await tap(button("ไม่ใช่").data);
-    expect(lastText()).toContain("ไม่จด");
+    expect(lastText()).toContain("ยังไม่ได้จดรายการชุดนี้");
     expect(await screenEntries()).toEqual([]);
   });
 

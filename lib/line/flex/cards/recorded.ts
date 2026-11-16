@@ -451,7 +451,7 @@ export function buildRecordedCard(vm: RecordedCardViewModel): FlexMessage {
       ...(!vm.hideEntryActions && {
         footer: {
           type: "box",
-          layout: "horizontal",
+          layout: "vertical",
           spacing: "xs",
           paddingAll: "12px",
           backgroundColor: FLEX_COLORS.white,

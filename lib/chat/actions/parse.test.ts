@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { fields, parseIntent, statedDate, statedMoney } from "./parse";
 
 const today = "2026-11-15";
+it.each(["ยังไม่จ่าย 3 หน้า 1", "ยังไม่ได้จ่ายบิล ๓ หน้า ๑", "ไม่ได้จ่ายแผน 3", "ยังไม่จ่ายบิลล่าสุด"])("routes an explicit unpaid correction safely: %s", (message) => {
+  expect(parseIntent(message, today)).toMatchObject({ tool: "plan_action", action: "unpay", target: message.includes("ล่าสุด") ? "latest" : 3 });
+});
+it("rejects an impossible calendar date before asking for money", () => {
+  expect(() => parseIntent("เพิ่มบิล ค่าเน็ต 30 บาท วันที่ 2026-02-30", today)).toThrow(/วันที่/);
+});
 describe("chat command boundaries", () => {
   it.each([
     ["ช่วยดูรายงานวันนี้", "report"],
@@ -50,7 +56,7 @@ describe("chat command boundaries", () => {
     expect(parseIntent(message, today)).toBeNull();
   });
   it.each([
-    "-100",
+    "-100", "−10", "–10", "—10", "- 10", "+ 10", "− ๑๐",
     "+100",
     "ประมาณ 100",
     "100-200",

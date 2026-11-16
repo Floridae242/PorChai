@@ -78,7 +78,7 @@ describe("createLiffAuth error wrapping", () => {
     await expect(failing().getIdToken()).rejects.toMatchObject({
       status: 0,
       code: "liff",
-      message: "เชื่อมต่อ LINE ไม่ได้ ลองใหม่อีกครั้ง",
+      message: "น้องพอใช้เชื่อมต่อ LINE ไม่ได้ครับ ลองปิดแล้วเปิดแอปอีกครั้ง",
     });
   });
   it("refreshIdToken wraps rejection as ApiError liff", async () => {

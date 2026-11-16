@@ -1,3 +1,4 @@
+import { EXPENSE_PROMPTS } from "@/lib/copy/porchai";
 import type { Summary, SimulateResponse } from "@/lib/api-types";
 import type { Advice } from "@/lib/advice/advise";
 import type { AskReason } from "@/lib/chat/parse";
@@ -64,20 +65,11 @@ const payButton = (d: Draft): QuickReplyAction => ({
   displayText: "ยืนยันจ่ายจริง",
 });
 
-const ASK: Record<AskReason, string> = {
-  no_amount: "จดรายจ่าย พิมพ์ชื่อกับยอดได้เลย เช่น «ข้าว 45» หรือกรอกเองในแอป",
-  many_amounts:
-    "ยังแยกชื่อกับยอดได้ไม่ครบครับ ส่งหลายรายการได้ครั้งละไม่เกิน 5 รายการ เช่น «ข้าว 50 บาท น้ำ 20 บาท» หรือขึ้นบรรทัดใหม่ทีละรายการ โดยไม่ต้องใส่ยอดรวม",
-  approximate: "ขอยอดที่จ่ายจริงเป็นตัวเลขนะ เช่น «ข้าว 120» จะได้จดไม่ผิด",
-  no_title: "ยอดนี้ค่าอะไร? พิมพ์ชื่อด้วย เช่น «ข้าว 50»",
-  too_large: "ยอดนี้สูงมาก ถ้าถูกต้องกรอกเองในแอปได้เลย",
-  income: "รายรับพิมพ์ รับ ตามด้วยยอดได้เลยครับ เช่น «รับ 500»",
-  backdated: "จดย้อนหลังในแชตยังไม่ได้ครับ กรอกในแอปแล้วเลือกวันที่ได้เลย",
-};
+
 
 export const askMessage = (reason: AskReason): LineMessage =>
   flexPrompt(
-    text(ASK[reason], [app("กรอกเองในแอป")]),
+    text(EXPENSE_PROMPTS[reason], [app("กรอกเองในแอป")]),
     "พิมพ์หาเราได้เลย",
     "กรอกเองในแอป",
     "/app/record/new",
@@ -85,7 +77,7 @@ export const askMessage = (reason: AskReason): LineMessage =>
 
 export const noCycleMessage = () =>
   flexPrompt(
-    text("ยังไม่ได้ตั้งรอบเงิน ตั้งค่าในแอปก่อนเริ่มจดนะ", [app()]),
+    text("น้องพอใช้ยังไม่มีแผนเงินของคุณครับ พิมพ์ «เริ่มรอบเงิน» เพื่อตั้งค่าในแชต หรือเปิดแอปได้เลยครับ", [app()]),
     "มาเริ่มแผนแรกกัน",
     "ตั้งรอบเงิน",
     "/app/setup/income",
@@ -157,7 +149,7 @@ export function cheer(b: BudgetResult, overWithTomorrow: boolean): string | null
   if (b.kind !== "ok") return null;
   if (b.todayRemaining < 0) return overWithTomorrow ? "ไม่เป็นไรครับ งบพรุ่งนี้ปรับให้แล้ว" : null;
   if (b.todayRemaining === 0) return "พอดีงบวันนี้เป๊ะเลยครับ";
-  if (b.todayRemaining * 2 >= b.dailyBudget) return "ยังเหลืออีกเยอะ ใช้ได้สบาย ๆ ครับ";
+  if (b.todayRemaining * 2 >= b.dailyBudget) return "วันนี้ยังอยู่ในงบครับ ค่อย ๆ ใช้ตามแผนได้เลย";
   return "เหลือไม่มากแล้ว ค่อย ๆ ใช้นะครับ";
 }
 
@@ -270,7 +262,7 @@ export const incomeMessage = (amount: number, s: Summary): TextMessage =>
 export const welcomeMessage = () =>
   flexWelcome(
     text(
-      "สวัสดีครับ ยินดีต้อนรับสู่พอใช้ 🌱\nจดรายจ่าย พิมพ์ได้เลย เช่น «ข้าว 45»\nถามก่อนจ่าย เช่น «พรุ่งนี้กินชาบู 300 ไหวไหม»\nเริ่มจากตั้งรอบเงินในแอปก่อนนะ",
+      "สวัสดีครับ น้องพอใช้พร้อมช่วยดูแลเงินให้ครับ 🌱\nจดรายจ่าย พิมพ์ได้เลย เช่น «ข้าว 45»\nถามก่อนจ่าย เช่น «พรุ่งนี้กินชาบู 300 ไหวไหม»\nพิมพ์ «เริ่มรอบเงิน» เพื่อตั้งค่า หรือ «วิธีใช้» เพื่อดูตัวอย่างได้เลยครับ",
       [app()],
     ),
   );
@@ -281,12 +273,12 @@ export const chatMessage = (reply: string): TextMessage => text(reply, [app()]);
 // Same as lib/chat/messages.ts (the one the bot uses): say it cannot answer, then what is left today
 export function chatFallbackMessage(s: Summary | null): TextMessage {
   const today = s ? budgetLine(s.budget, s.spentToday) : "ยังไม่ได้ตั้งรอบเงิน ตั้งค่าในแอปก่อนนะครับ";
-  return text(["ขอโทษครับ พอใช้ยังตอบข้อความนี้ไม่ได้", today, "ลองพิมพ์ใหม่ หรือกดเมนูพอใช้ด้านล่างได้ครับ"].join("\n"), [app()]);
+  return text(["น้องพอใช้ยังตอบข้อความนี้ไม่ได้ครับ", today, "ลองบอกสิ่งที่อยากทำอีกครั้ง หรือพิมพ์ «วิธีใช้» เพื่อดูตัวอย่างครับ"].join("\n"), [app()]);
 }
 
 // Not about money or the app: never the AI's words, always this
 export const offTopicMessage = (): TextMessage =>
-  text("เรื่องนี้พอใช้ช่วยไม่ได้นะครับ ถามเรื่องเงินได้เลย เช่น «วันนี้เหลือเท่าไร» หรือ «ชาบู 300 ไหวไหม»", [app()]);
+  text("น้องพอใช้ถนัดช่วยเรื่องการจดและวางแผนเงินครับ ถามเรื่องเงินได้เลย เช่น «วันนี้เหลือเท่าไร» หรือ «ชาบู 300 ไหวไหม»", [app()]);
 
 // «ข้าว» / «ข้าวร้อยกว่า»: asked how much; the answer «45» is recorded (lib/line/handle-event.ts)
 export const askAmountMessage = (title: string, approximate: boolean): TextMessage =>
@@ -318,8 +310,8 @@ export function proposalMessage(items: ProposedItem[], key: string, todayRemaini
   ]);
 }
 
-export const declinedMessage = (): TextMessage => text("โอเคครับ ไม่จด ส่งทีละรายการได้เลย เช่น «ข้าว 45»", [app("กรอกเองในแอป")]);
+export const declinedMessage = (): TextMessage => text("ยกเลิกร่างแล้วครับ น้องพอใช้ยังไม่ได้จดรายการชุดนี้ ส่งใหม่ได้ เช่น «ข้าว 45 น้ำ 20» แล้วตรวจร่างก่อนยืนยันครับ", [app("กรอกเองในแอป")]);
 
 export const alreadyManyMessage = (): TextMessage => text("รายการชุดนี้จดไว้แล้วครับ ✓", [app()]);
 
-export const expiredMessage = (): TextMessage => text("รายการนี้หมดเวลาแล้วครับ พิมพ์ใหม่อีกครั้งได้เลย", [app()]);
+export const expiredMessage = (): TextMessage => text("ร่างนี้หมดเวลาแล้วครับ น้องพอใช้ยังไม่ได้บันทึกจากปุ่มนี้ พิมพ์รายการใหม่เพื่อตรวจอีกครั้งได้เลยครับ", [app()]);

@@ -1,3 +1,4 @@
+import { PORCHAI_VOICE } from "@/lib/copy/porchai";
 import { withAiScope } from "@/lib/ai/admission";
 import type { SimulateResponse, UserCategory } from "@/lib/api-types";
 import type { BudgetResult, TrialVerdict } from "@/lib/calc/budget";
@@ -201,8 +202,8 @@ function knownNumbers(f: Facts): number[] {
 async function explain(f: Facts): Promise<{ explanation: string; byAI: boolean }> {
   const template = templateFor(f);
   const text = await generate({
-    system:
-      "คุณคือ 'พอใช้' ผู้ช่วยเงินของนักศึกษา เป็นผู้ชาย ตอบภาษาไทย เป็นกันเอง สุภาพ ลงท้ายด้วย ครับ ห้ามใช้ ค่ะ คะ จ้า ไม่เกิน 5 บรรทัด จากข้อมูล JSON ที่ให้เท่านั้น " +
+    system: PORCHAI_VOICE +
+      "ตอบภาษาไทย เป็นกันเอง สุภาพ ลงท้ายด้วย ครับ ห้ามใช้ ค่ะ คะ จ้า ไม่เกิน 5 บรรทัด จากข้อมูล JSON ที่ให้เท่านั้น " +
       "verdict: enough=ไหว, tight=ตึง (จ่ายได้แต่ค่ากินค่ารถต่อวันไม่พอ), short=ไม่พอ (บอกยอดที่ขาด). " +
       "ใช้เฉพาะตัวเลขที่อยู่ในข้อมูล ห้ามคำนวณหรือปัดเลขเอง ห้ามแนะนำให้ลดค่ากินหรือค่าเดินทาง ห้ามแนะนำใช้เงินออม " +
       "ทางเลือกใช้เงินเผื่อต้องบอกว่าต้องให้ผู้ใช้อนุญาตก่อน ไม่ต้องใส่หัวข้อหรือ markdown",

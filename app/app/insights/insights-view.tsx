@@ -63,7 +63,7 @@ export function InsightsView() {
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="พฤติกรรมการใช้เงิน" back="/app/reports" tone="default" />
       <p className="text-sm leading-6 text-secondary">
-        สรุปจากรายจ่ายที่คุณจด ไม่ใช่รายการทั้งหมดในบัญชีธนาคาร ยิ่งจดครบ ยิ่งเห็นภาพชัด
+        น้องพอใช้สรุปจากรายจ่ายที่คุณจดครับ ยิ่งจดครบ ยิ่งเห็นรูปแบบชัด ข้อมูลนี้ไม่รวมรายการในธนาคารที่ยังไม่ได้จด
       </p>
       {failed ? (
         <>

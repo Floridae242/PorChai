@@ -2,12 +2,13 @@ import { addDays } from "@/lib/calc/time";
 import { normalizeMoneyText } from "@/lib/advice/question";
 import { MAX_AMOUNT } from "@/lib/chat/parse";
 import type { Intent, Tool } from "./types";
+import { invalid } from "@/lib/validate";
 
 export function statedMoney(message: string): number | undefined {
   const source = normalizeMoneyText(message)
     .replace(/\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}/gu, " ")
-    .replace(/(?:รายการ|แผน|บิล|ลำดับ|วันที่)\s*\d+/gu, " ");
-  if (/ประมาณ|ราว|เกือบ|กว่า|\d\s*-\s*\d|\d[eE][+-]?\d/u.test(source))
+    .replace(/(?:รายการ|แผน|บิล|ลำดับ)\s*\d+/gu, " ");
+  if (/[+\-−–—]\s*(?:฿\s*)?\d|ประมาณ|ราว|เกือบ|กว่า|\d[eE][+-]?\d/u.test(source))
     return undefined;
   const numbers = source.match(/[+-]?\d+(?:\.\d+)?/g) ?? [];
   if (numbers.length !== 1 || !/^\d+(?:\.\d{1,2})?$/.test(numbers[0]))
@@ -19,7 +20,12 @@ export function statedMoney(message: string): number | undefined {
 }
 export function statedDate(message: string, today: string): string | undefined {
   const iso = message.match(/\d{4}-\d{2}-\d{2}/)?.[0];
-  if (iso) return iso;
+  if (iso) {
+    const date = new Date(iso);
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== iso)
+      throw invalid("น้องพอใช้หาวันที่นี้ในปฏิทินไม่เจอครับ ลองตรวจวัน เดือน และปี เช่น 2026-12-01 โดยใช้ปี ค.ศ.");
+    return iso;
+  }
   if (/มะรืน/u.test(message)) return addDays(today, 2);
   if (/พรุ่งนี้/u.test(message)) return addDays(today, 1);
   if (/เมื่อวาน/u.test(message)) return addDays(today, -1);
@@ -80,9 +86,16 @@ export function fields(message: string, tool: Tool, today: string): Intent {
 }
 export function parseIntent(message: string, today: string): Intent | null {
   const s = message
+      .normalize("NFC")
       .trim()
       .replace(/^(?:ช่วย(?!เหลือ)|ขอให้|ขอ(?=ดู|แก้|เปลี่ยน)|อยากให้|อยาก|ต้องการ)\s*/u, ""),
     bare = s.replace(/(?:ครับ|ค่ะ|นะครับ|หน่อย)+$/u, "").trim();
+  const unpaid = normalizeMoneyText(bare).match(/^(?:ยังไม่(?:ได้)?จ่าย|ไม่ได้จ่าย)\s*(?:บิล|แผน)?\s*(ล่าสุด|เมื่อกี้|\d+)(?:\s*หน้า\s*(\d+))?$/u);
+  if (unpaid) return {
+    tool: "plan_action", action: "unpay",
+    target: /ล่าสุด|เมื่อกี้/u.test(unpaid[1]) ? "latest" : Number(unpaid[1]),
+    ...(unpaid[2] ? { page: Number(unpaid[2]) } : {}),
+  };
   if(/^(?:ดู|ขอ)?(?:วิเคราะห์|พฤติกรรม|แพทเทิร์น)|^AI\s*(?:แนะนำ|วิเคราะห์)|^แนะนำงบ/iu.test(s))return {tool:"insights",query:s};
   if(/^(?:ดู|ขอ)(?:หมวด|งบรายหมวด)/u.test(s))return {tool:"categories"};
   if(/^(?:เพิ่มหมวด|ตั้งหมวด|ตั้งงบ)/u.test(s))return {tool:"category_save",query:bare};
