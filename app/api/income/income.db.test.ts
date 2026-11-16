@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db/client";
 import type { VerifyResult } from "@/lib/line/id-token";
 import { POST as createCycle } from "@/app/api/cycle/route";
 import { POST as adjustBalance } from "@/app/api/cycle/balance/route";
-import { POST as addIncome } from "@/app/api/income/route";
+import { GET as listIncomes, POST as addIncome } from "@/app/api/income/route";
 
 // รายรับ: the app's "จด › รายรับ" (โฟรวิว's addIncome) and the chat's «รับ 500» share this. Money received
 // raises the money on hand at once; never a future day; the same key twice is one income.
@@ -50,7 +50,7 @@ const income = (body: unknown, key: string | null = "k1") =>
 beforeEach(() => vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-channel"));
 afterEach(async () => {
   vi.unstubAllEnvs();
-  await db.from("users").delete().eq("line_user_id", lineA);
+  await db.from("users").delete().in("line_user_id", [lineA, `${lineA}_B`]);
 });
 
 describe("POST /api/income", () => {
@@ -97,5 +97,49 @@ describe("POST /api/income", () => {
     const { createClient } = await import("@supabase/supabase-js");
     const anon = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
     expect((await anon.from("incomes").select("*")).data ?? []).toEqual([]);
+  });
+});
+
+// 16 Nov: «ได้เงิน 50» in the chat was saved, but แผนเงิน › รายรับ stayed empty: there was no way to read incomes
+describe("GET /api/income", () => {
+  const list = (token = lineA) =>
+    listIncomes(new Request("http://localhost/api/income", { headers: { Authorization: `Bearer ${token}` } }));
+
+  it("this cycle's incomes, from the chat and the app, newest first", async () => {
+    await figma();
+    await income({ amount: 50000, note: "แม่โอนให้" }, "a");
+    const owner = (await db.from("users").select("id").eq("line_user_id", lineA).single()).data!.id;
+    const cycle = (await db.from("cycles").select("id").eq("user_id", owner).single()).data!.id;
+    await db.from("incomes").insert({ user_id: owner, cycle_id: cycle, amount: 5000, note: null, received_on: today(), source: "chat", idempotency_key: "line:x" });
+    const res = await list();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.incomes).toMatchObject([
+      { amount: 5000, note: null, receivedOn: today(), source: "chat" },
+      { amount: 50000, note: "แม่โอนให้", receivedOn: today(), source: "form" },
+    ]);
+    expect(Object.keys(body.incomes[0]).sort()).toEqual(["amount", "createdAt", "id", "note", "receivedOn", "source"]);
+  });
+
+  it("another account's incomes and cancelled ones are not listed", async () => {
+    await figma();
+    await income({ amount: 50000 }, "a");
+    const owner = (await db.from("users").select("id").eq("line_user_id", lineA).single()).data!.id;
+    await db.from("incomes").update({ cancelled_at: new Date().toISOString() }).eq("user_id", owner);
+    expect((await (await list()).json()).incomes).toEqual([]);
+    const other = await db.from("users").insert({ line_user_id: `${lineA}_B` }).select("id").single();
+    expect(other.error).toBeNull();
+    await income({ amount: 70000 }, "b");
+    expect((await (await list(`${lineA}_B`)).json()).error.code).toBe("no_cycle");
+    expect((await (await list()).json()).incomes).toMatchObject([{ amount: 70000 }]);
+  });
+
+  it("before setup: no_cycle, like the entries", async () => {
+    expect((await list()).status).toBe(409);
+  });
+
+  it("no token: 401", async () => {
+    const res = await listIncomes(new Request("http://localhost/api/income"));
+    expect(res.status).toBe(401);
   });
 });

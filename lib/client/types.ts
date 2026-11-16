@@ -4,6 +4,7 @@ import type {
   Category,
   EditEntryRequest,
   EntriesResponse,
+  IncomesResponse,
   EntryResponse,
   EssentialsRequest,
   NewCycleRequest,
@@ -144,6 +145,7 @@ export interface PorchaiApi {
   rewards(): Promise<Reward[]>;
   redeemReward(id: string, idempotencyKey: string): Promise<{ balance: number; code: string }>;
   addIncome(req: NewIncomeRequest, idempotencyKey: string): Promise<{ summary: Summary }>;
+  incomes(): Promise<IncomesResponse>;
   dailySpend(): Promise<DailySpend>;
   categoryTotals(): Promise<CategoryTotals>;
   reminderSettings(): Promise<ReminderSettings>;

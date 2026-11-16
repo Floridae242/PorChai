@@ -7,7 +7,7 @@ import type { SpendingCategory } from "@/lib/insights/types";
 import { mockReport } from "./report-mock";
 import { DEFAULT_NOTIFICATIONS } from "@/lib/reports/types";
 // Every number goes through lib/calc (computeBudget / tryOut); state transitions mirror lib/db.
-import type { Entry, NewCycleRequest, Plan, Summary, UserCategory } from "@/lib/api-types";
+import type { Entry, Income, NewCycleRequest, Plan, Summary, UserCategory } from "@/lib/api-types";
 import { computeBudget, tryOut, type BudgetInput } from "@/lib/calc/budget";
 import {
   balanceNow,
@@ -111,6 +111,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   const billKeys=new Map<string,string>();
   const billPlans=new Map<string,string[]>();
   const incomeKeys = new Set<string>();
+  const incomeList: Income[] = [];
   let reminders: ReminderSettings = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
 
   function pushEntry(
@@ -659,9 +660,15 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       // Income raises the money on hand: shift the balance anchor (entries after it still come off)
       c.anchor = { ...c.anchor, amount: c.anchor.amount + req.amount };
       incomeKeys.add(key);
+      incomeList.push({ id: newId("income"), amount: req.amount, note: req.note ?? null, receivedOn, source: "form", createdAt: now().toISOString() });
       reportIncomes.push({ amount: req.amount, receivedOn: req.receivedOn ?? today });
       awardRecording(receivedOn);
       return { summary: summaryOf(c) };
+    },
+
+    async incomes() {
+      requireCycle();
+      return { incomes: [...incomeList].reverse() };
     },
 
     async dailySpend() {

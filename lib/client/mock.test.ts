@@ -250,6 +250,18 @@ describe("mock shopRedeem needs no student consent", () => {
 });
 
 describe("mock T1b surface (income, aggregates, quota, reminders, delete)", () => {
+  it("incomes lists what addIncome saved, once per key, newest first (16 Nov)", async () => {
+    const api = createMockApi();
+    expect((await api.incomes()).incomes).toEqual([]);
+    await api.addIncome({ amount: 50000, note: "ค่าขนม" }, "i1");
+    await api.addIncome({ amount: 50000, note: "ค่าขนม" }, "i1");
+    await api.addIncome({ amount: 20000 }, "i2");
+    expect((await api.incomes()).incomes).toMatchObject([
+      { amount: 20000, note: null, source: "form" },
+      { amount: 50000, note: "ค่าขนม", source: "form" },
+    ]);
+  });
+
   it("addIncome raises balance once per key; rejects 0, negative and future dates", async () => {
     const api = createMockApi();
     const first = await api.addIncome({ amount: 50000, note: "ค่าขนม" }, "i1");
