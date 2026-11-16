@@ -1,3 +1,4 @@
+import { APP_FEEDBACK } from "@/lib/copy/porchai";
 import { BodyLimitError, readBoundedBytes } from "@/lib/runtime/body";
 import { unstable_rethrow } from "next/navigation";
 
@@ -43,7 +44,7 @@ export function errorResponse(err: unknown): Response {
   }
   console.error("API failure", err instanceof Error ? err.name : "unknown");
   return Response.json(
-    { error: { code: "internal", message: "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง" } },
+    { error: { code: "internal", message: APP_FEEDBACK.unknown } },
     { status: 500 },
   );
 }

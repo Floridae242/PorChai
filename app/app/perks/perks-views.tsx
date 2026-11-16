@@ -660,7 +660,7 @@ export function PointsView() {
             <span className="text-sm font-semibold text-primary">แต้ม</span>
           </div>
           <p className="mt-1 text-xs text-secondary">
-            จดรายการวันนี้สำเร็จ รับอัตโนมัติวันละ 1 แต้มตามเวลาไทย วันที่ไม่จดก็กดรับได้
+            น้องพอใช้ให้ 1 แต้มอัตโนมัติเมื่อจดรายการสำเร็จครั้งแรกของวันตามเวลาไทยครับ วันที่ไม่จดก็กดรับได้
             รวมกันได้วันละครั้ง
           </p>
           <Link

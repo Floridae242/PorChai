@@ -73,7 +73,7 @@ export function SettingsMainView() {
       <AppHeader title="ตั้งค่า" tone="default" />
       <section aria-label="ปรับพอใช้ให้เข้ากับคุณ" className="rounded-sheet border border-line bg-selected p-5">
         <p className="font-display text-2xl leading-relaxed text-primary">ใช้เงินในแบบของคุณ</p>
-        <p className="mt-1 text-sm leading-6 text-secondary">ปรับแผนเงิน จัดหมวดรายจ่าย และเลือกสิ่งที่อยากให้พอใช้เตือน</p>
+        <p className="mt-1 text-sm leading-6 text-secondary">น้องพอใช้ช่วยจัดแผนให้เข้ากับคุณครับ เลือกปรับงบ หมวดรายจ่าย และการเตือนได้ที่นี่</p>
       </section>
       {SETTINGS_GROUPS.map(({ title, icon: Icon, rows }) => <section key={title} aria-label={title}>
         <h2 className="mb-3 flex items-center gap-2 px-1 text-sm font-semibold text-secondary"><Icon />{title}</h2>
@@ -200,7 +200,7 @@ export function SettingsNotificationsView() {
       {header}
 
       {!ready ? <Banner kind="info" text={`${MSG_NOT_READY} — ตั้งค่าการเตือนยังใช้ไม่ได้ตอนนี้`} /> : null}
-      <p className="text-sm leading-6 text-secondary">ให้พอใช้ช่วยเตือนรายการที่อาจลืมจด เลือกเวลาได้ตามชีวิตประจำวันของคุณ</p>
+      <p className="text-sm leading-6 text-secondary">ให้น้องพอใช้ช่วยเตือนรายการที่อาจลืมจดครับ เลือกเวลาให้เหมาะกับวันของคุณได้เลย</p>
       <div className="rounded-sheet border border-line bg-card">
         <SettingsRow title="สรุปรายวัน รายเดือน และเตือนงบ" detail="ตั้งค่าข้อความสรุปและเตือนเมื่อใช้เกินงบแยกได้ที่นี่" href="/app/notifications" />
         <SettingsRow title="เตือนบิลประจำ" detail="เลือกบิลที่จะเตือน ล่วงหน้า 3 วันและวันครบกำหนด 09:00 น." href="/app/settings/bills" />

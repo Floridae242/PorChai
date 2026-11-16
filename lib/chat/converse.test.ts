@@ -113,6 +113,10 @@ describe("readChat: the AI reads, the code decides", () => {
   it("sends the message, the recent chat and the facts — nothing else", async () => {
     ai.mockResolvedValueOnce(null);
     await readChat("เหลือเท่าไร", [{ role: "user", body: "ข้าว 45", pending: null }, { role: "bot", body: "จดแล้ว ✓", pending: null }], facts);
+    const system = ai.mock.calls[0][0].system;
+    expect(system).toContain("น้องพอใช้");
+    expect(system).toContain("ห้ามอ้างว่าบันทึก แก้ ลบ");
+    expect(system).toContain("ห้ามคำนวณหรือเขียนตัวเลขอื่น");
     const input = JSON.parse(ai.mock.calls[0][0].input);
     expect(input).toEqual({
       facts,
