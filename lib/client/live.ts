@@ -113,6 +113,7 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     planAction: (id, action, body) =>
       request({ method: "POST", path: `/api/plans/${seg(id)}/${action}`, body }),
     addIncome: (req, idempotencyKey) => request({ method: "POST", path: "/api/income", body: req, idempotencyKey }),
+    incomes: () => request({ method: "GET", path: "/api/income" }),
     // Card 58: แอป › ตั้งค่า › การเตือน
     reminderSettings: () => request({ method: "GET", path: "/api/reminders" }),
     saveReminderSettings: (req) => request({ method: "PUT", path: "/api/reminders", body: req }),

@@ -46,6 +46,7 @@ await fetch("/api/summary", { headers: { Authorization: `Bearer ${token}` } });
 | `GET /api/summary` | ตัวเลขหน้าหลัก (W10) | – | `Summary` (ข้อ 4) |
 | `GET /api/entries` | รายการของรอบนี้ ใหม่ก่อน (ไม่รวมที่ยกเลิก) | – | `{ entries: Entry[] }` |
 | `POST /api/entries` | จดรายจ่าย | body `NewEntryRequest` + header `Idempotency-Key` | `201 { entry, summary }` |
+| `GET /api/income` | รายรับของรอบนี้ ใหม่ก่อน (จากแชตและแอป ไม่รวมที่ยกเลิก) · `api.incomes()` | – | `{ incomes: Income[] }` |
 | `PATCH /api/entries/:id` | แก้ยอด/หมวด/บันทึก/วันที่ | body ช่องที่จะแก้เท่านั้น | `{ entry, summary }` |
 | `DELETE /api/entries/:id` | ยกเลิกรายการ (ไม่ลบ เก็บประวัติ) | – | `{ entry, summary }` |
 | `POST /api/cycle/balance` | ปรับยอด ("เงินจริงไม่ตรง? ปรับยอด") | `{ balance, asOf? }` | `201 { summary }` |

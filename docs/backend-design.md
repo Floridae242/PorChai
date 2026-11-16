@@ -330,7 +330,7 @@ Backend จึงมีหน้าที่หลักสองอย่าง
 
 ### รายรับ ✅ (13 พ.ย. · แชต «รับ 500» + แอป › จด › รายรับ ของโฟรวิว)
 
-- ตาราง `incomes` (amount, note, received_on, source chat/form, idempotency_key, cancelled_at) revoke anon + RLS · `POST /api/income {amount, note?, receivedOn?}` + Idempotency-Key → `{summary}` (201/200) ต่อใน `live.ts` แล้ว · ห้ามวันอนาคต (การ์ด 03 "เงินที่จะเข้ายังไม่เป็นเงินใช้ได้วันนี้")
+- ตาราง `incomes` (amount, note, received_on, source chat/form, idempotency_key, cancelled_at) revoke anon + RLS · `POST /api/income {amount, note?, receivedOn?}` + Idempotency-Key → `{summary}` (201/200) ต่อใน `live.ts` แล้ว · ห้ามวันอนาคต (การ์ด 03 "เงินที่จะเข้ายังไม่เป็นเงินใช้ได้วันนี้") · `GET /api/income` → `{incomes: [{id, amount, note, receivedOn, source, createdAt}]}` รอบเงินปัจจุบัน ไม่รวมที่ยกเลิก ใหม่สุดก่อน (16 พ.ย.: หน้าแผนเงิน › รายรับ เคยว่างเสมอ) · `api.incomes()` ใน live/mock
 - สูตร: `balanceNow(anchor, entries, incomes)` รายรับที่บันทึกหลังยอดอ้างอิง (และวันที่ ≥ วันของยอดอ้างอิง) **บวก**เข้าเงินที่มี · ปรับยอดทีหลังรวมไปแล้วไม่นับซ้ำ · ไม่นับในใช้ไปวันนี้ · ตัวอย่าง Figma 1,440 ÷ 12 = 120 → รับ 500 → 1,940 ÷ 12 = 161.50
 - แชต: «รับ 500» «รับเงิน 1,200 จากแม่» «เงินเข้า» «ได้เงิน» «รายรับ» «เงินเดือน» → จดทันที key `line:<eventId>` ตอบ "รับเงินแล้ว ✓ +500 บาท · วันนี้ใช้ได้อีก X" · «รับ» เฉย ๆ → ถามยอด · «ค่ารับส่ง 50» ยังเป็นรายจ่าย
 - ยังไม่มี: ดู/แก้/ลบรายรับ (ยกเลิกได้ภายหลังด้วย cancelled_at)
