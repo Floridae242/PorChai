@@ -26,6 +26,13 @@ export function categoryLabel(category: UserCategory | "bills" | "uncategorized"
 const DEFAULT_PUBLIC_ORIGIN =
   process.env.NEXT_PUBLIC_APP_URL || "https://porchai.vercel.app";
 
+export type PorchaiIcon = "bell" | "chat" | "check" | "clock" | "settings" | "warning" | "receipt" | "budget-calendar" | "gift-box" | "wallet" | "piggy-bank";
+
+export function iconPngUrl(icon: PorchaiIcon): string {
+  const origin = DEFAULT_PUBLIC_ORIGIN.startsWith("https://") ? DEFAULT_PUBLIC_ORIGIN.replace(/\/+$/, "") : "https://porchai.vercel.app";
+  return `${origin}/icons/porchai/${icon}.png`;
+}
+
 /**
  * LINE Flex requires HTTPS URLs ending in .png or .jpg (no WebP).
  * Uses `public/mascot/<pose>.png` hosted on the app domain.

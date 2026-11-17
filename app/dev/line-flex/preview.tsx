@@ -61,7 +61,7 @@ function Node({
   if (node.type === "image")
     return (
       <Image
-        src={/\/mascot\/[a-zA-Z0-9_-]+\.png$/.test(node.url) ? `/mascot/${node.url.split("/").at(-1)}` : node.url}
+        src={/\/(?:mascot|icons\/porchai)\/[a-zA-Z0-9_-]+\.png$/.test(node.url) ? new URL(node.url).pathname : node.url}
         alt=""
         width={300}
         height={200}
@@ -84,8 +84,10 @@ function Node({
         onClick={() => onAction(node.action)}
         style={{
           backgroundColor:
-            node.style === "primary" ? (node.color ?? "#246B45") : "#EDF2E6",
-          color: node.style === "primary" ? "white" : "#173E2B",
+            node.style === "primary" ? (node.color ?? "#246B45") : node.style === "link" ? "transparent" : "#EDF2E6",
+          color: node.style === "primary" ? "white" : (node.color ?? "#173E2B"),
+          minHeight: node.height === "sm" ? 40 : 48,
+          flex: 1,
           marginTop: length(node.margin),
         }}
       >
@@ -98,13 +100,22 @@ function Node({
     flexDirection: node.layout === "horizontal" || (node.layout as string)==="baseline" ? "row" : "column",
     alignItems: node.layout === "horizontal" ? "center" : "stretch",
     gap: length(node.spacing),
-    padding: length(node.paddingAll),
+    paddingTop: length(node.paddingTop ?? node.paddingAll),
+    paddingBottom: length(node.paddingBottom ?? node.paddingAll),
+    paddingLeft: length(node.paddingStart ?? node.paddingAll),
+    paddingRight: length(node.paddingEnd ?? node.paddingAll),
     backgroundColor: node.backgroundColor,
     borderRadius: length(node.cornerRadius),
     marginTop: length(node.margin),
     flex: node.flex,
     minWidth: 0,
   };
+  if (node.action) return (
+    <button type="button" aria-label={node.action.label} onClick={() => onAction(node.action!)}
+      style={{ ...style, width: "100%", textAlign: "left", border: 0, background: "transparent", cursor: "pointer" }}>
+      {node.contents.map((child, index) => <Node key={index} node={child} onAction={onAction} />)}
+    </button>
+  );
   return (
     <div style={style}>
       {node.contents.map((child, index) => (

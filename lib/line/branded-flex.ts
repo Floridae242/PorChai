@@ -29,10 +29,15 @@ type FlexButton = {
 };
 export type FlexBox = {
   type: "box";
+  action?: QuickReplyAction;
   layout: "vertical" | "horizontal";
   contents: FlexComponent[];
   backgroundColor?: string;
   paddingAll?: string;
+  paddingTop?: string;
+  paddingBottom?: string;
+  paddingStart?: string;
+  paddingEnd?: string;
   spacing?: string;
   margin?: string;
   cornerRadius?: string;

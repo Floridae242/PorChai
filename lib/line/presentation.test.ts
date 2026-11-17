@@ -32,7 +32,7 @@ describe("Flex-first LINE replies", () => {
     expect(bodyText(card as FlexMessage)).toBe(body);
     expect(card.altText).toBe(body);
     const json = JSON.stringify(card);
-    expect(json).not.toContain('"type":"image"'); // no image dependency for routine chat
+    expect(json).toContain('/icons/porchai/chat.png'); // Decorative only; all wording remains text.
     for (const node of nodes((card as FlexMessage).contents.body)) if (node.type === "text") expect(node.wrap).toBe(true);
   });
   it("keeps every quick reply and exact postback while showing at most three footer actions", () => {
@@ -46,14 +46,15 @@ describe("Flex-first LINE replies", () => {
     expect(buttons.map((b) => b.type === "button" && b.action)).toEqual(actions.slice(0, 3));
     expect(source.type).toBe("text");
   });
-  it("includes the same MINI App action in the card and keyboard without duplicating it", () => {
+  it("keeps app and help shortcuts on the keyboard without repeating a footer", () => {
     vi.stubEnv("NEXT_PUBLIC_LIFF_ID", "2012545254-6025ZG1r");
     const first = presentReply(withAppButton(text("พิมพ์ตอบได้เลยครับ")));
     expect(presentReply(withAppButton(first))).toEqual(first);
     expect(first.quickReply?.items.filter((i) => i.action.label === "เปิดแอป")).toHaveLength(1);
     if (first.type !== "flex") throw new Error("expected flex");
     if (first.contents.type !== "bubble") throw new Error("expected bubble");
-    expect(JSON.stringify(first.contents.footer)).toContain("เปิดแอป");
+    expect(first.contents.footer).toBeUndefined();
+    expect(first.quickReply?.items.some(i => i.action.label === "วิธีใช้")).toBe(true);
   });
   it("keeps existing specialized cards and carousels unchanged", () => {
     const card = flexPrompt(text("ตั้งแผนก่อนครับ"), "ตั้งแผน", "เปิดแอป", "/app");

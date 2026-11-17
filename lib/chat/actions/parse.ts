@@ -145,12 +145,16 @@ export function parseIntent(message: string, today: string): Intent | null {
   if (/^(?:ดู|ขอ|แลก)(?:ของรางวัล|รางวัล|ของ)|^แลกแต้ม/u.test(s))
     return {
       tool: "rewards",
+      page: fields(s, "rewards", today).page,
       query: s
         .replace(/^(?:ดู|ขอ|แลก)(?:ของรางวัล|รางวัล|ของ)|^แลกแต้ม/u, "")
         .trim(),
     };
   if (/^ดู\s*(?:คูปอง|โปรโมชัน|โปรโมชั่?น|โปร|โฆษณา)(?:ตัวอย่าง|จำลอง)?$/u.test(bare))
     return { tool: "promos" };
+  // A bill-specific reminder is not a request to change every digest preference.
+  if (/^(?:ตั้ง(?:ค่า|เวลา)?|เปิด|ปิด|ดู|เปลี่ยน(?:เวลา)?|เลื่อน)(?:การ)?(?:แจ้ง)?เตือน/u.test(s) && /บิล|จ่ายค่า/u.test(s))
+    return { tool: "bill_reminder_help" };
   if (
     /^(?:เปิด|ปิด|ดู|ตั้ง(?:ค่า)?|เปลี่ยนเวลา)(?:สรุป|แจ้งเตือน|เตือนงบ)|^ตั้งเวลาแจ้งเตือน/u.test(
       s,

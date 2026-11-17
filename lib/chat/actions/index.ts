@@ -61,12 +61,13 @@ import {
 } from "@/lib/validate";
 import { categoryOf, parseExpense } from "@/lib/chat/parse";
 import { reportCard } from "@/lib/chat/cards";
-import { CATEGORY_LABELS } from "@/lib/line/flex/format";
+import { CATEGORY_LABELS, miniAppUrl } from "@/lib/line/flex/format";
 import { parseIntent, statedDate, statedMoney } from "./parse";
 import { inferReadIntent } from "./infer";
 import { sponsorCarousel } from "@/lib/line/sponsor-card";
 import { INSTALLMENT_HELP, installmentSchedule, parseInstallment } from "./installments";
 import { guideCard } from "@/lib/line/flex/guide-specs";
+import { buildActionList } from "@/lib/line/flex/cards/action-list";
 import { addInstallments } from "@/lib/db/installments";
 import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isQuestion } from "@/lib/advice/question";
 import { simulatePurchase } from "@/lib/calc/budget";
@@ -135,8 +136,20 @@ async function preview(
     action: mutation,
     basis,
   };
+  if (mutation.op === "notifications") {
+    const value = mutation.value;
+    return { pending: p, message: buildActionList({
+      title: "ตรวจการแจ้งเตือน", subtitle: `เวลาสรุป ${value.time} น. (เวลาไทย)\nยังไม่เปลี่ยนค่า · ตรวจแล้วกดยืนยันครับ`, icon: "bell",
+      rows: [
+        { title: "สรุปรายวัน", value: value.daily ? "เปิด" : "ปิด" },
+        { title: "สรุปรายเดือน", value: value.monthly ? "เปิด" : "ปิด" },
+        { title: "เตือนงบ", value: value.budget ? "เปิด" : "ปิด", icon: "wallet" },
+      ],
+      actions: [action("ยืนยัน", `pc:yes:${p.key}`), action("ยกเลิก", `pc:no:${p.key}`)],
+    }) };
+  }
   return say(
-    `ยืนยัน ${label}\nน้องพอใช้เตรียมร่างให้แล้วครับ ยังไม่ได้เปลี่ยนข้อมูล ตรวจให้ครบแล้วกดหรือพิมพ์ “ยืนยัน” หรือ “ยกเลิก” ครับ`,
+    `${label}\nยังไม่ได้เปลี่ยนข้อมูลครับ ตรวจแล้วกด “ยืนยัน” ได้เลย`,
     p,
     [action("ยืนยัน", `pc:yes:${p.key}`), action("ยกเลิก", `pc:no:${p.key}`)],
     "ตรวจข้อมูลก่อนยืนยัน",
@@ -178,7 +191,7 @@ async function execute(userId: string, p: CommandPending): Promise<string> {
       if (!equal(await getNotificationPreferences(userId), a.previous))
         throw stale();
       await saveNotificationPreferences(userId, a.value);
-      return "บันทึกการแจ้งเตือนแล้วครับ ระบบส่งได้เมื่อผู้ดูแลเปิดงานแจ้งเตือนและคุณยังเป็นเพื่อน OA อยู่";
+      return "บันทึกการตั้งค่าแล้วครับ\nการส่งข้อความขึ้นอยู่กับบริการแจ้งเตือน และต้องเป็นเพื่อนกับน้องพอใช้อยู่ครับ";
     }
     case "reminders": {
       const current = await getReminderSettings(userId);
@@ -372,11 +385,22 @@ async function choose(
     purpose: intent,
     page,
   };
-  return say(
-    `${type === "reward" ? "ของรางวัล (ใช้แต้ม)" : type === "plan" ? "แผนและบิล" : "รายจ่ายล่าสุด"} · หน้า ${page}\n${rows.map((r, i) => `${i + 1}. ${r.title} · ${type === "reward" ? `${r.amount} แต้ม` : money(r.amount)}${r.status ? ` · ${statusText(r.status)}` : ""}`).join("\n")}\nแสดงไม่เกิน 10 รายการต่อหน้า เลือกหมายเลขเพื่อ${intent ? "ทำต่อ" : "ดูรายละเอียด"}ครับ${type === "plan" ? `\nดูต่อ: ดูแผน หน้า ${page + 1} · ทำรายการ: จ่ายบิล 1 หน้า ${page}` : ""}`,
-    p,
-    rows.map((_, i) => action(`เลือก ${i + 1}`, `pc:pick:${p.key}:${i}`)),
-  );
+  const picks = rows.map((_, index) => action(`เลือก ${index + 1}`, `pc:pick:${p.key}:${index}`));
+  const nextQuery = type === "plan" ? "ดูแผน" : type === "entry" ? "ดูรายการ" : "ดูของรางวัล";
+  return { pending: p, message: {
+    ...buildActionList({
+      title: type === "reward" ? "ของรางวัล" : type === "plan" ? "แผนและบิล" : "รายจ่ายล่าสุด",
+      subtitle: `หน้า ${page} · แตะรายการเพื่อ${intent ? "ทำต่อ" : "ดูรายละเอียด"}ครับ`,
+      icon: type === "reward" ? "gift-box" : type === "plan" ? "budget-calendar" : "receipt",
+      rows: rows.map((row, index) => ({ title: `${index + 1}. ${row.title}`,
+        detail: `${type === "reward" ? `${row.amount} แต้ม` : money(row.amount)}${row.status ? ` · ${statusText(row.status)}` : ""}`,
+        ...(type === "plan" ? { icon: row.status === "paid" ? "check" as const : row.status === "postponed" ? "clock" as const : "receipt" as const } : {}),
+        action: picks[index],
+      })),
+      ...(rows.length === 10 && page < 100 ? { actions: [{ type: "message" as const, label: "หน้าถัดไป", text: `${nextQuery} หน้า ${page + 1}` }] } : {}),
+    }),
+    quickReply: { items: picks.map(action => ({ type: "action" as const, action })) },
+  } };
 }
 
 const FEATURE_HEADINGS:Partial<Record<Intent["tool"],string>>={help:"เมนูช่วยเหลือ",setup:"เริ่มรอบเงิน",insights:"วิเคราะห์การใช้เงิน",categories:"หมวดและงบ",category_save:"หมวดและงบ",category_entry:"จดเข้าหมวด",installments:"แผนผ่อนสินค้า",report:"รายงานการใช้เงิน",search:"ค้นรายจ่าย",web:"ค้นเว็บพร้อมอ้างอิง",points:"แต้มของฉัน",claim_points:"เช็กแผนและแต้ม",entries:"รายการที่จด",plans:"แผนและบิล",rewards:"ของรางวัล",promos:"โปรตัวอย่าง",notifications:"สรุปและเตือนงบ",reminders:"เตือนจดรายการ",balance:"ปรับยอดเงินจริง",buffer:"เงินเผื่อ",payday:"วันรับเงิน",essentials:"ค่าใช้จ่ายจำเป็น",entry_edit:"แก้ไขรายการ",entry_delete:"ยกเลิกรายการ",plan_action:"จัดการแผน"};
@@ -509,6 +533,9 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
       );
     case "promos":
       return { message: sponsorCarousel() };
+    case "bill_reminder_help":
+      return say("ยังไม่ได้เปลี่ยนการเตือนบิลหรือค่าสรุปครับ\nเลือกวันครบกำหนดและเปิด/ปิดเตือนได้ใน “บิลประจำ”\nถ้าเปิดเตือน จะเตือนล่วงหน้า 3 วันและวันครบกำหนด เวลา 09:00 น.\nตอนนี้ยังเลือกเวลาเฉพาะบิลผ่านแชตไม่ได้ครับ", undefined,
+        [{ type: "uri", label: "ตั้งเตือนบิล", uri: miniAppUrl("/app/settings/bills") }], "เตือนบิลประจำ");
     case "notifications": {
       const p = await getNotificationPreferences(userId);
       if (i.enabled === undefined && !i.time)
@@ -744,8 +771,15 @@ async function selected(
   const item = p.items[index];
   if (!item) return say("เลือกหมายเลขที่แสดงในรายการครับ", p);
   if (p.purpose) return run(userId, { ...p.purpose, selected: item });
+  const page = p.page ?? 1;
+  const detail = p.type === "plan"
+    ? item.status === "cancelled" ? "รายการนี้ยกเลิกแล้วครับ ไม่ต้องจ่ายซ้ำ"
+      : item.status === "paid" ? `จ่ายแล้วครับ หากจดผิด พิมพ์ “ยังไม่จ่าย ${index + 1} หน้า ${page}”`
+      : `พิมพ์ “จ่ายบิล ${index + 1} หน้า ${page}” หรือ “เลื่อนแผน ${index + 1} หน้า ${page}” ได้ครับ`
+    : p.type === "reward" ? "พิมพ์ แลกของรางวัล แล้วเลือกของที่ต้องการครับ"
+    : `พิมพ์ “แก้รายการ ${index + 1} หน้า ${page} 60 บาท” หรือ “ลบรายการ ${index + 1} หน้า ${page}” ได้ครับ`;
   return say(
-    `${item.title} ${money(item.amount)}${item.status ? ` · ${statusText(item.status)}` : ""}\n${p.type === "entry" ? "พิมพ์ แก้รายการล่าสุด 60 บาท หรือ ลบรายการล่าสุด หรือระบุเลขรายการจากรายการล่าสุดครับ" : `พิมพ์ จ่ายบิล 1 หน้า ${p.page ?? 1} / เลื่อนแผน 1 หน้า ${p.page ?? 1} ตามเลขในหน้านี้ครับ`}`,
+    `${item.title}\n${p.type === "reward" ? `${item.amount} แต้ม` : money(item.amount)}${item.status ? ` · ${statusText(item.status)}` : ""}\n${detail}`,
   );
 }
 
