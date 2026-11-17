@@ -46,9 +46,24 @@ afterEach(cleanup);
 it("preserves a selected personal category and its parent in the submitted entry",async()=>{
   const api=mk(),cat=await api.saveSpendingCategory({label:"ชานม",parent:"food",monthlyBudget:50000}),save=vi.spyOn(api,"addEntry");
   renderWith(api,<RecordNewView/>);const user=userEvent.setup();
-  const select=await screen.findByLabelText("หมวดของฉัน");await user.selectOptions(select,cat.id);
+  await user.click(await screen.findByRole("button",{name:"ชานม"}));
   await user.type(screen.getByLabelText(AMOUNT),"50");await user.type(screen.getByLabelText("ชื่อรายการ"),"ชาไทย");await user.click(screen.getByRole("button",{name:"บันทึก"}));
   await waitFor(()=>expect(save).toHaveBeenCalledWith(expect.objectContaining({category:"food",categoryId:cat.id,amount:5000}),expect.any(String)));
+});
+
+it("+ เพิ่มหมวด: a popup takes only a name, saves it as the user's own category and picks it",async()=>{
+  const api=mk(),saveCat=vi.spyOn(api,"saveSpendingCategory"),save=vi.spyOn(api,"addEntry");
+  renderWith(api,<RecordNewView/>);const user=userEvent.setup();
+  await user.click(await screen.findByRole("button",{name:"+ เพิ่มหมวด"}));
+  const dialog=await screen.findByRole("dialog",{name:"เพิ่มหมวดของฉัน"});
+  expect(dialog.querySelectorAll("select")).toHaveLength(0); // no main-category question
+  await user.type(screen.getByLabelText("ชื่อหมวด"),"กาแฟ");
+  await user.click(screen.getByRole("button",{name:"เพิ่มหมวด"}));
+  await waitFor(()=>expect(saveCat).toHaveBeenCalledWith({label:"กาแฟ",parent:"other",monthlyBudget:null}));
+  const chip=await screen.findByRole("button",{name:"กาแฟ"});
+  expect(chip.getAttribute("aria-pressed")).toBe("true");
+  await user.type(screen.getByLabelText(AMOUNT),"45");await user.click(screen.getByRole("button",{name:"บันทึก"}));
+  await waitFor(()=>expect(save).toHaveBeenCalledWith(expect.objectContaining({categoryId:expect.any(String),amount:4500}),expect.any(String)));
 });
 
 describe("RecordNewView — income (D1)", () => {

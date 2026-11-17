@@ -339,7 +339,6 @@ export function PlanMainView() {
                       href={`/app/record/${row.entry.id}`}
                     />
                   ) : (
-                    // Money received has no edit screen yet: the row is not a link
                     <ListRow
                       key={row.income.id}
                       title={row.income.note ?? "รายรับ"}
@@ -347,6 +346,7 @@ export function PlanMainView() {
                       amount={`+${formatBaht(row.income.amount)} บาท`}
                       tone="income"
                       leading={<MoneyDirection kind="income" />}
+                      href={`/app/record/income/${row.income.id}`}
                     />
                   ),
                 )}

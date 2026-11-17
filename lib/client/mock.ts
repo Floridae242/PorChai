@@ -513,6 +513,23 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       return { summary: summaryOf(c) };
     },
 
+    async setBuffer(req) {
+      const c = requireCycle();
+      if (!satangOk(req.amount) || !satangOk(req.previous)) {
+        throw new ApiError(422, "invalid_input", "เงินเผื่อต้องเป็นจำนวนสตางค์ ไม่ติดลบ");
+      }
+      if (c.emergencyBuffer === req.amount) return { summary: summaryOf(c) };
+      if (c.emergencyBuffer !== req.previous) {
+        throw new ApiError(409, "stale", "เงินเผื่อถูกเปลี่ยนจากอีกหน้าจอแล้ว โหลดใหม่ก่อนยืนยัน");
+      }
+      const input = inputOf(c);
+      if (!setAsideFits(input.balance, input.savings, req.amount)) {
+        throw new ApiError(422, "invalid_input", MSG_SET_ASIDE_OVER);
+      }
+      c.emergencyBuffer = req.amount;
+      return { summary: summaryOf(c) };
+    },
+
     async plans() {
       const c = requireCycle();
       return { plans: plans.map((p) => publicPlan(c, p)) };
@@ -669,6 +686,32 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
     async incomes() {
       requireCycle();
       return { incomes: [...incomeList].reverse() };
+    },
+
+    async editIncome(id, req) {
+      const c = requireCycle();
+      const row = incomeList.find((i) => i.id === id);
+      if (!row) throw new ApiError(404, "not_found", "ไม่พบรายการนี้");
+      const amount = req.amount ?? row.amount;
+      const receivedOn = req.receivedOn ?? row.receivedOn;
+      if (!(amount > 0)) throw new ApiError(422, "invalid_input", "จำนวนเงินไม่ถูกต้อง");
+      if (receivedOn > today) throw new ApiError(422, "invalid_input", "วันที่รับเงินต้องไม่เกินวันนี้");
+      const report = reportIncomes.find((r) => r.amount === row.amount && r.receivedOn === row.receivedOn);
+      c.anchor = { ...c.anchor, amount: c.anchor.amount + amount - row.amount };
+      if (report) Object.assign(report, { amount, receivedOn });
+      Object.assign(row, { amount, receivedOn, note: req.note !== undefined ? req.note : row.note });
+      return { summary: summaryOf(c) };
+    },
+
+    async cancelIncome(id) {
+      const c = requireCycle();
+      const at = incomeList.findIndex((i) => i.id === id);
+      if (at < 0) throw new ApiError(404, "not_found", "ไม่พบรายการนี้");
+      const [row] = incomeList.splice(at, 1);
+      const ri = reportIncomes.findIndex((r) => r.amount === row.amount && r.receivedOn === row.receivedOn);
+      if (ri >= 0) reportIncomes.splice(ri, 1);
+      c.anchor = { ...c.anchor, amount: c.anchor.amount - row.amount };
+      return { summary: summaryOf(c) };
     },
 
     async dailySpend() {

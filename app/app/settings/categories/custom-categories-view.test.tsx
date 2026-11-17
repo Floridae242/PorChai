@@ -106,18 +106,30 @@ it("creating a personal category requires review and explicit confirmation", asy
   );
   await screen.findByText("บันทึกหมวดและงบแล้ว");
 });
-it("suggestions cannot silently change budget settings", async () => {
+it("has no suggestion button and no main-category picker; the editor is a popup", async () => {
   const api = createMockApi();
-  await api.addEntry({ amount: 5000, category: "food", note: "ข้าว" }, "a");
-  const save = vi.spyOn(api, "saveSpendingCategory");
   render(
     <ApiContext.Provider value={api}>
       <CustomCategoriesView />
     </ApiContext.Provider>,
   );
-  fireEvent.click(
-    await screen.findByRole("button", { name: "ดูงบแนะนำจากประวัติ" }),
+  await screen.findByRole("button", { name: "+ สร้างหมวดใหม่" });
+  expect(screen.queryByRole("button", { name: "ดูงบแนะนำจากประวัติ" })).toBeNull();
+  expect(screen.queryByText(/หมวดหลัก/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "+ สร้างหมวดใหม่" }));
+  const dialog = await screen.findByRole("dialog", { name: "หมวดใหม่" });
+  expect(dialog.contains(screen.getByLabelText("ชื่อหมวด"))).toBe(true);
+  expect(screen.queryByRole("combobox")).toBeNull();
+});
+it("a new category is saved without any main category chosen by the user", async () => {
+  const api = createMockApi(),
+    save = vi.spyOn(api, "saveSpendingCategory");
+  render(
+    <ApiContext.Provider value={api}>
+      <CustomCategoriesView />
+    </ApiContext.Provider>,
   );
-  await screen.findByText("งบแนะนำเป็นเพียงร่าง");
-  expect(save).not.toHaveBeenCalled();
+  await reviewNewCategory();
+  fireEvent.click(screen.getByRole("button", { name: "ยืนยันบันทึกหมวดและงบ" }));
+  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ label: "ชานม", parent: "other" })));
 });
