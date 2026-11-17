@@ -1,14 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
 import { Sheet } from "@/components/shell/sheet";
 import { Banner } from "@/components/ui/banner";
-import { Button, buttonClass } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { InputField } from "@/components/ui/input-field";
 import type { Category } from "@/lib/api-types";
+import { CATEGORY_LABELS } from "@/lib/client/category-labels";
 import { ApiError } from "@/lib/client/errors";
 import { useApi } from "@/lib/client/use-api";
 import {
@@ -18,6 +18,7 @@ import {
 } from "@/lib/format/money";
 import type { SaveCategory, SpendingCategory } from "@/lib/insights/types";
 
+const parents = Object.keys(CATEGORY_LABELS) as Category[];
 type Draft = {
   id?: string;
   version?: string;
@@ -72,7 +73,7 @@ export function CustomCategoriesView() {
                   : satangToInputString(row.monthlyBudget)
                 : satangToInputString(budget),
           }
-        : { label: "", parent: "other", budget: "" },
+        : { label: "", parent: "food", budget: "" },
     );
   }
   function review(e: React.FormEvent) {
@@ -169,6 +170,7 @@ export function CustomCategoriesView() {
                   <strong className="break-words text-primary">
                     {c.label}
                   </strong>
+                  <p className="mt-1 text-xs leading-5 text-secondary">หมวดหลัก: {CATEGORY_LABELS[c.parent]}</p>
                   <p className="mt-2 text-sm font-semibold text-primary">
                     {c.monthlyBudget === null
                       ? "ยังไม่ตั้งงบ"
@@ -186,25 +188,15 @@ export function CustomCategoriesView() {
               </li>
             ))}
           </ul>
+          <p className="text-xs text-secondary">
+            ยอดหมวดหลักรวมหมวดย่อยแล้ว งบของหมวดหลักจึงครอบคลุมหมวดย่อยด้วย
+            ไม่ควรนำสองระดับมาบวกซ้ำ
+          </p>
           <Button variant="secondary" disabled={busy} onClick={() => edit()}>
             + สร้างหมวดใหม่
           </Button>
-          <Button
-            variant="ghost"
-            disabled={busy}
-            onClick={() => {
-              setDraft(null);
-              setPreview(null);
-              setAttempt((n) => n + 1);
-            }}
-          >
-            โหลดหมวดล่าสุด
-          </Button>
         </>
       )}
-      <Link className={buttonClass("secondary", true)} href="/app/insights">
-        ดูพฤติกรรมและงบที่ใช้ไป
-      </Link>
       <Sheet
         open={!!draft && !preview}
         onClose={() => {
@@ -224,6 +216,23 @@ export function CustomCategoriesView() {
               disabled={busy}
               onChange={(e) => setDraft({ ...draft, label: e.target.value })}
             />
+            <label className="flex flex-col gap-2 text-sm font-semibold text-primary">
+              หมวดหลัก
+              <select
+                className="min-h-12 rounded-sm border border-line-strong bg-card px-3"
+                value={draft.parent}
+                disabled={busy || !!draft.id}
+                onChange={(e) => setDraft({ ...draft, parent: e.target.value as Category })}
+              >
+                {parents
+                  .filter((p) => draft.id || p !== "bills")
+                  .map((p) => (
+                    <option value={p} key={p}>
+                      {CATEGORY_LABELS[p]}
+                    </option>
+                  ))}
+              </select>
+            </label>
             <InputField
               label="งบต่อเดือน (บาท)"
               inputMode="decimal"
@@ -267,6 +276,10 @@ export function CustomCategoriesView() {
             <div>
               <dt className="text-secondary">ชื่อหมวด</dt>
               <dd className="break-words font-semibold">{preview?.label}</dd>
+            </div>
+            <div>
+              <dt className="text-secondary">หมวดหลัก</dt>
+              <dd>{preview ? CATEGORY_LABELS[preview.parent] : ""}</dd>
             </div>
             <div>
               <dt className="text-secondary">งบต่อเดือน</dt>

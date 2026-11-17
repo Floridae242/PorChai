@@ -106,7 +106,7 @@ it("creating a personal category requires review and explicit confirmation", asy
   );
   await screen.findByText("บันทึกหมวดและงบแล้ว");
 });
-it("has no suggestion button and no main-category picker; the editor is a popup", async () => {
+it("has no suggestion button; the editor is a popup that asks for the main category", async () => {
   const api = createMockApi();
   render(
     <ApiContext.Provider value={api}>
@@ -115,13 +115,15 @@ it("has no suggestion button and no main-category picker; the editor is a popup"
   );
   await screen.findByRole("button", { name: "+ สร้างหมวดใหม่" });
   expect(screen.queryByRole("button", { name: "ดูงบแนะนำจากประวัติ" })).toBeNull();
-  expect(screen.queryByText(/หมวดหลัก/)).toBeNull();
+  // the only action on the page is the add button
+  expect(screen.queryByRole("button", { name: "โหลดหมวดล่าสุด" })).toBeNull();
+  expect(screen.queryByRole("link", { name: /ดูพฤติกรรมและงบที่ใช้ไป/ })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "+ สร้างหมวดใหม่" }));
   const dialog = await screen.findByRole("dialog", { name: "หมวดใหม่" });
   expect(dialog.contains(screen.getByLabelText("ชื่อหมวด"))).toBe(true);
-  expect(screen.queryByRole("combobox")).toBeNull();
+  expect(dialog.contains(screen.getByLabelText("หมวดหลัก"))).toBe(true);
 });
-it("a new category is saved without any main category chosen by the user", async () => {
+it("a new category is saved with the main category the user chose", async () => {
   const api = createMockApi(),
     save = vi.spyOn(api, "saveSpendingCategory");
   render(
@@ -129,7 +131,10 @@ it("a new category is saved without any main category chosen by the user", async
       <CustomCategoriesView />
     </ApiContext.Provider>,
   );
-  await reviewNewCategory();
+  fireEvent.click(await screen.findByRole("button", { name: "+ สร้างหมวดใหม่" }));
+  fireEvent.change(screen.getByLabelText("ชื่อหมวด"), { target: { value: "ชานม" } });
+  fireEvent.change(screen.getByLabelText("หมวดหลัก"), { target: { value: "transport" } });
+  fireEvent.click(screen.getByRole("button", { name: "ตรวจข้อมูลก่อนบันทึก" }));
   fireEvent.click(screen.getByRole("button", { name: "ยืนยันบันทึกหมวดและงบ" }));
-  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ label: "ชานม", parent: "other" })));
+  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ label: "ชานม", parent: "transport" })));
 });
