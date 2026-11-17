@@ -18,6 +18,7 @@ import {
   spentOnDay,
 } from "@/lib/calc/inputs";
 import { addDays } from "@/lib/calc/time";
+import { findHabits } from "@/lib/remind/habits";
 import { ApiError } from "./errors";
 import {
   CONSENT_VERSION,
@@ -113,6 +114,12 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   const billPlans=new Map<string,string[]>();
   const incomeKeys = new Set<string>();
   let reminders: ReminderSettings = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
+
+  // Card 58, like /api/reminders: the habits come from the entries (lib/remind/habits), never stored.
+  function habitsNow(): ReminderSettings["habits"] {
+    const recent = entries.map((e) => ({ note: e.note, amount: e.amount, category: e.category, spentOn: e.spentOn, createdAt: e.createdAt, source: e.source, cancelled: e.cancelledAt !== null }));
+    return findHabits(recent, today).map((h) => ({ id: h.key, label: h.label, amount: h.amount, time: h.time }));
+  }
 
   function pushEntry(
     amount: number,
@@ -696,14 +703,14 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
 
     async reminderSettings() {
       if (!consented) throw new ApiError(403, "no_consent", MSG_NO_CONSENT);
-      return { ...reminders, habits: [...reminders.habits] };
+      return { ...reminders, habits: habitsNow() };
     },
 
     async saveReminderSettings(req) {
       if (!consented) throw new ApiError(403, "no_consent", MSG_NO_CONSENT);
       if (!HHMM.test(req.time)) throw new ApiError(422, "invalid_input", "เวลาไม่ถูกต้อง");
-      reminders = { enabled: req.enabled, time: req.time, pausedUntil: req.pausedUntil, habits: reminders.habits };
-      return { ...reminders, habits: [...reminders.habits] };
+      reminders = { enabled: req.enabled, time: req.time, pausedUntil: req.pausedUntil, habits: [] };
+      return { ...reminders, habits: habitsNow() };
     },
 
     async deleteMyData() {

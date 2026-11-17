@@ -315,7 +315,7 @@
     return unknown;
   }
 
-  function addRow(from, message) {
+  function addRow(from, message, at) {
     const row = document.createElement("div");
     row.className = "row " + from;
     row.dataset.testid = from === "user" ? "chat-user" : "chat-bot";
@@ -340,7 +340,7 @@
     inner.style.alignItems = "flex-end";
     const meta = document.createElement("span");
     meta.className = "meta";
-    meta.textContent = (from === "user" ? "อ่านแล้ว\n" : "") + time();
+    meta.textContent = (from === "user" ? "อ่านแล้ว\n" : "") + (at || time());
     meta.style.whiteSpace = "pre";
     const body = renderMessage(message);
     if (from === "user") { inner.appendChild(meta); inner.appendChild(body); inner.style.justifyContent = "flex-end"; }
@@ -408,7 +408,7 @@
       day.textContent = "วันนี้";
       log.appendChild(day);
     }
-    for (const it of data.items) addRow(it.from, it.message);
+    for (const it of data.items) addRow(it.from, it.message, it.at);
     const lastBot = [...data.items].reverse().find((i) => i.from === "bot");
     if (lastBot && data.items.at(-1) === lastBot) setQuickReplies(lastBot.message);
     // Rich menu from buildRichMenuSpec (2500×1686 grid)

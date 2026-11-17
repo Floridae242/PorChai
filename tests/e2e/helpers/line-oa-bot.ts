@@ -12,6 +12,11 @@
  * Differences from production, on purpose: no Gemini call (free text gets the bot's no-AI fallback reply; a
  * slip is "read" by a fixed OCR stub; «… ไหวไหม» is answered with the try card from the same flow instead of
  * the AI compare card), and the chat memory lives in this object.
+ *
+ * Habit reminders (Card 58): runReminderCron(now) does what app/api/cron/reminders + lib/db/reminders do every
+ * 15 minutes — the user's settings, the habits found in their entries (lib/remind/habits findHabits/dueHabit,
+ * the real rules), once per habit per day — and pushes the real reminderCard. Its buttons are handled like
+ * handle-event.ts onReminderButton.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -20,6 +25,8 @@ import type { Entry, NewEntryRequest, Summary, UserCategory } from "../../../lib
 import type { BudgetResult } from "../../../lib/calc/budget";
 import type { PorchaiApi } from "../../../lib/client/types";
 import type { OcrDraft, ProposedItem, TryDraft } from "../../../lib/db/chat-memory";
+import type { ReminderLog } from "../../../lib/db/reminders";
+import { dueHabit, findHabits, type EntryForHabit } from "../../../lib/remind/habits";
 import { amountOnly, categoryOf, parseExpense } from "../../../lib/chat/parse";
 import { parseIntent } from "../../../lib/chat/actions/parse";
 import { canSplitExpenses, splitExplicitExpenses } from "../../../lib/chat/multi-expense";
@@ -37,6 +44,10 @@ import {
   proposalCard,
   recordedCard,
   recordedManyCard,
+  reminderAlreadyMessage,
+  reminderCard,
+  reminderEditMessage,
+  reminderSkippedMessage,
   todayCard,
   tryCard,
   welcomeCard,
@@ -55,11 +66,12 @@ export const LINE_OA_PATH = "/__line-oa";
 /** What the OCR stub "reads" from tests/fixtures/mock-slip.png (a sample slip, see generate-mock-slip.ts). */
 export const DEMO_SLIP = { merchant: "ร้านเบอร์เกอร์", amount: 5000, kind: "expense" as const };
 
-type ChatItem = { from: "user" | "bot"; message: unknown };
+type ChatItem = { from: "user" | "bot"; message: unknown; at?: string }; // at: HH:mm shown on a pushed message
 type Pending =
   | { kind: "edit"; entryId: string; title: string }
   | { kind: "ocr"; draftId: string; awaiting?: "amount" }
   | { kind: "items"; key: string; items: ProposedItem[] }
+  | { kind: "reminder"; reminderId: string }
   | null;
 
 type ChatEvent =
@@ -76,7 +88,11 @@ export class DemoLineBot {
   private pending: Pending = null;
   private readonly tries = new Map<string, TryDraft & { closed?: boolean }>();
   private readonly ocrDrafts = new Map<string, OcrDraft & { closed?: boolean }>();
+  /** reminder_log: what was pushed today, by id; and the habit keys already reminded today (never twice). */
+  readonly reminders = new Map<string, ReminderLog>();
+  private readonly remindedKeys = new Set<string>();
   private seq = 0;
+  private route?: { match: (url: URL) => boolean; handler: (route: Route) => Promise<void> };
 
   constructor(
     private readonly backend: FakePorchaiBackend,
@@ -108,10 +124,47 @@ export class DemoLineBot {
 
   /** Serves the chat page, its history and its webhook-like endpoint on this page. */
   async install(page: Page) {
-    await page.route(
-      (url) => url.pathname === LINE_OA_PATH || url.pathname.startsWith(`${LINE_OA_PATH}/`),
-      (route) => this.serve(route),
-    );
+    this.route = {
+      match: (url) => url.pathname === LINE_OA_PATH || url.pathname.startsWith(`${LINE_OA_PATH}/`),
+      handler: (route) => this.serve(route),
+    };
+    await page.route(this.route.match, this.route.handler);
+  }
+
+  /** Hands the chat page to another account's bot (the LINE app shows one user's chat at a time). */
+  async uninstall(page: Page) {
+    if (this.route) await page.unroute(this.route.match, this.route.handler);
+    this.route = undefined;
+  }
+
+  /**
+   * One run of the reminder cron at `now` (HH:mm, Thai time): if a habit is due it is pushed as the real
+   * reminder card (withAppButton(reminderCard(log, time)), as app/api/cron/reminders sends it). Returns the
+   * reminder pushed, or null (off, paused, nothing due, already reminded today, already recorded today).
+   */
+  async runReminderCron(now: string): Promise<ReminderLog | null> {
+    const settings = await this.api.reminderSettings();
+    if (!settings.enabled || (settings.pausedUntil !== null && settings.pausedUntil >= TODAY)) return null;
+    const { entries } = await this.api.entries();
+    const recent: EntryForHabit[] = (entries as Entry[]).map((e) => ({ note: e.note, amount: e.amount, category: e.category, spentOn: e.spentOn, createdAt: e.createdAt, source: e.source }));
+    const habit = dueHabit(findHabits(recent, TODAY), recent.filter((e) => e.spentOn === TODAY), settings.time, now, this.remindedKeys);
+    if (!habit) return null;
+    const log: ReminderLog = { id: crypto.randomUUID(), label: habit.label, amount: habit.amount, category: habit.category, day: TODAY, status: "sent", entry_id: null };
+    this.reminders.set(log.id, log);
+    this.remindedKeys.add(habit.key);
+    const out = [withAppButton(reminderCard(log, settings.time))];
+    for (const message of out) this.transcript.push({ from: "bot", message, at: now });
+    this.log.push({ event: { type: "follow" }, replies: out.map(altOf) });
+    return log;
+  }
+
+  // ใช่ จดเลย / แก้ยอด → «60»: recorded once under the reminder (reminder:<id>), like recordReminder
+  private async recordReminder(log: ReminderLog, amount: number): Promise<ReplyMessage> {
+    if (log.status === "recorded") return reminderAlreadyMessage(log.label, amount);
+    const { entry } = await this.addEntry({ amount, category: log.category, note: log.label, spentOn: log.day }, `reminder:${log.id}`, "reminder");
+    log.status = "recorded";
+    log.entry_id = entry.id;
+    return this.recorded({ id: entry.id, title: log.label, amount: entry.amount, category: log.category });
   }
 
   private async serve(route: Route) {
@@ -165,6 +218,11 @@ export class DemoLineBot {
     if (intent) return { message: notWiredMessage() };
 
     const amount = amountOnly(body);
+    // Card 58 [แก้ยอด] → «60»: record the reminded habit with the amount typed
+    if (pending?.kind === "reminder" && amount !== null) {
+      const log = this.reminders.get(pending.reminderId);
+      if (log) return { message: await this.recordReminder(log, amount) };
+    }
     // OCR [แก้ยอด] → «120»
     if (pending?.kind === "ocr" && pending.awaiting === "amount" && amount !== null) {
       const d = this.ocrDrafts.get(pending.draftId);
@@ -262,6 +320,17 @@ export class DemoLineBot {
     if (p.action === "menu_today") return { message: todayCard(await this.api.summary()) };
     if (p.action === "menu_record") return { message: howToRecordMessage() };
     if (p.action === "menu_try") return { message: howToTryMessage() };
+    if (p.action.startsWith("rem_")) {
+      const log = this.reminders.get(p.id);
+      if (!log) return { message: text("ไม่พบการเตือนนี้ครับ") };
+      if (p.action === "rem_yes") return { message: await this.recordReminder(log, log.amount) };
+      if (p.action === "rem_edit") return { message: reminderEditMessage(log), pending: { kind: "reminder", reminderId: log.id } };
+      if (p.action === "rem_skip") {
+        if (log.status !== "recorded") log.status = "skipped";
+        return { message: reminderSkippedMessage(log, await this.api.summary()) };
+      }
+      return { message: text("ยกเลิกการแก้แล้วครับ ยังไม่ได้จดอะไร") };
+    }
     if (p.action === "entry_edit") {
       const { entries } = await this.api.entries();
       const entry = (entries as Entry[]).find((e) => e.id === p.id);

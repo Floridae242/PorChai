@@ -166,7 +166,7 @@ export function buildHabitReminderCard(vm: HabitReminderCardViewModel): FlexMess
           action: {
             type: "uri",
             label: "ตั้งค่าการเตือน",
-            uri: miniAppUrl("/app/settings/reminders", vm.appOrigin),
+            uri: miniAppUrl("/app/settings/notifications", vm.appOrigin),
           },
         },
       ],
@@ -212,7 +212,7 @@ export function buildHabitSkippedMessage(vm: HabitSkippedViewModel): TextReplyMe
           action: {
             type: "uri",
             label: "ตั้งค่าการเตือน",
-            uri: miniAppUrl("/app/settings/reminders", vm.appOrigin),
+            uri: miniAppUrl("/app/settings/notifications", vm.appOrigin),
           },
         },
       ],

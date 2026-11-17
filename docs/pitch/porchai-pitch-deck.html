@@ -290,7 +290,7 @@ h2 { font-size: min(4.2cqw, 7.6vh); }
 .term-body .copy { margin-left: auto; font-family: var(--font-body); font-size: 13px; }
 .term-out { padding: 0 20px 16px; font-family: ui-monospace, Consolas, monospace; font-size: min(.95cqw, 1.7vh); color: rgba(217,242,196,.6); line-height: 1.7; }
 .term-out .ok { color: var(--green-500); }
-.pipeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; position: relative; }
+.pipeline { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; position: relative; }
 .pipeline::before { content: ""; position: absolute; top: 34px; left: 8%; right: 8%; height: 3px; background: repeating-linear-gradient(90deg, rgba(255,255,255,.35) 0 10px, transparent 10px 18px); }
 .stage { position: relative; text-align: left; background: #24502F; border: 1.5px solid rgba(255,255,255,.18); border-radius: var(--radius-sheet); padding: 16px; display: flex; flex-direction: column; gap: 8px; color: var(--white); transition: background .25s, border-color .25s, transform .25s; }
 .stage:hover, .stage.on { background: #2C5E38; border-color: var(--yellow-400); transform: translateY(-4px); }
@@ -646,29 +646,31 @@ body.notes-open { --notes-w: min(440px, 92cqw); }
     <div class="term rv" style="--d:2">
       <div class="term-bar"><i></i><i></i><i></i><span style="margin-left:8px">Terminal · D:\PorChai</span></div>
       <div class="term-body"><span class="p">$</span><span id="cmd">npm run demo:pm</span><button class="btn btn-ghost copy" id="copy-cmd" type="button" style="padding:6px 12px;color:#D9F2C4">คัดลอก</button></div>
-      <div class="term-out">▶ เปิดเซิร์ฟเวอร์เอง · หน้าต่างมือถือ 390×844 · LINE OA ↔ LIFF ในหน้าต่างเดียว<br/><span class="ok">✓ 1 passed (≈1.5 นาที)</span></div>
+      <div class="term-out">▶ เปิดเซิร์ฟเวอร์เอง · หน้าต่างมือถือ 390×844 · LINE OA ↔ LIFF ในหน้าต่างเดียว<br/><span class="ok">✓ 1 passed (≈6 นาที · 5 ช่วง · ความเร็วพอดีกับบทพูด)</span></div>
     </div>
     <div class="pipeline">
       <button class="stage rv" style="--d:3" type="button"><span class="badge">1</span><b>แอดเพื่อน LINE OA</b><span>การ์ดต้อนรับ → "เริ่มตั้งค่า"</span><ul><li>ริชเมนูจริง 5 ปุ่ม</li><li>เปิด MINI App จากแชต</li></ul></button>
-      <button class="stage rv" style="--d:4" type="button"><span class="badge">2</span><b>ตั้งค่าใน LIFF</b><span>1/4–4/4 · 150 → 154 → 134 บ./วัน</span><ul><li>ลองกรอกผิด ระบบเตือน</li><li>ลบบิลค่าน้ำ ตัวเลขคำนวณใหม่</li><li>ออม 10% = 240</li></ul></button>
-      <button class="stage rv" style="--d:5" type="button"><span class="badge">3</span><b>พิมพ์แชต & ส่งสลิป</b><span>"ข้าว 45" · แก้เป็น 65 · สลิป 50</span><ul><li>พิมพ์มั่ว → ตอบสุภาพ ไม่จด</li><li>"ข้าว 45 น้ำ 20" → ถามก่อน</li><li>"ไหวไหม" → เก็บไว้ในแผน</li></ul></button>
-      <button class="stage rv" style="--d:6" type="button"><span class="badge">4</span><b>แดชบอร์ด LIFF & แลกแต้ม</b><span>ข้อมูลจากแชตมาครบ</span><ul><li>จ่ายจริง → 2,145 หักครั้งเดียว</li><li>กดบันทึกรัว 3 ครั้ง → จดครั้งเดียว</li><li>แลกแต้ม · เตือน "ขาดอีก"</li></ul></button>
+      <button class="stage rv" style="--d:4" type="button"><span class="badge">2</span><b>ตั้งค่าใน LIFF</b><span>150 → 154 → 134 บ./วัน</span><ul><li>ลองกรอกผิด ระบบเตือน</li><li>ลบบิลค่าน้ำ ตัวเลขคำนวณใหม่</li><li>ออม 10% = 240</li></ul></button>
+      <button class="stage rv" style="--d:5" type="button"><span class="badge">3</span><b>พิมพ์แชต & ส่งสลิป</b><span>"ข้าว 45" · แก้ 65 · สลิป 50</span><ul><li>พิมพ์มั่ว → ตอบสุภาพ ไม่จด</li><li>"ข้าว 45 น้ำ 20" → ถามก่อน</li><li>"ไหวไหม" → เก็บไว้ในแผน</li></ul></button>
+      <button class="stage rv" style="--d:6" type="button"><span class="badge">4</span><b>แดชบอร์ด LIFF & แลกแต้ม</b><span>ข้อมูลจากแชตมาครบ</span><ul><li>จ่ายจริง → 2,145 หักครั้งเดียว</li><li>กดรัว 3 ครั้ง → จดครั้งเดียว</li><li>แลกแต้ม · เตือน "ขาดอีก"</li></ul></button>
+      <button class="stage rv" style="--d:7" type="button"><span class="badge">5</span><b>แจ้งเตือนตามพฤติกรรม</b><span>เที่ยงแล้ว จดข้าวมันไก่ไหม?</span><ul><li>LIFF เจอรายการประจำเอง</li><li>12:00 LINE OA ทักมา</li><li>กด "ใช่ จดเลย" · เตือนวันละครั้ง</li></ul></button>
     </div>
-    <div class="facts rv" style="--d:7"><span class="fact">⌨ คำสั่งเดียว เปิดทุกอย่างเอง</span><span class="fact">🔒 ไม่แตะ LINE / ฐานข้อมูลจริง</span><span class="fact">✓ ทุกตัวเลขบนจอถูกตรวจอัตโนมัติ</span></div>
+    <div class="facts rv" style="--d:8"><span class="fact">⌨ คำสั่งเดียว เปิดทุกอย่างเอง</span><span class="fact">🔒 ไม่แตะ LINE / ฐานข้อมูลจริง</span><span class="fact">✓ ทุกตัวเลขบนจอถูกตรวจอัตโนมัติ</span><span class="fact">⏱ ความเร็วพอดีกับบทพูด</span></div>
   </div>
-  <aside class="notes" data-time="~2–3 นาที (รวมเดโม)">
+  <aside class="notes" data-time="~6 นาที (เดโมเล่นเอง พูดตามการ์ด)">
     <p>ทั้งหมดที่เล่ามา ไม่ใช่แค่สไลด์ครับ เราจะให้ดูของจริงทั้งระบบ ด้วยคำสั่งเดียว</p>
-    <span class="cue">[สลับไปหน้าต่าง Terminal ที่เปิดไว้ใน D:\PorChai แล้วพิมพ์ npm run demo:pm · หรือกด "คัดลอก" บนสไลด์]</span>
-    <p>คำสั่งนี้เปิดเซิร์ฟเวอร์ให้เอง แล้วเปิดหน้าต่างขนาดมือถือขึ้นมา บอทจะเล่นเป็นผู้ใช้ใหม่ตั้งแต่ต้นจนจบ 4 ช่วง</p>
-    <ul>
-      <li><b>ช่วง 1</b> แอดเพื่อน LINE OA ได้การ์ดต้อนรับ กด "เริ่มตั้งค่า"</li>
-      <li><b>ช่วง 2</b> ตั้งค่าใน LIFF 4 ขั้น สังเกตตัวเลขงบรายวันเปลี่ยนจาก 150 เป็น 154 เมื่อลบบิลค่าน้ำ แล้วเป็น 134 เมื่อตั้งออม 10%</li>
-      <li><b>ช่วง 3</b> กลับมาที่แชต พิมพ์ "ข้าว 45" ลองพิมพ์มั่ว ลองพิมพ์ 2 รายการ แก้ยอดเป็น 65 ส่งสลิป และถามว่า "เสื้อช็อป 140 ไหวไหม" แล้วกดเก็บไว้ในแผน</li>
-      <li><b>ช่วง 4</b> เปิดแอปจากริชเมนู ทุกอย่างที่ทำในแชตมาอยู่บนแดชบอร์ดครบ จากนั้นจ่ายจริง ทดสอบกดบันทึกรัวๆ แลกแต้ม และเตือนเงินขาด</li>
-    </ul>
+    <span class="cue">[สลับไปหน้าต่าง Terminal ที่เปิดไว้ใน D:PorChai แล้วพิมพ์ npm run demo:pm · หรือกด "คัดลอก" บนสไลด์]</span>
+    <p>คำสั่งนี้เปิดเซิร์ฟเวอร์ให้เอง แล้วเปิดหน้าต่างขนาดมือถือ บอทจะเล่นเป็นผู้ใช้จริง 5 ช่วง ใช้เวลาประมาณ 6 นาที ระหว่างนี้ผมจะเล่าไปพร้อมกันนะครับ</p>
+    <span class="cue">วิธีพูดให้ตรงจังหวะ: ทุกช่วงจะมีการ์ดเต็มจอ "ช่วง 1–5" ขึ้นมา 4–5 วินาที → พูดย่อหน้าของช่วงนั้นทันที · ป้ายเล็กด้านบนจอบอกว่ากำลังทำอะไร อ่านตามได้เลย · อยากให้เร็ว/ช้าลง: DEMO_PACE=1.3 หรือ 2.5 ก่อนคำสั่ง</span>
+    <p><b>[การ์ด ช่วง 1 · แอดเพื่อน LINE OA]</b> นี่คือสิ่งที่ผู้ใช้เห็นทันทีที่แอดเพื่อน พอใช้ทักด้วยการ์ดต้อนรับ ด้านล่างคือริชเมนูจริงของเรา กด "เริ่มตั้งค่า" แล้ว MINI App เปิดขึ้นมาในแชตเลย</p>
+    <p><b>[การ์ด ช่วง 2 · ตั้งค่าใน LIFF]</b> ตั้งค่า 4 ขั้น บอทจะลองกดถัดไปตอนยังไม่กรอกก่อน ให้เห็นว่าระบบเตือน ไม่ยอมให้ข้อมูลผิดผ่าน จากนั้นใส่เงิน 2,400 บิล 3 รายการ สังเกตงบต่อวัน 150 พอลบค่าน้ำเป็น 154 และพอตั้งออม 10% เหลือ 134 บาท แล้วปิดแอปกลับมาที่แชต</p>
+    <p><b>[การ์ด ช่วง 3 · พิมพ์แชต & ส่งสลิป]</b> กดรับแต้มวันนี้ พิมพ์ "ข้าว 45" จดทันทีพร้อมบอกงบเหลือ 89 ลองพิมพ์มั่ว บอทตอบสุภาพไม่จดอะไร พิมพ์ 2 รายการ บอทถามก่อนไม่เดาเอง กดแก้ข้าวเป็น 65 ส่งสลิปให้อ่านยอด 50 แล้วถามว่าเสื้อช็อป 140 ไหวไหม กดเก็บไว้ในแผน</p>
+    <p><b>[การ์ด ช่วง 4 · แดชบอร์ด LIFF]</b> เปิดแอปจากริชเมนู ทุกอย่างที่ทำในแชตมาอยู่บนแดชบอร์ดครบ เงินจริง 2,285 กันไว้ 690 จากนั้นกดจ่ายจริงเสื้อช็อป เหลือ 2,145 หักครั้งเดียว ทดสอบกดบันทึกรัว 3 ครั้งบนเน็ตช้า ระบบจดแค่ครั้งเดียว แลกแต้ม และลองซื้อของ 5,000 ระบบเตือนว่าเงินขาด</p>
+    <p><b>[การ์ด ช่วง 5 · แจ้งเตือนตามพฤติกรรม]</b> ช่วงสุดท้ายเป็นผู้ใช้อีกคนที่ใช้มาแล้ว 1 สัปดาห์ เขาจดข้าวมันไก่ 50 ตอนเที่ยงแทบทุกวัน พอใช้<b>สังเกตเองว่าเป็นรายการประจำ</b> เมื่อจดชื่อเดิม 3 วันขึ้นไปใน 7 วัน และจำเวลาที่ชอบจดไว้ ในหน้าตั้งค่าการเตือนใน LIFF ผู้ใช้เปิดเตือนเวลา 12:00 และเปิดเตือนเมื่อใช้เกินงบ</p>
+    <p>พอถึง 12:00 ถ้ายังไม่ได้จด LINE OA จะทักมาเองว่า "วันนี้ยังไม่เห็นข้าวมันไก่ จ่าย 50 เหมือนเดิมไหม" กด "ใช่ จดเลย" ครั้งเดียวจบ ไม่ต้องพิมพ์ และ<b>เตือนวันละครั้งเท่านั้น</b> ถ้าจดแล้วจะไม่ทักซ้ำ ไม่ส่งโฆษณา</p>
     <p>ระหว่างที่บอททำงาน ทุกตัวเลขบนจอถูกตรวจอัตโนมัติ ถ้าผิดแม้แต่บาทเดียว เทสต์จะล้มทันที</p>
-    <span class="cue">ถ้าเน็ต/เครื่องมีปัญหา: เปิดวิดีโอสำรองจาก test-results/pm-demo/…/video.webm (อัดไว้ทุกครั้งที่รัน)</span>
-    <span class="cue">ข้อควรรู้ถ้ามีคนถาม: แชตในเดโมเป็นหน้าจำลองของ LINE ใช้โค้ดแปลงข้อความและการ์ดของแอปจริง แต่ไม่เรียก AI (Gemini) และไม่ส่งข้อความผ่าน LINE จริง</span>
+    <span class="cue">ถ้าเครื่องมีปัญหา: เปิดวิดีโอสำรองจาก test-results/pm-demo/…/video.webm (อัดไว้ทุกครั้งที่รัน)</span>
+    <span class="cue">ถ้ามีคนถาม: แชตในเดโมเป็นหน้าจำลองของ LINE ใช้โค้ดแปลงข้อความ การ์ด และกฎหารายการประจำของแอปจริง แต่ไม่เรียก AI (Gemini) ไม่ส่งข้อความผ่าน LINE จริง และ "เที่ยงตรง" ในเดโมคือการสั่งรอบตั้งเวลาเตือน (ของจริงรันทุก 15 นาที)</span>
     <span class="cue">[เดโมจบ → กลับมาที่สไลด์ แล้วกด → ไปสไลด์ 8]</span>
   </aside>
 </section>

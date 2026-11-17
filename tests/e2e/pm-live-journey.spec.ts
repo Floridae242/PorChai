@@ -11,6 +11,14 @@
  *                          «… ไหวไหม» → เก็บไว้ในแผน
  *   4 · แดชบอร์ด LIFF       rich menu «เปิดแอป»: everything from the chat is there; pay the kept item,
  *                          double-tap guard, add/delete, savings, rewards, the ขาดอีก warning
+ *   5 · แจ้งเตือนตามพฤติกรรม  a user one week in (logs «ข้าวมันไก่ 50» around noon): LIFF › ตั้งค่า › การเตือน
+ *                          shows the habit the app found, reminders on at 12:00 + budget alert; at 12:00 the
+ *                          OA pushes the reminder card (real findHabits/dueHabit rules), [ใช่ จดเลย] records it,
+ *                          once a day only; the dashboard shows it
+ *
+ * Pace: the demo runs at presentation speed so the presenter can talk over it (slide 7's script): a title
+ * card at each stage, a reading pause after every caption, slow typing. DEMO_PACE scales every pause
+ * (default 1.8; 1 = brisker, 2.5 = slower). DEMO_SLOWMO=0 drops all pauses for the fast rehearsal.
  *
  * The chat is a stand-in for the LINE app (tests/e2e/helpers/line-oa-chat.html) answered by DemoLineBot
  * (tests/e2e/helpers/line-oa-bot.ts): the app's own parsers and LINE message builders, writing to the same
@@ -26,12 +34,16 @@
  *   - Rich menu labels are the real ones: «จดรายรับ/จ่าย», «เปิดแอป».
  */
 import type { Page } from "@playwright/test";
-import { expandMath, expect, expectHero, makeUser, test } from "./helpers/liff-mock";
+import { dayFromToday, expandMath, expect, expectHero, makeUser, test } from "./helpers/liff-mock";
 import { DemoLineBot, LINE_OA_PATH } from "./helpers/line-oa-bot";
 import { MOCK_SLIP_PATH } from "./helpers/generate-mock-slip";
 
 const NEW_USER = makeUser("A", "U_new_user_demo", "ผู้ใช้ใหม่ (เดโม)");
+/** Stage 5: someone who has used พอใช้ for a week (a brand-new user has no habit yet). */
+const WEEK_USER = makeUser("B", "U_week_user_demo", "ผู้ใช้ 1 สัปดาห์ (เดโม)");
 const SLOWED = Number(process.env.DEMO_SLOWMO ?? 150) > 0;
+/** Multiplies every reading pause: 1.8 ≈ the pace of slide 7's script. */
+const PACE = SLOWED ? Number(process.env.DEMO_PACE ?? 1.8) : 0;
 
 // ---------------------------------------------------------------- presentation helpers
 
@@ -57,11 +69,47 @@ async function caption(page: Page, text: string) {
     }
     w.__pmCaption.textContent = t;
   }, text);
+  // Time to read the caption aloud before the next tap (about the speed of the slide script).
+  if (PACE) await page.waitForTimeout(Math.min(2400, 500 + text.length * 28) * PACE);
 }
 
 /** A beat for the audience to read the screen (skipped in the fast rehearsal). */
-async function pause(page: Page, ms = 700) {
-  if (SLOWED) await page.waitForTimeout(ms);
+async function pause(page: Page, ms = 800) {
+  if (PACE) await page.waitForTimeout(ms * PACE);
+}
+
+/**
+ * Full-screen title card between stages, worded like slide 7's steps so the presenter can say the line
+ * while it shows. Closed shadow root + pointer-events:none: invisible to assertions and taps.
+ */
+async function stageCard(page: Page, n: number, title: string, line: string) {
+  if (!PACE) return;
+  await page.evaluate(
+    ({ n, title, line }) => {
+      const host = document.createElement("div");
+      host.setAttribute("aria-hidden", "true");
+      host.style.cssText = "position:fixed;inset:0;z-index:2147483646;pointer-events:none";
+      const root = host.attachShadow({ mode: "closed" });
+      root.innerHTML = `<style>
+        .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+           background:linear-gradient(180deg,#0E2A17 0%,#1F4D2B 45%,#3F7F35 100%);color:#fff;text-align:center;padding:24px;
+           font-family:"IBM Plex Sans Thai","Noto Sans Thai",system-ui,sans-serif;animation:in .45s ease-out}
+        .n{width:72px;height:72px;border-radius:50%;background:#FED24F;color:#12301B;font:800 34px/72px system-ui;}
+        .t{font-size:28px;font-weight:700}.l{font-size:16px;opacity:.85;max-width:320px;line-height:1.5}
+        .out{animation:out .45s ease-in forwards}
+        @keyframes in{from{opacity:0;transform:scale(.97)}to{opacity:1}} @keyframes out{to{opacity:0}}
+      </style><div class="c"><div class="n">${n}</div><div class="t">${title}</div><div class="l">${line}</div></div>`;
+      document.body.appendChild(host);
+      (window as unknown as { __pmStage?: () => void }).__pmStage = () => {
+        root.querySelector(".c")!.classList.add("out");
+        setTimeout(() => host.remove(), 450);
+      };
+    },
+    { n, title, line },
+  );
+  await page.waitForTimeout(2600 * PACE);
+  await page.evaluate(() => (window as unknown as { __pmStage?: () => void }).__pmStage?.());
+  await page.waitForTimeout(450);
 }
 
 // ---------------------------------------------------------------- MINI App helpers
@@ -144,7 +192,7 @@ async function sendChat(page: Page, message: string) {
   const before = await botRows(page).count();
   const box = page.getByLabel("พิมพ์ข้อความ");
   await box.click();
-  await box.pressSequentially(message, { delay: SLOWED ? 60 : 0 });
+  await box.pressSequentially(message, { delay: PACE ? 110 : 0 });
   await page.getByRole("button", { name: "ส่ง", exact: true }).click();
   await botAnswered(page, before);
 }
@@ -174,12 +222,14 @@ test("Complete First-Time User Journey & All Features Demo", async ({ page, logi
   const me = () => backend.as(NEW_USER);
   await loginAs(NEW_USER, { consented: false });
   const bot = new DemoLineBot(backend, NEW_USER);
+  let weekBot: DemoLineBot | null = null; // stage 5: the one-week user's chat
   await bot.install(page);
 
   // ---------------------------------------------------------------- 1
   await test.step("1 · LINE OA chat: welcome card → «เริ่มตั้งค่า» opens the MINI App", async () => {
     bot.follow(); // the user has just added พอใช้ as a friend
     await openChat(page);
+    await stageCard(page, 1, "แอดเพื่อน LINE OA", "พอใช้ทักทายด้วยการ์ดต้อนรับ แล้วกด «เริ่มตั้งค่า» เพื่อเปิด MINI App");
     await caption(page, "1 · LINE OA แชต · ข้อความต้อนรับ");
     const welcome = lastBot(page);
     await expect(welcome).toContainText("ตั้งค่าเสร็จแล้วค่อยพิมพ์จดได้เลยครับ");
@@ -194,6 +244,7 @@ test("Complete First-Time User Journey & All Features Demo", async ({ page, logi
   // ---------------------------------------------------------------- 2
   await test.step("2 · LIFF setup 1/4–4/4, then back to the chat", async () => {
     await test.step("consent: start stays locked until ticked", async () => {
+      await stageCard(page, 2, "ตั้งค่าใน LIFF", "4 ขั้น · ลองกรอกผิดให้ดู · งบต่อวัน 150 → 154 → 134 บาท");
       await caption(page, "2 · ตั้งค่า LIFF · ขอความยินยอม");
       const start = page.getByRole("button", { name: "ยอมรับและเริ่ม" });
       await expect(start).toBeDisabled();
@@ -338,6 +389,7 @@ test("Complete First-Time User Journey & All Features Demo", async ({ page, logi
     const entries = async () => (await me().entries()).entries.filter((e) => !(e as { cancelled?: boolean }).cancelled);
 
     await test.step("rich menu «จดรายรับ/จ่าย» → how to record", async () => {
+      await stageCard(page, 3, "พิมพ์แชต & ส่งสลิป", "ข้าว 45 · พิมพ์มั่ว · 2 รายการ · แก้เป็น 65 · ส่งสลิป · «ไหวไหม» → เก็บไว้ในแผน");
       await caption(page, "3 · ริชเมนู «จดรายรับ/จ่าย»");
       const before = await tapRichMenu(page, "จดรายรับ/จ่าย");
       await botAnswered(page, before);
@@ -463,6 +515,7 @@ test("Complete First-Time User Journey & All Features Demo", async ({ page, logi
   // ---------------------------------------------------------------- 4
   await test.step("4 · LIFF dashboard: synced from the chat, then the remaining flows", async () => {
     await test.step("rich menu «เปิดแอป» → dashboard shows the chat's work", async () => {
+      await stageCard(page, 4, "แดชบอร์ด LIFF & แลกแต้ม", "ทุกอย่างจากแชตมาครบ · จ่ายจริง · กดรัวไม่จดซ้ำ · แลกแต้ม · เตือนเงินขาด");
       await caption(page, "4 · ริชเมนู «เปิดแอป» → แดชบอร์ด LIFF");
       await openRichMenu(page);
       await richMenu(page).getByRole("button", { name: "เปิดแอป", exact: true }).click();
@@ -585,8 +638,112 @@ test("Complete First-Time User Journey & All Features Demo", async ({ page, logi
       await page.getByRole("button", { name: "ไม่ซื้อ · กลับหน้าสรุป" }).click();
       await expect(page.getByTestId("today-hero")).toBeVisible();
       await expandMath(page);
-      await caption(page, "จบเดโม · พอใช้ (Por-Chai)");
+      await caption(page, "4 · แดชบอร์ดเรียบร้อย: เงินจริง 2,145 · กันไว้ 550 · ออม 240");
       await expectHero(page, { balance: "2,145", reserved: "550", savings: "240" });
+      await expect(page.locator("body")).not.toContainText(/\bNaN\b|Infinity|undefined/);
+      await snap("stage 4 final dashboard");
+      await pause(page, 1500);
+    });
+  });
+
+  // ---------------------------------------------------------------- 5
+  await test.step("5 · Behaviour-based reminders: LIFF settings + LINE OA push at the usual time", async () => {
+    const week = () => backend.as(WEEK_USER);
+
+    await test.step("a user one week in: «ข้าวมันไก่ 50» logged around noon on 4 of the last 7 days", async () => {
+      await stageCard(page, 5, "แจ้งเตือนตามพฤติกรรม", "ผู้ใช้ที่ใช้มา 1 สัปดาห์ จด «ข้าวมันไก่ 50» ตอนเที่ยงเกือบทุกวัน · พอใช้จำได้และทักเตือนเอง");
+      // The account and its past week, written straight to the backend (as if logged on those days at ~12:00).
+      await loginAs(WEEK_USER);
+      await backend.seedCycle(WEEK_USER, { balance: 1800, paydayInDays: 12, bills: [{ title: "ค่าหอ", amount: 400 }], essentialsPerDay: 80 });
+      for (const daysAgo of [1, 2, 3, 5]) {
+        await week().addEntry({ amount: 5000, category: "food", note: "ข้าวมันไก่", spentOn: dayFromToday(-daysAgo) }, `history-${daysAgo}`);
+      }
+      // The LINE app now shows this user's chat with พอใช้.
+      await bot.uninstall(page);
+      weekBot = new DemoLineBot(backend, WEEK_USER);
+      await weekBot.install(page);
+      await page.goto("/app");
+      await expect(page.getByTestId("today-hero")).toBeVisible();
+      await caption(page, "5 · ผู้ใช้อีกคนที่ใช้มา 1 สัปดาห์ · จดข้าวมันไก่ตอนเที่ยงเกือบทุกวัน");
+      await pause(page, 1200);
+    });
+
+    await test.step("LIFF › ตั้งค่า › การเตือน: the habit the app found, reminders on at 12:00", async () => {
+      await caption(page, "5 · LIFF › ตั้งค่า › การเตือน");
+      await gotoTab(page, "ตั้งค่า");
+      await page.getByRole("link", { name: /^การเตือน/ }).click();
+      await expect(page).toHaveURL(/\/app\/settings\/notifications$/);
+      const habit = page.locator("li").filter({ hasText: "ข้าวมันไก่" });
+      await expect(habit).toContainText("~50 บาท");
+      await expect(habit).toContainText("ถามตอน 12:00");
+      await caption(page, "5 · ระบบเจอรายการประจำเอง: ข้าวมันไก่ ~50 บาท ตอน 12:00");
+      await snap("habit found");
+      await pause(page, 1500);
+
+      await caption(page, "5 · เปิด «เตือนรายการประจำ» เวลา 12:00 แล้วบันทึก");
+      const on = page.getByRole("switch", { name: /เตือนรายการประจำ/ });
+      await expect(on).not.toBeChecked();
+      await on.check();
+      await field(page, "เวลาเตือน").fill("12:00");
+      await page.getByRole("button", { name: "บันทึก", exact: true }).click();
+      await expect(page.getByText("บันทึกการตั้งค่าแล้ว")).toBeVisible();
+      expect(await week().reminderSettings()).toMatchObject({ enabled: true, time: "12:00", pausedUntil: null });
+      await pause(page);
+    });
+
+    await test.step("LIFF › สรุปรายวัน รายเดือน และเตือนงบ: daily summary + over-budget alert on", async () => {
+      await caption(page, "5 · เปิดสรุปรายวัน และเตือนเมื่อใช้เกินงบวันนี้");
+      await page.getByRole("link", { name: "สรุปรายวัน รายเดือน และเตือนงบ" }).click();
+      await expect(page).toHaveURL(/\/app\/notifications$/);
+      for (const name of [/สรุปรายวัน/, /เตือนงบวันนี้/]) {
+        const box = page.getByRole("checkbox", { name });
+        if (!(await box.isChecked())) await box.check();
+        await expect(box).toBeChecked();
+      }
+      await page.getByRole("button", { name: "บันทึกการแจ้งเตือน" }).click();
+      await expect(page.getByRole("status").filter({ hasText: "บันทึกแล้ว" })).toBeVisible();
+      expect(await week().notificationPreferences()).toMatchObject({ daily: true, budget: true });
+      await snap("notification preferences");
+      await pause(page);
+    });
+
+    await test.step("11:45 nothing; 12:00 the OA pushes the reminder card by itself", async () => {
+      expect(await weekBot!.runReminderCron("11:45"), "not before the user's time").toBeNull();
+      const log = await weekBot!.runReminderCron("12:00");
+      expect(log).toMatchObject({ label: "ข้าวมันไก่", amount: 5000, category: "food" });
+      await openChat(page);
+      await caption(page, "5 · 12:00 น. · พอใช้ทักมาเอง: ถึงเวลาข้าวมันไก่แล้ว จดเลยไหม?");
+      const card = lastBot(page);
+      await expect(card).toContainText("ข้าวมันไก่");
+      await expect(card).toContainText("50");
+      await expect(card.getByRole("button", { name: "ใช่ จดเลย", exact: true })).toBeVisible();
+      await expect(page.getByLabel("ปุ่มตอบกลับด่วน").getByRole("button", { name: "ตั้งค่าการเตือน" })).toBeVisible();
+      await snap("reminder card");
+      await pause(page, 1800);
+    });
+
+    await test.step("[ใช่ จดเลย] → recorded once; no second reminder today", async () => {
+      await caption(page, "5 · กด [ใช่ จดเลย] → จดให้ทันที ไม่ต้องพิมพ์");
+      const before = (await week().entries()).entries.length;
+      await tapInChat(page, botRows(page).last(), "ใช่ จดเลย");
+      await expect(lastBot(page)).toContainText("ข้าวมันไก่");
+      const today = (await week().entries()).entries.filter((e) => e.spentOn === "2026-11-11");
+      expect(today).toHaveLength(1);
+      expect(today[0]).toMatchObject({ note: "ข้าวมันไก่", amount: 5000, source: "reminder" });
+      expect((await week().entries()).entries).toHaveLength(before + 1);
+      expect(await weekBot!.runReminderCron("12:15"), "reminded once a day only").toBeNull();
+      await caption(page, "5 · เตือนวันละครั้งเท่านั้น · จดแล้วจะไม่ทักซ้ำ");
+      await snap("reminder recorded");
+      await pause(page, 1500);
+    });
+
+    await test.step("rich menu «เปิดแอป» → the dashboard has it", async () => {
+      await openRichMenu(page);
+      await richMenu(page).getByRole("button", { name: "เปิดแอป", exact: true }).click();
+      await expect(page.getByTestId("today-hero")).toBeVisible();
+      await expandMath(page);
+      await expect(page.locator("article").filter({ has: page.getByRole("heading", { name: "ข้าวมันไก่", exact: true }) }).first()).toContainText("−฿50");
+      await caption(page, "จบเดโม · พอใช้ (Por-Chai) · เพราะการวางแผนการเงินที่ดีคือจุดเริ่มต้นของชีวิตที่สบายใจ");
       await expect(page.locator("body")).not.toContainText(/\bNaN\b|Infinity|undefined/);
       await snap("final dashboard");
       await pause(page, 2500);
