@@ -33,6 +33,7 @@ export type Tool =
   | "rewards"
   | "promos"
   | "notifications"
+  | "bill_reminder_help"
   | "reminders"
   | "balance"
   | "buffer"

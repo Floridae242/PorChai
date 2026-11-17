@@ -153,3 +153,16 @@ describe("shorter search and reminder words", () => {
     expect(parseIntent(text, today)).toMatchObject({ tool: "reminders", enabled });
   });
 });
+
+it.each([
+  "ตั้งแจ้งเตือนจ่ายค่าบิลเน็ตมือถือ วันที่ 23 พฤศจิกายน เวลา 00:01",
+  "ช่วยตั้งเตือนจ่ายค่าเน็ต วันที่ 23 เวลา 09:00",
+  "เปิดเตือนบิลค่าหอ", "เปลี่ยนเตือนบิล เวลา 22:00",
+  "ปิดแจ้งเตือนบิลค่าหอ", "ตั้งเวลาแจ้งเตือนบิลค่าเน็ต เวลา 21:00",
+  "เปลี่ยนเวลาแจ้งเตือนบิล เวลา 21:00", "ดูแจ้งเตือนบิลค่าหอ",
+])("bill reminder help cannot mutate global notification preferences: %s", message => {
+  expect(parseIntent(message, today)).toEqual({ tool: "bill_reminder_help" });
+});
+it("keeps the next reward page instead of looping to page one", () => {
+  expect(parseIntent("ดูของรางวัล หน้า 2", today)).toMatchObject({ tool: "rewards", page: 2 });
+});

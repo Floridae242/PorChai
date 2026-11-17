@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addDays, thaiDate } from "@/lib/calc/time";
 import { getDb } from "@/lib/db/client";
 import { loadSummary } from "@/lib/db/budget";
+import { getNotificationPreferences, saveNotificationPreferences } from "@/lib/db/notifications";
 import { generate } from "@/lib/ai/gemini";
 import * as installmentsDb from "@/lib/db/installments";
 import type { VerifyResult } from "@/lib/line/id-token";
@@ -463,6 +464,36 @@ describe("card 09: expenses from the chat", () => {
     await chat("ดูแผน หน้า 2");expect(lastText()).toContain("หน้า 2");expect(lastText()).toContain("งวด 10/12");
     await chat("จ่ายบิล 1 หน้า 2");expect(lastText()).toContain("งวด 10/12");await chat("ยืนยัน");
     expect((await screenEntries()).map((e:{amount:number})=>e.amount)).toEqual([100000]);
+  });
+  it("a dated bill reminder cannot change global preferences, even after typing confirm", async () => {
+    await figma();
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const value = { daily: true, monthly: true, budget: true, time: "20:00" };
+    await saveNotificationPreferences(owner.data!.id, value);
+    for (const message of ["ตั้งแจ้งเตือนจ่ายค่าบิลเน็ตมือถือ วันที่ 23 พฤศจิกายน เวลา 00:01", "ปิดแจ้งเตือนบิลค่าหอ", "ตั้งเวลาแจ้งเตือนบิลค่าเน็ต เวลา 21:00", "เปลี่ยนเวลาแจ้งเตือนบิล เวลา 21:00"]) {
+      await chat(message);
+      expect(lastText()).toContain("ยังไม่ได้เปลี่ยนการเตือนบิล");
+      expect(lastButtons().some(button => button.label === "ยืนยัน")).toBe(false);
+      await chat("ยืนยัน");
+      expect(await getNotificationPreferences(owner.data!.id)).toEqual(value);
+    }
+    expect(await screenEntries()).toEqual([]);
+  });
+  it("all four rows are selectable and cancelled plan details never suggest paying another plan", async () => {
+    await figma();
+    for (const title of ["บิลหนึ่ง", "บิลสอง", "บิลสาม"]) {
+      await chat(`เพิ่มบิล ${title} 25 บาท`); await chat("ยืนยัน");
+    }
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const updated = await db.from("plans").update({ status: "cancelled" }).eq("user_id", owner.data!.id);
+    expect(updated.error).toBeNull();
+    await chat("ดูแผน");
+    const pick = lastButtons().find(button => button.label === "เลือก 4")!;
+    expect(pick.data).toMatch(/^pc:pick:.*:3$/u);
+    await tap(pick.data!);
+    expect(lastText()).toContain("ไม่ต้องจ่ายซ้ำ");
+    expect(lastText()).not.toContain("จ่ายบิล 1");
+    expect(await screenEntries()).toEqual([]);
   });
   it("a transport error after commit can retry the same card without duplicate installment bills",async()=>{
     await figma();await chat(`ผ่อน โทรศัพท์ ยอดรวม 1000.01 บาท 3 งวด เริ่ม ${today()}`);

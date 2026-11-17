@@ -4,6 +4,7 @@ import { billNotification } from "./bill-notification";
 import {sponsorCarousel} from "./sponsor-card";
 import { text } from "./reply";
 import { presentReply } from "./presentation";
+import { buildActionList } from "./flex/cards/action-list";
 import type { FlexMessage } from "./branded-flex";
 import {
   recordedCard,
@@ -57,6 +58,31 @@ export function flexCaseCatalog(): FlexExample[] {
     };
   };
   const cases: FlexExample[] = [
+    add("compact-plans", "ใหม่ · รายการบิลแตะได้", buildActionList({
+      title: "แผนและบิล", subtitle: "หน้า 1 · แตะรายการเพื่อดูรายละเอียดครับ", icon: "budget-calendar",
+      rows: [
+        { title: "1. ค่าเน็ตมือถือ", detail: "399 บาท · กันเงินไว้แล้ว", icon: "bell" },
+        { title: "2. ค่าหอ", detail: "3,000 บาท · จ่ายแล้ว", icon: "check" },
+        { title: "3. หนังสือ", detail: "250 บาท · เลื่อนไปรอบหน้า", icon: "clock" },
+        { title: "4. ค่าเน็ตเดโม", detail: "30 บาท · ยกเลิกแล้ว", icon: "receipt" },
+      ].map((row, index) => ({ ...row, icon: row.icon as "bell" | "check" | "clock" | "receipt",
+        action: { type: "postback", label: `เลือก ${index + 1}`, data: `preview:pick:${index}`, displayText: `เลือก ${index + 1}` },
+      })),
+    })),
+    add("compact-notifications", "ใหม่ · ตรวจการแจ้งเตือน", buildActionList({
+      title: "ตรวจการแจ้งเตือน", subtitle: "เวลาสรุป 20:00 น. (เวลาไทย)\nยังไม่เปลี่ยนค่า · ตรวจแล้วกดยืนยันครับ", icon: "bell",
+      rows: [
+        { title: "สรุปรายวัน", value: "เปิด" },
+        { title: "สรุปรายเดือน", value: "ปิด" },
+        { title: "เตือนงบ", value: "เปิด", icon: "wallet" },
+      ],
+      actions: [
+        { type: "postback", label: "ยืนยัน", data: "preview:yes", displayText: "ยืนยัน" },
+        { type: "postback", label: "ยกเลิก", data: "preview:no", displayText: "ยกเลิก" },
+      ],
+    })),
+    add("compact-cancelled", "ใหม่ · บิลที่ยกเลิกแล้ว", text("หนังสือเดโม\n250 บาท · ยกเลิกแล้ว\nรายการนี้ยกเลิกแล้วครับ ไม่ต้องจ่ายซ้ำ"), "แผนและบิล"),
+    add("compact-reminder-help", "ใหม่ · เตือนบิลเฉพาะวัน", text("ยังไม่ได้ตั้งเตือนหรือเปลี่ยนค่าสรุปครับ\nเปิดบิลประจำเพื่อเลือกวันครบกำหนดได้เลย ขณะนี้ยังเลือกเวลาเฉพาะบิลผ่านแชตไม่ได้ครับ", [{ type: "uri", label: "ตั้งเตือนบิล", uri: "https://porchai.vercel.app/app/settings/bills" }]), "เตือนบิลประจำ"),
     {
       ...flexExamples()[0],
       description: "Carousel 10 เรื่อง ชุดเดียวกับตอนเพิ่มเพื่อนและขอวิธีใช้",

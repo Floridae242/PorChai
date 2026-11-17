@@ -52,6 +52,7 @@ export interface FlexButton {
 
 export interface FlexBox {
   type: "box";
+  action?: FlexAction;
   layout: "vertical" | "horizontal" | "baseline";
   contents: FlexNode[];
   spacing?: "none" | "xs" | "sm" | "md" | "lg";

@@ -9,10 +9,19 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import { flexExamples } from "@/lib/line/flex-examples";
 import { FlexPreview } from "./preview";
+import { flexCaseCatalog } from "@/lib/line/flex-case-catalog";
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+it("lets the fourth compact row be previewed with keyboard-accessible controls and no network writes", () => {
+  const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
+  render(<FlexPreview examples={flexCaseCatalog()} />);
+  fireEvent.click(screen.getByRole("button", { name: "เลือก 4" }));
+  expect(screen.getByRole("status").textContent).toContain("เลือก 4");
+  expect(fetcher).not.toHaveBeenCalled();
 });
 
 it("previews actual receipt data without executing the card's production action", async () => {
