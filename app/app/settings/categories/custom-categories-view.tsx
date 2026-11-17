@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
 import { Sheet } from "@/components/shell/sheet";
 import { Banner } from "@/components/ui/banner";
-import { Button, buttonClass } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { InputField } from "@/components/ui/input-field";
 import type { Category } from "@/lib/api-types";
 import { CATEGORY_LABELS } from "@/lib/client/category-labels";
@@ -196,22 +195,8 @@ export function CustomCategoriesView() {
           <Button variant="secondary" disabled={busy} onClick={() => edit()}>
             + สร้างหมวดใหม่
           </Button>
-          <Button
-            variant="ghost"
-            disabled={busy}
-            onClick={() => {
-              setDraft(null);
-              setPreview(null);
-              setAttempt((n) => n + 1);
-            }}
-          >
-            โหลดหมวดล่าสุด
-          </Button>
         </>
       )}
-      <Link className={buttonClass("secondary", true)} href="/app/insights">
-        ดูพฤติกรรมและงบที่ใช้ไป
-      </Link>
       <Sheet
         open={!!draft && !preview}
         onClose={() => {

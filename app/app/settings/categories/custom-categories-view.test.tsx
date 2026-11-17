@@ -115,6 +115,9 @@ it("has no suggestion button; the editor is a popup that asks for the main categ
   );
   await screen.findByRole("button", { name: "+ สร้างหมวดใหม่" });
   expect(screen.queryByRole("button", { name: "ดูงบแนะนำจากประวัติ" })).toBeNull();
+  // the only action on the page is the add button
+  expect(screen.queryByRole("button", { name: "โหลดหมวดล่าสุด" })).toBeNull();
+  expect(screen.queryByRole("link", { name: /ดูพฤติกรรมและงบที่ใช้ไป/ })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "+ สร้างหมวดใหม่" }));
   const dialog = await screen.findByRole("dialog", { name: "หมวดใหม่" });
   expect(dialog.contains(screen.getByLabelText("ชื่อหมวด"))).toBe(true);
