@@ -94,4 +94,10 @@ describe("AppShell clarity mask", () => {
     render(<AppShell>เนื้อหา</AppShell>);
     expect(screen.queryByRole("button", { name: "รีเฟรชข้อมูล" })).toBeNull();
   });
+
+  it("shows no refresh button on the record forms, so typed data is never thrown away", () => {
+    pathname = "/app/record/new";
+    render(<AppShell>เนื้อหา</AppShell>);
+    expect(screen.queryByRole("button", { name: "รีเฟรชข้อมูล" })).toBeNull();
+  });
 });

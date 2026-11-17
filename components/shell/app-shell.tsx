@@ -49,7 +49,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div key={refreshKey}>{children}</div>
         </div>
       </div>
-      <RefreshButton onRefresh={refresh} busy={refreshing} />
+      {/* Not on the record forms: remounting would throw away what the user has typed */}
+      {pathname.startsWith("/app/record") ? null : (
+        <RefreshButton onRefresh={refresh} busy={refreshing} />
+      )}
       <TabBar active={active} onRecord={() => setChooserOpen(true)} />
       <RecordChooserSheet
         open={chooserOpen}
