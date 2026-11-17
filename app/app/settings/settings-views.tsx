@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sheet } from "@/components/shell/sheet";
@@ -18,7 +19,7 @@ import { clearAllLocalUserData } from "@/lib/client/local-data";
 import type { ReminderSettings } from "@/lib/client/types";
 import { useApi } from "@/lib/client/use-api";
 import { useSubmit } from "@/lib/client/use-submit";
-import { formatBaht, satangToInputString } from "@/lib/format/money";
+import { formatBaht, parseBahtInput, satangToInputString } from "@/lib/format/money";
 
 const MSG_NOT_READY = "ยังไม่พร้อมใช้งาน";
 const MSG_LOAD_FAILED = "โหลดข้อมูลไม่สำเร็จ ตรวจสอบสัญญาณแล้วลองใหม่อีกครั้ง";
@@ -46,14 +47,14 @@ function LoadFailed({ onRetry }: { onRetry: () => void }) {
 
 const SETTINGS_GROUPS = [
   { title: "แผนเงินของคุณ", icon: PlanIcon, rows: [
-    { title: "รอบเงินและวันเงินเข้า", detail: "เปลี่ยนวันเงินเข้า หรือปรับยอดให้ตรงเงินจริง", href: "/app/plan/edit" },
+    { title: "รอบเงินและวันเงินเข้า", detail: "เปลี่ยนวันเงินเข้า หรือปรับยอดให้ตรงเงินจริง", href: "/app/plan/edit?from=settings" },
     { title: "เงินออม · เงินเผื่อ · ค่าจำเป็น", detail: "ดูเงินที่กันไว้ และตั้งค่าใช้จ่ายจำเป็นต่อวัน", href: "/app/settings/savings" },
     { title: "บิลประจำ", detail: "เลือกวันครบกำหนดและตั้งเตือนบิลในปฏิทิน", href: "/app/settings/bills" },
     { title: "หมวดหมู่ของฉัน", detail: "ตั้งชื่อหมวด งบรายเดือน และดูงบแนะนำ", href: "/app/settings/categories" },
   ] },
   { title: "การแจ้งเตือนผ่าน LINE", icon: SettingsIcon, rows: [
     { title: "การเตือน", detail: "เตือนรายการที่อาจลืมจด และหยุดเตือนชั่วคราว", href: "/app/settings/notifications" },
-    { title: "สรุปและเตือนงบ", detail: "เลือกรับสรุปรายวัน รายเดือน และเตือนเมื่อเกินงบ", href: "/app/notifications" },
+    { title: "สรุปและเตือนงบ", detail: "เลือกรับสรุปรายวัน รายเดือน และเตือนเมื่อเกินงบ", href: "/app/notifications?from=settings" },
   ] },
 ] as const;
 
@@ -173,7 +174,7 @@ export function SettingsNotificationsView() {
     return (
       <main className="flex flex-col gap-4 py-2 font-body" aria-busy="true">
         {header}
-        <p className="text-sm text-secondary">กำลังโหลด…</p>
+        <LoadingSkeleton />
       </main>
     );
   }
@@ -202,7 +203,7 @@ export function SettingsNotificationsView() {
       {!ready ? <Banner kind="info" text={`${MSG_NOT_READY} — ตั้งค่าการเตือนยังใช้ไม่ได้ตอนนี้`} /> : null}
       <p className="text-sm leading-6 text-secondary">ให้น้องพอใช้ช่วยเตือนรายการที่อาจลืมจดครับ เลือกเวลาให้เหมาะกับวันของคุณได้เลย</p>
       <div className="rounded-sheet border border-line bg-card">
-        <SettingsRow title="สรุปรายวัน รายเดือน และเตือนงบ" detail="ตั้งค่าข้อความสรุปและเตือนเมื่อใช้เกินงบแยกได้ที่นี่" href="/app/notifications" />
+        <SettingsRow title="สรุปรายวัน รายเดือน และเตือนงบ" detail="ตั้งค่าข้อความสรุปและเตือนเมื่อใช้เกินงบแยกได้ที่นี่" href="/app/notifications?from=reminders" />
         <SettingsRow title="เตือนบิลประจำ" detail="เลือกบิลที่จะเตือน ล่วงหน้า 3 วันและวันครบกำหนด 09:00 น." href="/app/settings/bills" />
       </div>
 
@@ -315,12 +316,17 @@ export function SettingsSavingsView() {
   const [essentialText, setEssentialText] = useState("");
   const [essentialError, setEssentialError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
+  const bufferSave = useSubmit<{ summary: Summary }>();
+  const [bufferText, setBufferText] = useState("");
+  const [bufferError, setBufferError] = useState<string | null>(null);
+  const [bufferSaved, setBufferSaved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     api.summary().then(
       (s) => {
         if (cancelled) return;
+        setBufferText(satangToInputString(s.emergencyBuffer));
         setEssentialText(s.essentialPerDay === null ? "" : satangToInputString(s.essentialPerDay));
         setData({ state: "ok", summary: s });
       },
@@ -347,13 +353,32 @@ export function SettingsSavingsView() {
     }
   }
 
+  async function handleBufferSave() {
+    if (data.state !== "ok") return;
+    const parsed = parseBahtInput(bufferText, { allowZero: true });
+    if (!parsed.ok) {
+      setBufferError("ใส่เป็นตัวเลขบาท เช่น 500 หรือ 0 ถ้าไม่เก็บเงินเผื่อ");
+      return;
+    }
+    setBufferError(null);
+    const previous = data.summary.emergencyBuffer;
+    const result = await bufferSave.submit({ amount: parsed.satang, previous }, () =>
+      api.setBuffer({ amount: parsed.satang, previous }),
+    );
+    if (result.ok) {
+      setData({ state: "ok", summary: result.value.summary });
+      setBufferText(satangToInputString(result.value.summary.emergencyBuffer));
+      setBufferSaved(true);
+    }
+  }
+
   const header = <AppHeader title="เงินที่กันไว้" back="/app/settings" tone="default" />;
 
   if (data.state === "loading") {
     return (
       <main className="flex flex-col gap-4 py-2 font-body" aria-busy="true">
         {header}
-        <p className="text-sm text-secondary">กำลังโหลด…</p>
+        <LoadingSkeleton />
       </main>
     );
   }
@@ -383,12 +408,6 @@ export function SettingsSavingsView() {
         <p className="text-sm text-secondary">
           ตอนนี้กันไว้ <span className="font-semibold tabular-nums text-primary">{formatBaht(s.savings)} บาท</span>
         </p>
-        <Button
-          variant="secondary"
-          disabled
-        >
-          ปรับเป้าออม
-        </Button>
         <p className="text-xs leading-5 text-secondary">ดูยอดที่กันไว้ได้ การปรับเป้าออมในหน้านี้ยังไม่พร้อมใช้งาน</p>
       </section>
 
@@ -398,13 +417,31 @@ export function SettingsSavingsView() {
           เก็บไว้สำหรับเรื่องฉุกเฉิน · ตอนนี้{" "}
           <span className="font-semibold tabular-nums text-primary">{formatBaht(s.emergencyBuffer)} บาท</span>
         </p>
-        <Button
-          variant="secondary"
-          disabled
-        >
-          ปรับเงินเผื่อ
+        <InputField
+          label="เงินเผื่อใหม่ (บาท)"
+          inputMode="decimal"
+          placeholder="เช่น 500"
+          value={bufferText}
+          disabled={bufferSave.busy}
+          onChange={(e) => {
+            setBufferText(e.target.value);
+            setBufferError(null);
+            setBufferSaved(false);
+            if (bufferSave.done || bufferSave.error) bufferSave.reset();
+          }}
+          state={bufferError ? "error" : bufferText ? "filled" : "default"}
+          helper={bufferError ?? "เงินออมรวมเงินเผื่อต้องไม่เกินเงินที่มี · ไม่ได้ย้ายเงินจริง"}
+        />
+        {bufferSave.error ? (
+          <Banner
+            kind={isCode(bufferSave.error, "not_implemented") ? "info" : "error"}
+            text={errorText(bufferSave.error, "บันทึกเงินเผื่อไม่สำเร็จ ลองใหม่อีกครั้ง")}
+          />
+        ) : null}
+        {bufferSaved ? <Banner kind="info" text="บันทึกเงินเผื่อแล้ว" /> : null}
+        <Button variant="secondary" busy={bufferSave.busy && !bufferSave.done} disabled={bufferSave.done} onClick={handleBufferSave}>
+          บันทึกเงินเผื่อ
         </Button>
-        <p className="text-xs leading-5 text-secondary">ดูยอดที่กันไว้ได้ การปรับเงินเผื่อในหน้านี้ยังไม่พร้อมใช้งาน</p>
       </section>
 
       <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">

@@ -84,3 +84,14 @@ export function ArrowOutIcon({ size = 18 }: { size?: number }) {
     </Svg>
   );
 }
+
+export function RefreshIcon({ size = 20 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M20 11a8 8 0 0 0-14.5-4.4L4 8" />
+      <path d="M4 4v4h4" />
+      <path d="M4 13a8 8 0 0 0 14.5 4.4L20 16" />
+      <path d="M20 20v-4h-4" />
+    </Svg>
+  );
+}

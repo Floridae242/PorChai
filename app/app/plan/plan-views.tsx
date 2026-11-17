@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
+import { useBack, useFromQuery } from "@/components/shell/use-back";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
@@ -285,7 +287,7 @@ export function PlanMainView() {
       <div id={TAB_PANEL_ID} role="tabpanel" aria-labelledby={tabId(tab)} className="flex flex-col gap-4">
         {loadState === "loading" ? (
           <div className="flex flex-col gap-3 py-2" aria-busy="true">
-            <p className="text-sm text-secondary">กำลังโหลดข้อมูลแผนเงิน…</p>
+            <span className="sr-only">กำลังโหลดข้อมูลแผนเงิน…</span>
             <div aria-hidden="true" className="h-16 rounded-md bg-subtle motion-safe:animate-pulse" />
             <div aria-hidden="true" className="h-16 rounded-md bg-subtle motion-safe:animate-pulse" />
           </div>
@@ -337,7 +339,6 @@ export function PlanMainView() {
                       href={`/app/record/${row.entry.id}`}
                     />
                   ) : (
-                    // Money received has no edit screen yet: the row is not a link
                     <ListRow
                       key={row.income.id}
                       title={row.income.note ?? "รายรับ"}
@@ -345,6 +346,7 @@ export function PlanMainView() {
                       amount={`+${formatBaht(row.income.amount)} บาท`}
                       tone="income"
                       leading={<MoneyDirection kind="income" />}
+                      href={`/app/record/income/${row.income.id}`}
                     />
                   ),
                 )}
@@ -451,10 +453,12 @@ export function PlanMainView() {
 export function PlanEditView() {
   const router = useRouter();
   const [reason, setReason] = useState<"payday" | "income" | "balance">("payday");
+  const back = useBack("/app");
+  const from = useFromQuery();
 
   function handleContinue() {
     if (reason === "payday") {
-      router.push("/app/plan/edit/payday");
+      router.push(`/app/plan/edit/payday${from}`);
     } else if (reason === "balance") {
       router.push("/app/balance/adjust?back=edit");
     } else {
@@ -476,7 +480,7 @@ export function PlanEditView() {
 
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
-      <AppHeader title="แก้แผน" back="/app" tone="default" />
+      <AppHeader title="แก้แผน" back={back} tone="default" />
 
       <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
         <h2 className="text-base font-semibold text-primary">ต้องการแก้เรื่องไหน</h2>
@@ -601,9 +605,7 @@ export function BalanceAdjustView() {
           </Button>
         </>
       ) : !summary ? (
-        <p className="py-8 text-sm text-secondary" aria-busy="true">
-          กำลังโหลด…
-        </p>
+        <LoadingSkeleton />
       ) : (
         <>
           <section className="flex flex-col gap-4 rounded-md border border-line bg-card p-4">

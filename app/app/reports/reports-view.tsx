@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
 import { Banner } from "@/components/ui/banner";
@@ -227,9 +228,7 @@ export function ReportsView() {
           <Button onClick={() => setAttempt((n) => n + 1)}>ลองใหม่</Button>
         </>
       ) : !report ? (
-        <p role="status" aria-busy="true" className="py-6 text-secondary">
-          กำลังโหลดรายงาน…
-        </p>
+        <LoadingSkeleton label="กำลังโหลดรายงาน…" />
       ) : (
         <>
           <ReportNumbers report={report} />

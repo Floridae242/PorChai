@@ -1,11 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
+import { useBack } from "@/components/shell/use-back";
 import { AppHeader } from "@/components/shell/app-header";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { useApi } from "@/lib/client/use-api";
 import type { NotificationPreferences } from "@/lib/reports/types";
 export function NotificationView() {
+  const back = useBack("/app");
   const api = useApi();
   const [value, setValue] = useState<NotificationPreferences | null>(null);
   const [error, setError] = useState(false),
@@ -45,7 +48,7 @@ export function NotificationView() {
   }
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
-      <AppHeader title="สรุปและเตือนงบ" back="/app" tone="default" />
+      <AppHeader title="สรุปและเตือนงบ" back={back} tone="default" />
       <p className="text-sm text-secondary">
         ส่งเป็น Flex Card ผ่าน LINE OA พอใช้ ต้องเพิ่มเพื่อน OA และอนุญาตไว้ก่อน
         ค่าเริ่มต้นปิดทั้งหมด
@@ -59,9 +62,7 @@ export function NotificationView() {
         </>
       ) : null}
       {!value ? (
-        <p role="status" aria-busy="true">
-          กำลังโหลด…
-        </p>
+        <LoadingSkeleton />
       ) : (
         <>
           <div className="flex flex-col divide-y divide-line rounded-md border border-line bg-card px-4">

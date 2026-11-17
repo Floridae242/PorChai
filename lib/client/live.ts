@@ -108,6 +108,7 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
     simulate: (req) => request({ method: "POST", path: "/api/simulate", body: req }),
     changePayday: (req) => request({ method: "PUT", path: "/api/cycle/payday", body: req }),
     setEssentials: (req) => request({ method: "PUT", path: "/api/cycle/essentials", body: req }),
+    setBuffer: (req) => request({ method: "PUT", path: "/api/cycle/buffer", body: req }),
     plans: () => request({ method: "GET", path: "/api/plans" }),
     addPlan: (req, idempotencyKey) =>
       request({ method: "POST", path: "/api/plans", body: req, idempotencyKey }),
@@ -115,6 +116,9 @@ export function createLiveApi(opts: LiveApiOptions): PorchaiApi {
       request({ method: "POST", path: `/api/plans/${seg(id)}/${action}`, body }),
     addIncome: (req, idempotencyKey) => request({ method: "POST", path: "/api/income", body: req, idempotencyKey }),
     incomes: () => request({ method: "GET", path: "/api/income" }),
+    // No endpoint on the backend yet: say so instead of calling a route that does not exist
+    editIncome: () => Promise.reject(new ApiError(501, "not_implemented", "ฟีเจอร์นี้ยังไม่พร้อมใช้งาน")),
+    cancelIncome: () => Promise.reject(new ApiError(501, "not_implemented", "ฟีเจอร์นี้ยังไม่พร้อมใช้งาน")),
     // Card 58: แอป › ตั้งค่า › การเตือน
     reminderSettings: () => request({ method: "GET", path: "/api/reminders" }),
     saveReminderSettings: (req) => request({ method: "PUT", path: "/api/reminders", body: req }),

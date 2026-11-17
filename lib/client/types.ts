@@ -56,6 +56,12 @@ export interface PointsHistory {
   items: PointsHistoryItem[];
 }
 
+export interface EditIncomeRequest {
+  amount?: Satang;
+  note?: string | null;
+  receivedOn?: string; // YYYY-MM-DD, never future
+}
+
 export interface NewIncomeRequest {
   amount: Satang;
   note?: string | null;
@@ -130,6 +136,8 @@ export interface PorchaiApi {
   // Card 23: confirm a moved payday with the basis of the simulate that showed it; 409 'stale' if it changed
   changePayday(req: PaydayRequest): Promise<{ summary: Summary }>;
   setEssentials(req: EssentialsRequest): Promise<{ summary: Summary }>;
+  // PUT /api/cycle/buffer: set the emergency buffer (satang); `previous` is the value the screen showed (409 'stale' if it moved)
+  setBuffer(req: { amount: number; previous: number }): Promise<{ summary: Summary }>;
   plans(): Promise<PlansResponse>;
   addPlan(req: NewPlanRequest, idempotencyKey: string): Promise<PlanResponse>;
   planAction(id: string, action: PlanActionName, body?: PayPlanRequest): Promise<PlanResponse>;
@@ -146,6 +154,10 @@ export interface PorchaiApi {
   redeemReward(id: string, idempotencyKey: string): Promise<{ balance: number; code: string }>;
   addIncome(req: NewIncomeRequest, idempotencyKey: string): Promise<{ summary: Summary }>;
   incomes(): Promise<IncomesResponse>;
+  // The backend has no endpoint to edit or cancel income yet (Por's side): live answers 501 not_implemented,
+  // so the screen says "ยังไม่พร้อมใช้งาน". The mock does it so the screen can be tried.
+  editIncome(id: string, req: EditIncomeRequest): Promise<{ summary: Summary }>;
+  cancelIncome(id: string): Promise<{ summary: Summary }>;
   dailySpend(): Promise<DailySpend>;
   categoryTotals(): Promise<CategoryTotals>;
   reminderSettings(): Promise<ReminderSettings>;

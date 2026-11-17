@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
@@ -703,8 +704,8 @@ export function TrySavedView() {
 
   if (!plan) {
     return (
-      <main className="py-8 font-body text-sm text-secondary" aria-busy="true">
-        กำลังโหลด…
+      <main className="py-2 font-body">
+        <LoadingSkeleton />
       </main>
     );
   }

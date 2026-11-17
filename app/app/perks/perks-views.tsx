@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useParams, useRouter } from "next/navigation";
 import {
   useCallback,
@@ -144,9 +145,7 @@ export function PerksListView() {
       </section>
 
       {promos.state === "loading" ? (
-        <p className="py-6 text-sm text-secondary" aria-busy="true">
-          กำลังโหลดสิทธิพิเศษ…
-        </p>
+        <LoadingSkeleton label="กำลังโหลดสิทธิพิเศษ…" />
       ) : promos.state === "failed" ? (
         <LoadFailed
           onRetry={() => {
@@ -264,7 +263,7 @@ export function PerkDetailView() {
     return (
       <main className="flex flex-col gap-4 py-2 font-body" aria-busy="true">
         {header}
-        <p className="text-sm text-secondary">กำลังโหลดรายละเอียด…</p>
+        <LoadingSkeleton label="กำลังโหลดรายละเอียด…" />
       </main>
     );
   }
@@ -436,8 +435,8 @@ export function PerkCodeView() {
 
   if (!claim) {
     return (
-      <main className="py-8 font-body text-sm text-secondary" aria-busy="true">
-        กำลังโหลด…
+      <main className="py-2 font-body">
+        <LoadingSkeleton />
       </main>
     );
   }
@@ -485,8 +484,8 @@ export function PerkUsedView() {
 
   if (!claim) {
     return (
-      <main className="py-8 font-body text-sm text-secondary" aria-busy="true">
-        กำลังโหลด…
+      <main className="py-2 font-body">
+        <LoadingSkeleton />
       </main>
     );
   }
@@ -690,9 +689,7 @@ export function PointsView() {
       <section className="flex flex-col gap-3">
         <h2 className="text-base font-semibold text-primary">แลกของ</h2>
         {rewards.state === "loading" ? (
-          <p className="text-sm text-secondary" aria-busy="true">
-            กำลังโหลดของรางวัล…
-          </p>
+          <LoadingSkeleton label="กำลังโหลดของรางวัล…" rows={2} />
         ) : rewards.state === "failed" ? (
           <LoadFailed
             onRetry={() => {

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
@@ -61,6 +62,12 @@ export function RecordNewView() {
     [],
   );
   const [categoriesFailed, setCategoriesFailed] = useState(false);
+  // "+ เพิ่มหมวด" while recording: a name only, saved as the user's own category and picked right away
+  const [addOpen, setAddOpen] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const addLock = useRef(false);
   const [spentOn, setSpentOn] = useState(() => thaiDate(new Date()));
   const dateTouched = useRef(false);
   const [error, setError] = useState<string | null>(null); // amount field
@@ -178,6 +185,31 @@ export function RecordNewView() {
     setFormError(errorText(result.error, "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง"));
   }
 
+  async function addCategory() {
+    const label = newLabel.trim();
+    if (!label || label.length > 30) {
+      setAddError("ใส่ชื่อหมวด 1–30 ตัวอักษร");
+      return;
+    }
+    if (addLock.current) return;
+    addLock.current = true;
+    setAddBusy(true);
+    setAddError(null);
+    try {
+      // The server keeps one of its own groups on every category; the user is never asked for it
+      const saved = await api.saveSpendingCategory({ label, parent: "other", monthlyBudget: null });
+      setCustomCategories((rows) => (rows.some((c) => c.id === saved.id) ? rows : [...rows, saved]));
+      setCategoryId(saved.id);
+      setCategory("other");
+      setAddOpen(false);
+    } catch {
+      setAddError("เพิ่มหมวดไม่สำเร็จ ลองใหม่อีกครั้งครับ");
+    } finally {
+      addLock.current = false;
+      setAddBusy(false);
+    }
+  }
+
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
       <AppHeader title="จดรายการ" back="/app" tone="default" />
@@ -270,31 +302,29 @@ export function RecordNewView() {
                   {personalLabels[cat] ?? CATEGORY_LABELS[cat]}
                 </Chip>
               ))}
-            </div>
-            {customCategories.length > 0 && (
-              <label className="mt-2 flex flex-col gap-2 text-sm text-primary">
-                หมวดของฉัน
-                <select
-                  className="min-h-12 rounded-sm border border-line-strong bg-card px-3"
-                  value={categoryId ?? ""}
-                  disabled={busy}
-                  onChange={(e) => {
-                    const row = customCategories.find(
-                      (c) => c.id === e.target.value,
-                    );
-                    setCategoryId(row?.id ?? null);
-                    if (row && row.parent !== "bills") setCategory(row.parent);
+              {customCategories.map((c) => (
+                <Chip
+                  key={c.id}
+                  selected={categoryId === c.id}
+                  onClick={() => {
+                    setCategoryId(c.id);
+                    if (c.parent !== "bills") setCategory(c.parent);
                   }}
                 >
-                  <option value="">เลือกหมวดที่สร้างไว้</option>
-                  {customCategories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+                  {c.label}
+                </Chip>
+              ))}
+              <Chip
+                selected={false}
+                onClick={() => {
+                  setNewLabel("");
+                  setAddError(null);
+                  setAddOpen(true);
+                }}
+              >
+                + เพิ่มหมวด
+              </Chip>
+            </div>
             {categoriesFailed && (
               <p className="text-xs text-secondary">
                 โหลดหมวดที่สร้างไว้ไม่สำเร็จ ยังจดด้วยหมวดหลักได้ครับ
@@ -321,6 +351,33 @@ export function RecordNewView() {
           helper="จดย้อนหลังในรอบปัจจุบันได้ ระบบจะคำนวณงบวันนี้ใหม่ตามจริง"
         />
       </section>
+
+      <Sheet open={addOpen} onClose={() => !addBusy && setAddOpen(false)} title="เพิ่มหมวดของฉัน">
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void addCategory();
+          }}
+        >
+          <InputField
+            label="ชื่อหมวด"
+            value={newLabel}
+            maxLength={30}
+            placeholder="เช่น กาแฟ"
+            disabled={addBusy}
+            onChange={(e) => setNewLabel(e.target.value)}
+            state={addError ? "error" : newLabel ? "filled" : "default"}
+            helper={addError ?? "ตั้งงบรายเดือนได้ภายหลังที่ ตั้งค่า › หมวดและงบ"}
+          />
+          <Button type="submit" busy={addBusy} disabled={addBusy}>
+            เพิ่มหมวด
+          </Button>
+          <Button variant="ghost" disabled={addBusy} onClick={() => setAddOpen(false)}>
+            ยกเลิก
+          </Button>
+        </form>
+      </Sheet>
 
       {formError ? (
         <Banner
@@ -419,8 +476,8 @@ export function RecordLinkView() {
 
   if (!draft) {
     return (
-      <main className="py-8 font-body text-sm text-secondary" aria-busy="true">
-        กำลังโหลด…
+      <main className="py-2 font-body">
+        <LoadingSkeleton />
       </main>
     );
   }
@@ -697,8 +754,8 @@ export function RecordEditView() {
 
   if (loading) {
     return (
-      <main className="py-8 font-body text-sm text-secondary" aria-busy="true">
-        กำลังโหลดรายการ…
+      <main className="py-2 font-body">
+        <LoadingSkeleton label="กำลังโหลดรายการ…" />
       </main>
     );
   }

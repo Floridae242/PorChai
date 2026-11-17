@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { AppHeader } from "@/components/shell/app-header";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -73,9 +74,7 @@ export function PointsHistoryView() {
       <AppHeader title="ประวัติแต้ม" back="/app/points" tone="default" />
 
       {load.state === "loading" ? (
-        <p className="text-sm text-secondary" aria-busy="true">
-          กำลังโหลดประวัติแต้ม…
-        </p>
+        <LoadingSkeleton label="กำลังโหลดประวัติแต้ม…" />
       ) : load.state === "not_ready" ? (
         <Banner kind="info" text={MSG_NOT_READY} />
       ) : load.state === "failed" ? (

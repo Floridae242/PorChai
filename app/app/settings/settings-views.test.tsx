@@ -78,7 +78,7 @@ describe("H3 main", () => {
     expect(screen.queryByText(/แต้ม/)).toBeNull();
     expect(screen.queryByRole("link", { name: /Plus/ })).toBeNull();
     expect(within(screen.getByRole("region", { name: "แผนเงินของคุณ" })).getAllByRole("link")).toHaveLength(4);
-    expect(screen.getByRole("link", { name: /สรุปและเตือนงบ/ }).getAttribute("href")).toBe("/app/notifications");
+    expect(screen.getByRole("link", { name: /สรุปและเตือนงบ/ }).getAttribute("href")).toBe("/app/notifications?from=settings");
     expect(within(screen.getByRole("region", { name: "จัดการข้อมูลส่วนตัว" })).getByRole("link").getAttribute("href")).toBe("/app/settings/delete");
   });
 });
@@ -311,11 +311,41 @@ describe("H8 savings / buffer / essentials", () => {
     expect(setEssentials).toHaveBeenCalledWith({ food: 7000, transport: 0 });
   });
 
-  it("shows unsupported savings and buffer changes as unavailable before tapping", async () => {
+  it("savings goal says it is not ready (no dead button); the buffer can be changed", async () => {
     renderWith(apiWith({}), <SettingsSavingsView />);
-    expect((await screen.findByRole("button", { name: "ปรับเป้าออม" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "ปรับเงินเผื่อ" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getAllByText(/หน้านี้ยังไม่พร้อมใช้งาน/)).toHaveLength(2);
+    await screen.findByLabelText("เงินเผื่อใหม่ (บาท)");
+    expect(screen.queryByRole("button", { name: "ปรับเป้าออม" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "ปรับเงินเผื่อ" })).toBeNull();
+    expect(screen.getAllByText(/ยังไม่พร้อมใช้งาน/).length).toBeGreaterThan(0);
+  });
+
+  it("saves the buffer through setBuffer with the value the screen showed as `previous`", async () => {
+    const base = createMockApi({ scenario: "default" });
+    const before = (await base.summary()).emergencyBuffer;
+    const setBuffer = vi.fn((req) => base.setBuffer(req));
+    renderWith(apiWith({ setBuffer }), <SettingsSavingsView />);
+    const user = userEvent.setup();
+    const field = await screen.findByLabelText("เงินเผื่อใหม่ (บาท)");
+    await user.clear(field);
+    await user.type(field, "100");
+    await user.click(screen.getByRole("button", { name: "บันทึกเงินเผื่อ" }));
+    expect(await screen.findByText("บันทึกเงินเผื่อแล้ว")).toBeTruthy();
+    expect(setBuffer).toHaveBeenCalledWith({ amount: 10000, previous: before });
+  });
+
+  it("an invalid buffer is not sent; a server refusal is shown", async () => {
+    const setBuffer = vi.fn(() => Promise.reject(new ApiError(422, "invalid_input", "เงินออมรวมเงินเผื่อเกินเงินที่มี")));
+    renderWith(apiWith({ setBuffer }), <SettingsSavingsView />);
+    const user = userEvent.setup();
+    const field = await screen.findByLabelText("เงินเผื่อใหม่ (บาท)");
+    await user.clear(field);
+    await user.type(field, "abc");
+    await user.click(screen.getByRole("button", { name: "บันทึกเงินเผื่อ" }));
+    expect(setBuffer).not.toHaveBeenCalled();
+    await user.clear(field);
+    await user.type(field, "99999");
+    await user.click(screen.getByRole("button", { name: "บันทึกเงินเผื่อ" }));
+    expect(await screen.findByText("เงินออมรวมเงินเผื่อเกินเงินที่มี")).toBeTruthy();
   });
 
   it("an invalid essentials amount is not sent", async () => {

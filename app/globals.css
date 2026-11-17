@@ -25,3 +25,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-sanam-deklen), Tahoma, Arial, sans-serif;
 }
+
+/* Pulling down inside LINE's browser can close the app: do not start the browser's own pull gesture. */
+html,
+body {
+  overscroll-behavior-y: none;
+}
