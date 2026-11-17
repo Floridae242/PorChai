@@ -78,7 +78,7 @@ describe("H3 main", () => {
     expect(screen.queryByText(/แต้ม/)).toBeNull();
     expect(screen.queryByRole("link", { name: /Plus/ })).toBeNull();
     expect(within(screen.getByRole("region", { name: "แผนเงินของคุณ" })).getAllByRole("link")).toHaveLength(4);
-    expect(screen.getByRole("link", { name: /สรุปและเตือนงบ/ }).getAttribute("href")).toBe("/app/notifications");
+    expect(screen.getByRole("link", { name: /สรุปและเตือนงบ/ }).getAttribute("href")).toBe("/app/notifications?from=settings");
     expect(within(screen.getByRole("region", { name: "จัดการข้อมูลส่วนตัว" })).getByRole("link").getAttribute("href")).toBe("/app/settings/delete");
   });
 });

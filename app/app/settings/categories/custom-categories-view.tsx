@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
 import { Sheet } from "@/components/shell/sheet";
@@ -179,9 +180,7 @@ export function CustomCategoriesView() {
           <Button onClick={() => setAttempt((n) => n + 1)}>โหลดล่าสุด</Button>
         </>
       ) : !rows ? (
-        <p role="status" aria-busy="true">
-          กำลังโหลดหมวด…
-        </p>
+        <LoadingSkeleton label="กำลังโหลดหมวด…" />
       ) : (
         <>
           {rows.length === 0 ? <section className="rounded-sheet border border-dashed border-line-strong bg-subtle p-5">

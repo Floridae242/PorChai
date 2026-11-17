@@ -9,6 +9,7 @@ import { createMockApi } from "@/lib/client/mock";
 import { clearPaydayDraft, getPaydayDraft, setPaydayDraft } from "@/lib/client/payday-draft";
 import type { PorchaiApi } from "@/lib/client/types";
 import { ApiContext } from "@/lib/client/use-api";
+import { nextPayday } from "@/lib/calc/payday";
 import { formatThaiDate } from "@/lib/format/date";
 
 const push = vi.fn();
@@ -70,7 +71,7 @@ describe("PaydayInputView (E1a)", () => {
     expect(await screen.findByText("วันเงินเข้าตอนนี้:")).toBeTruthy();
     expect(screen.getByText(formatThaiDate("2026-11-23", "long"))).toBeTruthy();
     expect(screen.getByText("ถัดไปอีก 12 วัน (รวมวันนี้)")).toBeTruthy();
-    expect(screen.getByLabelText("วันเงินเข้าใหม่")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "รายเดือน" })).toBeTruthy();
     expect(screen.queryByText(/ยังไม่พร้อมใช้งาน/)).toBeNull();
     expect(screen.queryByText(/−50/)).toBeNull();
   });
@@ -84,24 +85,57 @@ describe("PaydayInputView (E1a)", () => {
     expect(screen.queryByText(/ถัดไปอีก/)).toBeNull();
   });
 
-  it("N days -> the date today + N, shown under the field; goes to E2 with ?payday", async () => {
+  it("monthly: pick a day of the month like the first setup; shows the next payday and goes to E2", async () => {
     renderWith(mk(), <PaydayInputView />);
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("วันเงินเข้าใหม่"), "15");
-    expect(screen.getByText(`ตรงกับวันที่ ${formatThaiDate("2026-11-26", "long")}`)).toBeTruthy();
+    await user.click(await screen.findByRole("button", { name: "รายเดือน" }));
+    await user.click(screen.getByRole("button", { name: "วันที่ 26" }));
+    expect(screen.getByText("เงินเข้าครั้งถัดไป")).toBeTruthy();
+    expect(screen.getByText(/อีก 15 วัน/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "ดูสรุปแผนใหม่" }));
     expect(push).toHaveBeenCalledWith("/app/plan/edit/review"); // the URL carries no date
     expect(getPaydayDraft()).toBe("2026-11-26");
   });
 
-  it.each(["", "0", "abc", "1.5", "-3", "367", "1000"])("invalid days %j: Thai error, no navigation", async (text) => {
+  it("weekly: pick a weekday, the draft is the next such day after today", async () => {
     renderWith(mk(), <PaydayInputView />);
     const user = userEvent.setup();
-    const field = await screen.findByLabelText("วันเงินเข้าใหม่");
-    if (text) await user.type(field, text);
+    await user.click(await screen.findByRole("button", { name: "รายสัปดาห์" }));
+    await user.click(screen.getByRole("button", { name: "ศุกร์" }));
     await user.click(screen.getByRole("button", { name: "ดูสรุปแผนใหม่" }));
-    expect(screen.getByText("ใส่จำนวนวันเป็นเลขจำนวนเต็ม 1–366")).toBeTruthy();
+    expect(getPaydayDraft()).toBe(nextPayday({ kind: "weekly", weekday: 5 }, "2026-11-11"));
+    expect(push).toHaveBeenCalled();
+  });
+
+  it("choose your own date: only a date after today is accepted", async () => {
+    renderWith(mk(), <PaydayInputView />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "เลือกวันเอง" }));
+    const field = screen.getByLabelText("กะว่าจะใช้ก้อนนี้ถึงวันที่เท่าไหร่");
+    fireEvent.change(field, { target: { value: "2026-11-11" } });
+    await user.click(screen.getByRole("button", { name: "ดูสรุปแผนใหม่" }));
     expect(push).not.toHaveBeenCalled();
+    fireEvent.change(field, { target: { value: "2026-12-01" } });
+    await user.click(screen.getByRole("button", { name: "ดูสรุปแผนใหม่" }));
+    expect(getPaydayDraft()).toBe("2026-12-01");
+  });
+
+  it("nothing picked: says to pick how often the money comes, no navigation", async () => {
+    renderWith(mk(), <PaydayInputView />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "ดูสรุปแผนใหม่" }));
+    expect(screen.getByText("เลือกความถี่ที่เงินเข้าก่อน")).toBeTruthy();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("keeps ?from= when going on, so the back arrows lead back to Settings", async () => {
+    currentSearch = "from=settings";
+    renderWith(mk(), <PaydayInputView />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "รายเดือน" }));
+    await user.click(screen.getByRole("button", { name: "วันที่ 26" }));
+    await user.click(screen.getByRole("button", { name: "ดูสรุปแผนใหม่" }));
+    expect(push).toHaveBeenCalledWith("/app/plan/edit/review?from=settings");
   });
 
   it("load failure: alert + ลองใหม่", async () => {
@@ -110,7 +144,7 @@ describe("PaydayInputView (E1a)", () => {
     renderWith(api, <PaydayInputView />);
     expect((await screen.findByRole("alert")).textContent).toContain("ระบบผิดพลาด");
     await userEvent.setup().click(screen.getByRole("button", { name: "ลองใหม่" }));
-    expect(await screen.findByLabelText("วันเงินเข้าใหม่")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "รายเดือน" })).toBeTruthy();
   });
 });
 

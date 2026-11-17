@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useEffect, useState, type ReactNode } from "react";
 import { useApi } from "@/lib/client/use-api";
 import { ClarityLoader } from "./clarity-loader";
@@ -63,8 +64,8 @@ export function ConsentGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <main className="mx-auto max-w-md p-6 font-body text-secondary" aria-busy="true">
-      กำลังโหลด…
+    <main className="mx-auto max-w-md p-6 font-body">
+      <LoadingSkeleton />
     </main>
   );
 }

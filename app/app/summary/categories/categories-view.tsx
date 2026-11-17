@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
 import { Banner } from "@/components/ui/banner";
@@ -55,9 +56,7 @@ export function CategoriesSummaryView() {
       <AppHeader title="สรุปหมวดหมู่" back="/app" tone="default" />
 
       {state.kind === "loading" ? (
-        <p className="py-8 text-sm text-secondary" aria-busy="true">
-          กำลังโหลด…
-        </p>
+        <LoadingSkeleton />
       ) : state.kind === "not_ready" ? (
         <Banner kind="info" text="ยังไม่พร้อมใช้งาน" />
       ) : state.kind === "failed" ? (

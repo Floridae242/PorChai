@@ -7,14 +7,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
+import { useFromQuery } from "@/components/shell/use-back";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonClass } from "@/components/ui/button";
+import { MonthDayGrid } from "@/components/setup/month-day-grid";
+import { NextPaydayCard } from "@/components/setup/next-payday-card";
+import { Chip } from "@/components/ui/chip";
 import { InputField } from "@/components/ui/input-field";
 import { Mascot, type MascotPose } from "@/components/ui/mascot";
 import type { SimulateResponse, Summary } from "@/lib/api-types";
 import type { BudgetResult } from "@/lib/calc/budget";
 import type { Satang } from "@/lib/calc/money";
-import { addDays } from "@/lib/calc/time";
+import { nextPayday, WEEKDAY_CHOICES, WEEKDAY_NAMES_TH, weekdayOf } from "@/lib/calc/payday";
+import { addDays, daysBetween } from "@/lib/calc/time";
 import { ApiError } from "@/lib/client/errors";
 import { essentialsFromDaily, parseEssentialsInput } from "@/lib/client/essentials";
 import { getPaydayDraft, setPaydayDraft } from "@/lib/client/payday-draft";
@@ -24,10 +29,12 @@ import { formatThaiDate } from "@/lib/format/date";
 import { formatBaht } from "@/lib/format/money";
 
 export const MSG_STALE = "ข้อมูลเปลี่ยนไปแล้ว ลองดูผลใหม่อีกครั้ง";
-const MSG_DAYS = "ใส่จำนวนวันเป็นเลขจำนวนเต็ม 1–366";
-const MAX_DAYS = 366;
+const PAYDAY_FREQUENCIES = [
+  { key: "monthly", label: "รายเดือน" },
+  { key: "weekly", label: "รายสัปดาห์" },
+  { key: "irregular", label: "เลือกวันเอง" },
+] as const;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
@@ -52,13 +59,6 @@ function redirectFor(err: unknown, router: Router): boolean {
   return false;
 }
 
-function parseDays(text: string): number | null {
-  const t = text.trim().replace(/[๐-๙]/g, (c) => String(THAI_DIGITS.indexOf(c)));
-  if (!/^\d{1,3}$/.test(t)) return null;
-  const n = Number(t);
-  return n >= 1 && n <= MAX_DAYS ? n : null;
-}
-
 function isRealDate(s: string): boolean {
   return ISO_DATE.test(s) && addDays(s, 0) === s;
 }
@@ -73,7 +73,7 @@ function Loading({ title, back }: { title: string; back?: string }) {
       <AppHeader title={title} back={back} tone="default" />
       <div aria-hidden="true" className="h-24 rounded-md bg-subtle motion-safe:animate-pulse" />
       <div aria-hidden="true" className="h-16 rounded-md bg-subtle motion-safe:animate-pulse" />
-      <p className="text-sm text-secondary">กำลังโหลด…</p>
+      <span className="sr-only">กำลังโหลด…</span>
     </main>
   );
 }
@@ -86,7 +86,11 @@ export function PaydayInputView() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [daysText, setDaysText] = useState("");
+  const from = useFromQuery();
+  const [freq, setFreq] = useState<"monthly" | "weekly" | "irregular" | null>(null);
+  const [day, setDay] = useState<number | null>(null);
+  const [weekday, setWeekday] = useState<number | null>(null);
+  const [dateText, setDateText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -109,7 +113,7 @@ export function PaydayInputView() {
   if (loadError) {
     return (
       <main className="flex flex-col gap-4 py-2 font-body">
-        <AppHeader title="แก้วันเงินเข้า" back="/app/plan/edit" tone="default" />
+        <AppHeader title="แก้วันเงินเข้า" back={`/app/plan/edit${from}`} tone="default" />
         <Banner kind="error" text={loadError} />
         <Button
           variant="primary"
@@ -124,26 +128,39 @@ export function PaydayInputView() {
       </main>
     );
   }
-  if (!summary) return <Loading title="แก้วันเงินเข้า" back="/app/plan/edit" />;
+  if (!summary) return <Loading title="แก้วันเงินเข้า" back={`/app/plan/edit${from}`} />;
 
-  const days = parseDays(daysText);
-  const newPayday = days !== null ? addDays(summary.today, days) : null;
+  const today = summary.today;
+  const picked: string =
+    freq === "monthly" && day !== null
+      ? nextPayday({ kind: "monthly", day }, today)
+      : freq === "weekly" && weekday !== null
+        ? nextPayday({ kind: "weekly", weekday }, today)
+        : freq === "irregular"
+          ? dateText
+          : "";
+  const valid = ISO_DATE.test(picked) && picked > today;
+  const card =
+    valid && freq !== "irregular"
+      ? {
+          dateText: `วัน${WEEKDAY_NAMES_TH[weekdayOf(picked)]}ที่ ${formatThaiDate(picked, "long")}`,
+          daysLeft: daysBetween(today, picked),
+        }
+      : null;
 
   function handleNext() {
-    if (!summary) return;
-    const n = parseDays(daysText);
-    if (n === null) {
-      setError(MSG_DAYS);
+    if (!valid) {
+      setError(freq === null ? "เลือกความถี่ที่เงินเข้าก่อน" : "เลือกวันเงินเข้าที่อยู่หลังวันนี้");
       return;
     }
     setError(null);
-    setPaydayDraft(addDays(summary.today, n));
-    router.push("/app/plan/edit/review");
+    setPaydayDraft(picked);
+    router.push(`/app/plan/edit/review${from}`);
   }
 
   return (
     <main className="flex flex-col gap-4 py-2 font-body">
-      <AppHeader title="แก้วันเงินเข้า" back="/app/plan/edit" tone="default" />
+      <AppHeader title="แก้วันเงินเข้า" back={`/app/plan/edit${from}`} tone="default" />
 
       <section className="flex flex-col gap-1 rounded-md border border-line bg-card p-4 text-sm">
         <p className="text-secondary">
@@ -155,20 +172,72 @@ export function PaydayInputView() {
       </section>
 
       <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
-        <InputField
-          label="วันเงินเข้าใหม่"
-          inputMode="numeric"
-          placeholder="เช่น 15"
-          value={daysText}
-          onChange={(e) => {
-            setDaysText(e.target.value);
-            if (error) setError(null);
-          }}
-          state={error ? "error" : daysText ? "filled" : "default"}
-          helper={error ?? "อีก __ วัน (นับรวมวันนี้)"}
-        />
-        {newPayday ? <p className="text-sm text-primary">ตรงกับวันที่ {formatThaiDate(newPayday, "long")}</p> : null}
+        <h2 className="text-base font-semibold text-primary">ความถี่ที่เงินเข้า</h2>
+        <div className="flex flex-wrap gap-2">
+          {PAYDAY_FREQUENCIES.map((o) => (
+            <Chip
+              key={o.key}
+              selected={freq === o.key}
+              onClick={() => {
+                setFreq(o.key);
+                setError(null);
+              }}
+            >
+              {o.label}
+            </Chip>
+          ))}
+        </div>
       </section>
+
+      {freq === "weekly" ? (
+        <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
+          <h2 className="text-base font-semibold text-primary">เงินเข้าทุกวันอะไร</h2>
+          <div className="flex flex-wrap gap-2">
+            {WEEKDAY_CHOICES.map((w) => (
+              <Chip
+                key={w}
+                selected={weekday === w}
+                onClick={() => {
+                  setWeekday(w);
+                  setError(null);
+                }}
+              >
+                {WEEKDAY_NAMES_TH[w]}
+              </Chip>
+            ))}
+          </div>
+          {card ? <NextPaydayCard {...card} /> : <p className="text-xs text-secondary">เลือกวันที่เงินเข้าทุกสัปดาห์</p>}
+        </section>
+      ) : freq === "monthly" ? (
+        <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
+          <MonthDayGrid
+            value={day}
+            onChange={(d) => {
+              setDay(d);
+              setError(null);
+            }}
+            label="เงินเข้าวันที่เท่าไหร่ของทุกเดือน"
+          />
+          {card ? <NextPaydayCard {...card} /> : <p className="text-xs text-secondary">แตะวันที่เงินเข้าทุกเดือน</p>}
+        </section>
+      ) : freq === "irregular" ? (
+        <section className="flex flex-col gap-3 rounded-md border border-line bg-card p-4">
+          <InputField
+            label="กะว่าจะใช้ก้อนนี้ถึงวันที่เท่าไหร่"
+            type="date"
+            min={addDays(today, 1)}
+            value={dateText}
+            onChange={(e) => {
+              setDateText(e.target.value);
+              setError(null);
+            }}
+            state={error ? "error" : dateText ? "filled" : "default"}
+            helper={error ?? (valid ? `นับรวมวันนี้จนถึง ${formatThaiDate(picked, "long")}` : "เลือกวันที่เงินรอบถัดไปจะเข้า")}
+          />
+        </section>
+      ) : null}
+
+      {error && freq !== "irregular" ? <p className="text-xs text-danger">{error}</p> : null}
 
       <Button variant="primary" block onClick={handleNext}>
         ดูสรุปแผนใหม่

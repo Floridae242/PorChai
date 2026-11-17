@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sheet } from "@/components/shell/sheet";
@@ -46,14 +47,14 @@ function LoadFailed({ onRetry }: { onRetry: () => void }) {
 
 const SETTINGS_GROUPS = [
   { title: "แผนเงินของคุณ", icon: PlanIcon, rows: [
-    { title: "รอบเงินและวันเงินเข้า", detail: "เปลี่ยนวันเงินเข้า หรือปรับยอดให้ตรงเงินจริง", href: "/app/plan/edit" },
+    { title: "รอบเงินและวันเงินเข้า", detail: "เปลี่ยนวันเงินเข้า หรือปรับยอดให้ตรงเงินจริง", href: "/app/plan/edit?from=settings" },
     { title: "เงินออม · เงินเผื่อ · ค่าจำเป็น", detail: "ดูเงินที่กันไว้ และตั้งค่าใช้จ่ายจำเป็นต่อวัน", href: "/app/settings/savings" },
     { title: "บิลประจำ", detail: "เลือกวันครบกำหนดและตั้งเตือนบิลในปฏิทิน", href: "/app/settings/bills" },
     { title: "หมวดหมู่ของฉัน", detail: "ตั้งชื่อหมวด งบรายเดือน และดูงบแนะนำ", href: "/app/settings/categories" },
   ] },
   { title: "การแจ้งเตือนผ่าน LINE", icon: SettingsIcon, rows: [
     { title: "การเตือน", detail: "เตือนรายการที่อาจลืมจด และหยุดเตือนชั่วคราว", href: "/app/settings/notifications" },
-    { title: "สรุปและเตือนงบ", detail: "เลือกรับสรุปรายวัน รายเดือน และเตือนเมื่อเกินงบ", href: "/app/notifications" },
+    { title: "สรุปและเตือนงบ", detail: "เลือกรับสรุปรายวัน รายเดือน และเตือนเมื่อเกินงบ", href: "/app/notifications?from=settings" },
   ] },
 ] as const;
 
@@ -173,7 +174,7 @@ export function SettingsNotificationsView() {
     return (
       <main className="flex flex-col gap-4 py-2 font-body" aria-busy="true">
         {header}
-        <p className="text-sm text-secondary">กำลังโหลด…</p>
+        <LoadingSkeleton />
       </main>
     );
   }
@@ -202,7 +203,7 @@ export function SettingsNotificationsView() {
       {!ready ? <Banner kind="info" text={`${MSG_NOT_READY} — ตั้งค่าการเตือนยังใช้ไม่ได้ตอนนี้`} /> : null}
       <p className="text-sm leading-6 text-secondary">ให้น้องพอใช้ช่วยเตือนรายการที่อาจลืมจดครับ เลือกเวลาให้เหมาะกับวันของคุณได้เลย</p>
       <div className="rounded-sheet border border-line bg-card">
-        <SettingsRow title="สรุปรายวัน รายเดือน และเตือนงบ" detail="ตั้งค่าข้อความสรุปและเตือนเมื่อใช้เกินงบแยกได้ที่นี่" href="/app/notifications" />
+        <SettingsRow title="สรุปรายวัน รายเดือน และเตือนงบ" detail="ตั้งค่าข้อความสรุปและเตือนเมื่อใช้เกินงบแยกได้ที่นี่" href="/app/notifications?from=reminders" />
         <SettingsRow title="เตือนบิลประจำ" detail="เลือกบิลที่จะเตือน ล่วงหน้า 3 วันและวันครบกำหนด 09:00 น." href="/app/settings/bills" />
       </div>
 
@@ -353,7 +354,7 @@ export function SettingsSavingsView() {
     return (
       <main className="flex flex-col gap-4 py-2 font-body" aria-busy="true">
         {header}
-        <p className="text-sm text-secondary">กำลังโหลด…</p>
+        <LoadingSkeleton />
       </main>
     );
   }

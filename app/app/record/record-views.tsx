@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/shell/app-header";
@@ -419,8 +420,8 @@ export function RecordLinkView() {
 
   if (!draft) {
     return (
-      <main className="py-8 font-body text-sm text-secondary" aria-busy="true">
-        กำลังโหลด…
+      <main className="py-2 font-body">
+        <LoadingSkeleton />
       </main>
     );
   }
@@ -697,8 +698,8 @@ export function RecordEditView() {
 
   if (loading) {
     return (
-      <main className="py-8 font-body text-sm text-secondary" aria-busy="true">
-        กำลังโหลดรายการ…
+      <main className="py-2 font-body">
+        <LoadingSkeleton label="กำลังโหลดรายการ…" />
       </main>
     );
   }

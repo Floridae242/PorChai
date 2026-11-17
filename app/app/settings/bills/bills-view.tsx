@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Plan } from "@/lib/api-types";
@@ -216,7 +217,7 @@ export function SettingsBillsView() {
           <Button onClick={() => setAttempt((n) => n + 1)}>ลองใหม่</Button>
         </>
       ) : bills === null ? (
-        <p aria-busy="true">กำลังโหลดบิล…</p>
+        <LoadingSkeleton label="กำลังโหลดบิล…" />
       ) : (
         <>
           <BillCalendar
