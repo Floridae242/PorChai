@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>พอใช้ · LINE</title>
+<!--
+  E2E-only stand-in for the LINE app's chat with the Por-Chai OA (served by tests/e2e/helpers/line-oa-bot.ts
+  through page.route; never part of the app). It renders the bot's real LINE messages (Flex bubbles,
+  carousels, quick replies) and the real rich menu (public/richmenu.png + buildRichMenuSpec areas).
+-->
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: "Noto Sans Thai", "Leelawadee UI", "Thonburi", system-ui, sans-serif; background: #7494c0; color: #111; display: flex; flex-direction: column; overflow: hidden; }
+  header { flex: none; height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: #fff; border-bottom: 1px solid #e5e5e5; }
+  header .back { font-size: 22px; color: #111; width: 20px; }
+  header .avatar { width: 34px; height: 34px; border-radius: 50%; background: #e8f3dc center/cover no-repeat; }
+  header .name { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 4px; }
+  header .badge { width: 15px; height: 15px; border-radius: 50%; background: #06c755; color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; }
+  header .icons { margin-left: auto; color: #555; font-size: 18px; letter-spacing: 10px; }
+  #log { flex: 1; overflow-y: auto; padding: 12px 8px 16px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+  .day { align-self: center; background: rgba(0,0,0,.18); color: #fff; font-size: 11px; padding: 2px 10px; border-radius: 999px; }
+  .row { display: flex; align-items: flex-start; gap: 6px; }
+  .row.user { justify-content: flex-end; }
+  .row .ava { flex: none; width: 34px; height: 34px; border-radius: 50%; background: #e8f3dc center/cover no-repeat; }
+  .row .stack { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: calc(100% - 44px); }
+  .row.bot .stack .who { color: #fff; font-size: 11px; opacity: .9; }
+  .bubble-text { padding: 8px 12px; border-radius: 18px; font-size: 15px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+  .row.user .bubble-text { background: #8de055; border-top-right-radius: 4px; }
+  .row.bot .bubble-text { background: #fff; border-top-left-radius: 4px; }
+  .meta { align-self: flex-end; font-size: 10px; color: #f2f5fa; white-space: nowrap; }
+  .row.user .meta { order: -1; }
+  .user-image { max-width: 200px; border-radius: 14px; display: block; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .typing { background: #fff; border-radius: 18px; padding: 10px 14px; display: inline-flex; gap: 4px; }
+  .typing i { width: 6px; height: 6px; border-radius: 50%; background: #9aa5b1; animation: blink 1s infinite; }
+  .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 100% { opacity: .3 } 50% { opacity: 1 } }
+
+  /* Flex */
+  .carousel { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x mandatory; }
+  .carousel > .fx-bubble { scroll-snap-align: start; flex: none; }
+  .fx-bubble { background: #fff; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  .fx-box { display: flex; min-width: 0; position: relative; }
+  .fx-text { min-width: 0; line-height: 1.4; }
+  .fx-text.nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fx-text.wrap { white-space: pre-wrap; word-break: break-word; }
+  .fx-sep { border: none; border-top: 1px solid #e5e5e5; margin: 0; align-self: stretch; }
+  .fx-btn { border: none; border-radius: 10px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; padding: 0 12px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fx-img { display: block; max-width: 100%; }
+  .fx-filler { flex: 1; }
+
+  #quick { flex: none; display: flex; gap: 6px; overflow-x: auto; padding: 6px 8px; background: transparent; }
+  #quick:empty { display: none; }
+  #quick button { flex: none; border: 1px solid #fff; background: rgba(255,255,255,.95); color: #1f3a5f; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  footer { flex: none; background: #fff; border-top: 1px solid #e5e5e5; }
+  .composer { display: flex; align-items: center; gap: 8px; padding: 6px 8px; }
+  .composer .icon { flex: none; width: 34px; height: 34px; border-radius: 50%; border: none; background: transparent; font-size: 22px; color: #555; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .composer input[type=text] { flex: 1; min-width: 0; height: 36px; border-radius: 18px; border: none; background: #f1f2f4; padding: 0 14px; font: inherit; font-size: 15px; }
+  .composer .send { flex: none; border: none; background: transparent; color: #06c755; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }
+  .menu-bar { display: flex; align-items: center; justify-content: center; gap: 6px; height: 34px; border-top: 1px solid #eee; font-size: 13px; color: #333; background: #fff; width: 100%; border-left: none; border-right: none; border-bottom: none; font-family: inherit; cursor: pointer; }
+  #richmenu { position: relative; width: 100%; aspect-ratio: 2500 / 1686; background: #f6f7f2 url("/richmenu.png") center/100% 100% no-repeat; }
+  #richmenu[hidden] { display: none; }
+  #richmenu button { position: absolute; background: transparent; border: none; cursor: pointer; border-radius: 12px; }
+  #richmenu button:active, #richmenu button.tapped { background: rgba(0,0,0,.14); }
+</style>
+</head>
+<body>
+<header>
+  <span class="back" aria-hidden="true">‹</span>
+  <span class="avatar" style="background-image:url('/mascot/greeting.png')" aria-hidden="true"></span>
+  <span class="name">พอใช้ <span class="badge" aria-hidden="true">✓</span></span>
+  <span class="icons" aria-hidden="true">⌕ ☏ ☰</span>
+</header>
+<main id="log" aria-label="แชต LINE OA พอใช้" aria-live="polite"></main>
+<div id="quick" aria-label="ปุ่มตอบกลับด่วน"></div>
+<footer>
+  <div class="composer">
+    <button class="icon" type="button" aria-label="เมนูเพิ่มเติม">＋</button>
+    <button class="icon" type="button" aria-label="ส่งรูป" id="photo-btn">🖼</button>
+    <input id="photo" type="file" accept="image/*" hidden aria-label="เลือกรูปสลิป" />
+    <input id="msg" type="text" aria-label="พิมพ์ข้อความ" placeholder="Aa" autocomplete="off" />
+    <button class="send" type="button" id="send">ส่ง</button>
+  </div>
+  <button class="menu-bar" type="button" id="menu-toggle" aria-expanded="true">เมนูพอใช้ ▾</button>
+  <nav id="richmenu" aria-label="ริชเมนู"></nav>
+</footer>
+<script>
+(() => {
+  const log = document.getElementById("log");
+  const quick = document.getElementById("quick");
+  const BOT_AVATAR = "/mascot/greeting.png";
+
+  // ------------------------------------------------------------ helpers
+  const SIZE = { xxs: 11, xs: 13, sm: 14, md: 16, lg: 19, xl: 22, xxl: 29, "3xl": 35, "4xl": 48, "5xl": 74 };
+  const SPACE = { none: 0, xs: 2, sm: 4, md: 8, lg: 12, xl: 16, xxl: 20 };
+  const IMG = { xxs: 40, xs: 60, sm: 80, md: 100, lg: 120, xl: 140, xxl: 160, "3xl": 180, "4xl": 200, "5xl": 240 };
+  const BUBBLE = { nano: 120, micro: 160, deca: 220, hecto: 241, kilo: 260, mega: 300, giga: 340 };
+  const px = (v, map) => (v == null ? null : map && v in map ? map[v] + "px" : /^\d+(\.\d+)?$/.test(String(v)) ? v + "px" : String(v));
+  const time = () => new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
+
+  // Chat images point at the deployed site; the demo is offline, so the same files come from this server.
+  function localUrl(url) {
+    try {
+      const u = new URL(url, location.href);
+      if (u.origin !== location.origin && /^\/(mascot|images|icons|richmenu)/.test(u.pathname)) return u.pathname;
+      return u.href;
+    } catch { return url; }
+  }
+
+  // LIFF / MINI App permanent links open the matching /app page of this server.
+  function appPath(uri) {
+    const m = /^https:\/\/(?:miniapp|liff)\.line\.me\/[^/?#]+(\/[^?#]*)?(\?[^#]*)?/.exec(uri || "");
+    if (!m) return null;
+    const rest = m[1] && m[1] !== "/" ? m[1] : "";
+    return "/app" + rest + (m[2] || "");
+  }
+
+  // ------------------------------------------------------------ actions
+  async function act(action) {
+    if (!action) return;
+    if (action.type === "uri") {
+      const path = appPath(action.uri);
+      if (path) { location.href = path; return; }
+      return; // other links (web pages) are not opened in the demo
+    }
+    if (action.type === "message") return send({ type: "text", text: action.text });
+    if (action.type === "postback") return send({ type: "postback", data: action.data, displayText: action.displayText || null, label: action.label || null });
+  }
+
+  // ------------------------------------------------------------ Flex renderer
+  function applyCommon(el, n, parentLayout, isFirst, parentSpacing) {
+    const m = n.margin != null ? px(n.margin, SPACE) : (!isFirst && parentSpacing ? parentSpacing : null);
+    if (m) el.style[parentLayout === "horizontal" || parentLayout === "baseline" ? "marginLeft" : "marginTop"] = m;
+    const flexDefault = parentLayout === "horizontal" || parentLayout === "baseline" ? 1 : 0;
+    const f = n.flex != null ? n.flex : flexDefault;
+    el.style.flex = f > 0 ? `${f} 1 0` : "0 0 auto";
+    if (n.position === "absolute") {
+      el.style.position = "absolute";
+      for (const k of ["Top", "Bottom", "Start", "End"]) {
+        const v = n["offset" + k];
+        if (v != null) el.style[{ Top: "top", Bottom: "bottom", Start: "left", End: "right" }[k]] = px(v, SPACE);
+      }
+    } else {
+      if (n.offsetTop) el.style.marginTop = `calc(${el.style.marginTop || "0px"} + ${px(n.offsetTop, SPACE)})`;
+      if (n.offsetStart) el.style.marginLeft = `calc(${el.style.marginLeft || "0px"} + ${px(n.offsetStart, SPACE)})`;
+    }
+    if (n.alignSelf) el.style.alignSelf = n.alignSelf;
+    if (n.gravity) el.style.alignSelf = { top: "flex-start", center: "center", bottom: "flex-end" }[n.gravity] || "";
+  }
+
+  function render(n, parentLayout = "vertical", isFirst = true, parentSpacing = null) {
+    if (!n || typeof n !== "object") return document.createTextNode("");
+    let el;
+    switch (n.type) {
+      case "box": {
+        el = document.createElement("div");
+        el.className = "fx-box";
+        const layout = n.layout || "vertical";
+        el.style.flexDirection = layout === "vertical" ? "column" : "row";
+        if (layout === "baseline") el.style.alignItems = "baseline";
+        if (n.alignItems) el.style.alignItems = n.alignItems;
+        if (n.justifyContent) el.style.justifyContent = n.justifyContent;
+        if (n.backgroundColor) el.style.backgroundColor = n.backgroundColor;
+        if (n.background && n.background.type === "linearGradient") {
+          el.style.background = `linear-gradient(${n.background.angle || "0deg"}, ${n.background.startColor}, ${n.background.endColor})`;
+        }
+        if (n.borderColor) el.style.borderColor = n.borderColor;
+        if (n.borderWidth) { el.style.borderStyle = "solid"; el.style.borderWidth = px(n.borderWidth, { none: 0, light: 0.5, normal: 1, medium: 2, "semi-bold": 3, bold: 4 }); }
+        if (n.cornerRadius) el.style.borderRadius = px(n.cornerRadius, SPACE);
+        if (n.width) { el.style.width = px(n.width); el.style.flex = "none"; }
+        if (n.maxWidth) el.style.maxWidth = px(n.maxWidth);
+        if (n.height) { el.style.height = px(n.height); }
+        if (n.maxHeight) el.style.maxHeight = px(n.maxHeight);
+        if (n.paddingAll) el.style.padding = px(n.paddingAll, SPACE);
+        for (const k of ["Top", "Bottom", "Start", "End"]) {
+          const v = n["padding" + k];
+          if (v != null) el.style["padding" + ({ Start: "Left", End: "Right" }[k] || k)] = px(v, SPACE);
+        }
+        const spacing = n.spacing ? px(n.spacing, SPACE) : null;
+        (n.contents || []).forEach((c, i) => el.appendChild(render(c, layout, i === 0, spacing)));
+        if (n.action) { el.style.cursor = "pointer"; el.addEventListener("click", () => act(n.action)); }
+        break;
+      }
+      case "text": {
+        el = document.createElement("div");
+        el.className = "fx-text " + (n.wrap ? "wrap" : "nowrap");
+        el.style.fontSize = px(n.size || "md", SIZE);
+        if (n.weight === "bold") el.style.fontWeight = "700";
+        if (n.color) el.style.color = n.color;
+        if (n.align) el.style.textAlign = { start: "left", center: "center", end: "right" }[n.align];
+        if (n.decoration === "line-through") el.style.textDecoration = "line-through";
+        if (n.style === "italic") el.style.fontStyle = "italic";
+        if (n.maxLines) { el.style.display = "-webkit-box"; el.style.webkitLineClamp = n.maxLines; el.style.webkitBoxOrient = "vertical"; el.style.overflow = "hidden"; }
+        if (Array.isArray(n.contents) && n.contents.length) {
+          for (const s of n.contents) {
+            const span = document.createElement("span");
+            span.textContent = s.text || "";
+            if (s.size) span.style.fontSize = px(s.size, SIZE);
+            if (s.weight === "bold") span.style.fontWeight = "700";
+            if (s.color) span.style.color = s.color;
+            if (s.decoration === "line-through") span.style.textDecoration = "line-through";
+            el.appendChild(span);
+          }
+        } else el.textContent = n.text || "";
+        if (n.action) { el.style.cursor = "pointer"; el.addEventListener("click", () => act(n.action)); }
+        break;
+      }
+      case "image": {
+        // Like LINE: the image's AREA takes the flex share; the picture keeps its own size inside it.
+        el = document.createElement("div");
+        el.style.display = "flex";
+        el.style.minWidth = "0";
+        el.style.justifyContent = n.align === "start" ? "flex-start" : n.align === "end" ? "flex-end" : "center";
+        el.style.alignItems = { top: "flex-start", bottom: "flex-end" }[n.gravity] || "center";
+        const img = document.createElement("img");
+        img.className = "fx-img";
+        img.alt = "";
+        img.src = localUrl(n.url);
+        const size = n.size || "md";
+        img.style.width = size === "full" ? "100%" : px(size, IMG);
+        img.style.flex = "none";
+        const [w, h] = String(n.aspectRatio || "1:1").split(":").map(Number);
+        if (w && h) img.style.aspectRatio = `${w} / ${h}`;
+        img.style.objectFit = n.aspectMode === "cover" ? "cover" : "contain";
+        el.appendChild(img);
+        if (n.action) { el.style.cursor = "pointer"; el.addEventListener("click", () => act(n.action)); }
+        break;
+      }
+      case "icon": {
+        el = document.createElement("img");
+        el.alt = "";
+        el.src = localUrl(n.url);
+        el.style.width = el.style.height = px(n.size || "md", SIZE);
+        break;
+      }
+      case "separator": {
+        el = document.createElement("hr");
+        el.className = "fx-sep";
+        if (n.color) el.style.borderTopColor = n.color;
+        if (parentLayout !== "vertical") { el.style.borderTop = "none"; el.style.borderLeft = `1px solid ${n.color || "#e5e5e5"}`; el.style.alignSelf = "stretch"; }
+        break;
+      }
+      case "button": {
+        el = document.createElement("button");
+        el.type = "button";
+        el.className = "fx-btn";
+        const a = n.action || {};
+        el.textContent = a.label || "";
+        el.style.height = n.height === "sm" ? "40px" : "52px";
+        const style = n.style || "link";
+        if (style === "primary") { el.style.background = n.color || "#17c950"; el.style.color = "#fff"; }
+        else if (style === "secondary") { el.style.background = n.color || "#dcdfe5"; el.style.color = "#111"; }
+        else { el.style.background = "transparent"; el.style.color = n.color || "#42659a"; }
+        el.addEventListener("click", () => act(a));
+        break;
+      }
+      case "filler": el = document.createElement("div"); el.className = "fx-filler"; break;
+      case "spacer": el = document.createElement("div"); el.style.height = px(n.size || "md", SPACE); break;
+      default: el = document.createElement("div");
+    }
+    if (n.type !== "filler") applyCommon(el, n, parentLayout, isFirst, parentSpacing);
+    return el;
+  }
+
+  function renderBubble(b) {
+    const el = document.createElement("div");
+    el.className = "fx-bubble";
+    el.style.width = (BUBBLE[b.size || "mega"] || 300) + "px";
+    el.style.maxWidth = "100%";
+    const styles = b.styles || {};
+    for (const part of ["header", "hero", "body", "footer"]) {
+      const node = b[part];
+      if (!node) continue;
+      const wrap = render(node, "vertical", true, null);
+      wrap.style.flex = "none";
+      if (node.type === "box" && node.paddingAll == null && node.paddingTop == null) {
+        wrap.style.padding = part === "footer" ? "10px" : part === "hero" ? "0" : "16px";
+      }
+      if (styles[part] && styles[part].backgroundColor) wrap.style.backgroundColor = styles[part].backgroundColor;
+      if (styles[part] && styles[part].separator) wrap.style.borderTop = `1px solid ${styles[part].separatorColor || "#e5e5e5"}`;
+      if (node.type === "image") { wrap.style.width = "100%"; }
+      el.appendChild(wrap);
+    }
+    return el;
+  }
+
+  function renderMessage(m) {
+    if (m.type === "text") {
+      const t = document.createElement("div");
+      t.className = "bubble-text";
+      t.textContent = m.text;
+      return t;
+    }
+    if (m.type === "image") {
+      const img = document.createElement("img");
+      img.className = "user-image";
+      img.src = m.src;
+      img.alt = "รูปที่ส่ง";
+      return img;
+    }
+    if (m.type === "flex") {
+      const c = m.contents;
+      if (c && c.type === "carousel") {
+        const row = document.createElement("div");
+        row.className = "carousel";
+        for (const b of c.contents) row.appendChild(renderBubble(b));
+        return row;
+      }
+      return renderBubble(c);
+    }
+    const unknown = document.createElement("div");
+    unknown.className = "bubble-text";
+    unknown.textContent = m.altText || "(ข้อความ)";
+    return unknown;
+  }
+
+  function addRow(from, message, at) {
+    const row = document.createElement("div");
+    row.className = "row " + from;
+    row.dataset.testid = from === "user" ? "chat-user" : "chat-bot";
+    row.setAttribute("data-testid", row.dataset.testid);
+    if (from === "bot") {
+      const ava = document.createElement("span");
+      ava.className = "ava";
+      ava.style.backgroundImage = `url('${BOT_AVATAR}')`;
+      row.appendChild(ava);
+    }
+    const stack = document.createElement("div");
+    stack.className = "stack";
+    if (from === "bot") {
+      const who = document.createElement("span");
+      who.className = "who";
+      who.textContent = "พอใช้";
+      stack.appendChild(who);
+    }
+    const inner = document.createElement("div");
+    inner.style.display = "flex";
+    inner.style.gap = "4px";
+    inner.style.alignItems = "flex-end";
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = (from === "user" ? "อ่านแล้ว\n" : "") + (at || time());
+    meta.style.whiteSpace = "pre";
+    const body = renderMessage(message);
+    if (from === "user") { inner.appendChild(meta); inner.appendChild(body); inner.style.justifyContent = "flex-end"; }
+    else { inner.appendChild(body); if (message.type !== "flex" || (message.contents && message.contents.type !== "carousel")) inner.appendChild(meta); }
+    if (message.type === "flex" && message.contents && message.contents.type === "carousel") { stack.style.maxWidth = "100%"; inner.style.minWidth = "0"; inner.style.width = "100%"; }
+    stack.appendChild(inner);
+    row.appendChild(stack);
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+    // Pictures (mascots, slips) load after the row is added: keep the newest message in view.
+    row.querySelectorAll("img").forEach((img) => img.addEventListener("load", () => { log.scrollTop = log.scrollHeight; }));
+    return row;
+  }
+
+  function setQuickReplies(message) {
+    quick.innerHTML = "";
+    const items = (message && message.quickReply && message.quickReply.items) || [];
+    for (const it of items) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = it.action.label;
+      b.addEventListener("click", () => { quick.innerHTML = ""; act(it.action); });
+      quick.appendChild(b);
+    }
+  }
+
+  // ------------------------------------------------------------ talking to the bot (page.route in the test)
+  let typing = null;
+  function showTyping() {
+    const row = document.createElement("div");
+    row.className = "row bot";
+    row.innerHTML = `<span class="ava" style="background-image:url('${BOT_AVATAR}')"></span><span class="typing" aria-label="กำลังพิมพ์"><i></i><i></i><i></i></span>`;
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+    typing = row;
+  }
+  function hideTyping() { if (typing) { typing.remove(); typing = null; } }
+
+  async function send(event) {
+    // What the user sees on their side: the text, the image, or a postback's displayText.
+    if (event.type === "text") addRow("user", { type: "text", text: event.text });
+    else if (event.type === "image") addRow("user", { type: "image", src: event.src });
+    else if (event.type === "postback" && event.displayText) addRow("user", { type: "text", text: event.displayText });
+    quick.innerHTML = "";
+    showTyping();
+    try {
+      const res = await fetch("/__line-oa/event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(event) });
+      const data = await res.json();
+      hideTyping();
+      for (const m of data.messages || []) addRow("bot", m);
+      setQuickReplies((data.messages || []).at(-1));
+    } catch (err) {
+      hideTyping();
+      addRow("bot", { type: "text", text: "ส่งไม่สำเร็จ ลองใหม่อีกครั้ง" });
+    }
+  }
+
+  // History survives the trips into the MINI App and back, like the real chat.
+  async function load() {
+    const res = await fetch("/__line-oa/history");
+    const data = await res.json();
+    if (data.items.length) {
+      const day = document.createElement("div");
+      day.className = "day";
+      day.textContent = "วันนี้";
+      log.appendChild(day);
+    }
+    for (const it of data.items) addRow(it.from, it.message, it.at);
+    const lastBot = [...data.items].reverse().find((i) => i.from === "bot");
+    if (lastBot && data.items.at(-1) === lastBot) setQuickReplies(lastBot.message);
+    // Rich menu from buildRichMenuSpec (2500×1686 grid)
+    const menu = document.getElementById("richmenu");
+    for (const area of data.richMenu.areas) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("aria-label", area.action.label);
+      b.style.left = (area.bounds.x / 2500) * 100 + "%";
+      b.style.top = (area.bounds.y / 1686) * 100 + "%";
+      b.style.width = (area.bounds.width / 2500) * 100 + "%";
+      b.style.height = (area.bounds.height / 1686) * 100 + "%";
+      b.addEventListener("click", () => {
+        b.classList.add("tapped");
+        setTimeout(() => b.classList.remove("tapped"), 250);
+        act(area.action);
+      });
+      menu.appendChild(b);
+    }
+    document.body.dataset.ready = "1";
+  }
+
+  document.getElementById("send").addEventListener("click", () => {
+    const input = document.getElementById("msg");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    send({ type: "text", text });
+  });
+  document.getElementById("msg").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") document.getElementById("send").click();
+  });
+  document.getElementById("photo-btn").addEventListener("click", () => document.getElementById("photo").click());
+  document.getElementById("photo").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => send({ type: "image", src: reader.result, name: file.name, size: file.size });
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  });
+  const toggle = document.getElementById("menu-toggle");
+  function showMenu(open) {
+    const menu = document.getElementById("richmenu");
+    menu.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.textContent = open ? "เมนูพอใช้ ▾" : "เมนูพอใช้ ▴";
+    log.scrollTop = log.scrollHeight;
+  }
+  toggle.addEventListener("click", () => showMenu(document.getElementById("richmenu").hidden));
+  // Like LINE: the keyboard (typing) folds the rich menu away; «เมนูพอใช้» brings it back.
+  document.getElementById("msg").addEventListener("focus", () => showMenu(false));
+
+  load();
+})();
+</script>
+</body>
+</html>

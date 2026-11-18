@@ -18,6 +18,7 @@ import {
   spentOnDay,
 } from "@/lib/calc/inputs";
 import { addDays } from "@/lib/calc/time";
+import { findHabits } from "@/lib/remind/habits";
 import { ApiError } from "./errors";
 import {
   CONSENT_VERSION,
@@ -51,6 +52,7 @@ export interface MockOptions {
   scenario?: MockScenario;
   separateBills?: string[]; // bill titles paid from other money (status 'separate', not held)
   consented?: boolean;
+  idPrefix?: string; // prepended to generated ids; lets several mock accounts run side by side (E2E)
 }
 
 interface Cycle {
@@ -100,7 +102,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   const now = () => at(today);
 
   let nextId = 0;
-  const newId = (prefix: string) => `${prefix}-${++nextId}`;
+  const newId = (prefix: string) => `${opts.idPrefix ?? ""}${prefix}-${++nextId}`;
 
   let cycle: Cycle | null = null;
   const entries: StoredEntry[] = [];
@@ -113,6 +115,12 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
   const incomeKeys = new Set<string>();
   const incomeList: Income[] = [];
   let reminders: ReminderSettings = { enabled: false, time: "12:30", pausedUntil: null, habits: [] };
+
+  // Card 58, like /api/reminders: the habits come from the entries (lib/remind/habits), never stored.
+  function habitsNow(): ReminderSettings["habits"] {
+    const recent = entries.map((e) => ({ note: e.note, amount: e.amount, category: e.category, spentOn: e.spentOn, createdAt: e.createdAt, source: e.source, cancelled: e.cancelledAt !== null }));
+    return findHabits(recent, today).map((h) => ({ id: h.key, label: h.label, amount: h.amount, time: h.time }));
+  }
 
   function pushEntry(
     amount: number,
@@ -389,7 +397,8 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       return { entries: entries.filter((e) => e.cancelledAt === null).map(publicEntry).reverse() };
     },
 
-    async addEntry(req, key) {
+    // `source` is not part of PorchaiApi: the E2E LINE OA demo bot passes "chat" / "ocr" like the webhook does.
+    async addEntry(req, key, source: Entry["source"] = "form") {
       const c = requireCycle();
       const known = entryKeys.get(key);
       if (known) return { entry: publicEntry(findEntry(known)), summary: summaryOf(c) };
@@ -397,7 +406,7 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
       if (!(req.amount > 0)) throw new ApiError(422, "invalid_input", "จำนวนเงินไม่ถูกต้อง");
       if (spentOn > today) throw new ApiError(422, "invalid_input", "วันที่ใช้จ่ายต้องไม่เกินวันนี้");
       if(req.categoryId){const cat=spendingCats.find(x=>x.id===req.categoryId);if(!cat || cat.parent!==req.category)throw new ApiError(422,"invalid_category","หมวดไม่ถูกต้อง");}
-      const e = pushEntry(req.amount, req.category, req.note ?? null, spentOn, "form");
+      const e = pushEntry(req.amount, req.category, req.note ?? null, spentOn, source);
       if(req.categoryId)e.categoryId=req.categoryId;
       awardRecording(spentOn);
       entryKeys.set(key, e.id);
@@ -744,14 +753,14 @@ export function createMockApi(opts: MockOptions = {}): PorchaiApi {
 
     async reminderSettings() {
       if (!consented) throw new ApiError(403, "no_consent", MSG_NO_CONSENT);
-      return { ...reminders, habits: [...reminders.habits] };
+      return { ...reminders, habits: habitsNow() };
     },
 
     async saveReminderSettings(req) {
       if (!consented) throw new ApiError(403, "no_consent", MSG_NO_CONSENT);
       if (!HHMM.test(req.time)) throw new ApiError(422, "invalid_input", "เวลาไม่ถูกต้อง");
-      reminders = { enabled: req.enabled, time: req.time, pausedUntil: req.pausedUntil, habits: reminders.habits };
-      return { ...reminders, habits: [...reminders.habits] };
+      reminders = { enabled: req.enabled, time: req.time, pausedUntil: req.pausedUntil, habits: [] };
+      return { ...reminders, habits: habitsNow() };
     },
 
     async deleteMyData() {

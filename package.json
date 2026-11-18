@@ -14,30 +14,37 @@
     "test:db": "vitest run --config vitest.db.config.mts",
     "eval:chat": "vitest run --config vitest.eval.config.mts",
     "eval:offline": "vitest run lib/ai/scenarios.test.ts lib/ai/gemini-resilience.test.ts lib/ai/admission.test.ts lib/line/id-token-cache.test.ts lib/calc/invariants.test.ts lib/chat/routine.test.ts lib/chat/grounding-boundaries.test.ts",
-    "bench:scale": "vitest run --config vitest.scale.config.mts"
+    "bench:scale": "vitest run --config vitest.scale.config.mts",
+    "test:e2e:all": "playwright test tests/e2e/full-system-pm-demo.spec.ts --project=pm-demo",
+    "test:e2e:watch": "playwright test tests/e2e/full-system-pm-demo.spec.ts --project=pm-demo-slow --headed",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:mock": "playwright test -c playwright.mock.config.ts",
+    "demo:pm": "playwright test tests/e2e/pm-live-journey.spec.ts --project=chromium",
+    "pitch:build": "node docs/pitch/build-deck.mjs"
   },
   "dependencies": {
     "@line/liff": "^2.32.0",
+    "@supabase/supabase-js": "2.119.0",
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "@supabase/supabase-js": "2.119.0"
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.3",
     "@playwright/test": "^1.65.0",
-    "@types/node": "^24.19.2",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@vitest/ui": "^5.1.0",
-    "eslint": "^9",
-    "eslint-config-next": "16.4.6",
-    "tailwindcss": "4.3.3",
-    "typescript": "^5",
-    "vitest": "^5.1.0",
+    "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.10",
-    "jsdom": "^31.0.0"
+    "@types/node": "^24.19.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^5.1.0",
+    "@vitest/ui": "^5.1.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "jsdom": "^31.0.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5",
+    "vitest": "^5.1.0"
   }
 }

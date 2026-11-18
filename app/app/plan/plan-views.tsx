@@ -103,7 +103,7 @@ function PlanRow({
   const menuId = `plan-menu-${plan.id}`;
 
   return (
-    <li className="flex flex-col gap-2 py-3">
+    <li data-testid="plan-row" data-plan-status={plan.status} className="flex flex-col gap-2 py-3">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-sm font-semibold text-primary">{plan.title}</p>

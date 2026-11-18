@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot generator="Robot 7.5 (Python 3.15.0 on win32)" generated="2026-11-16T06:08:58.851877" rpa="false" schemaversion="5">
+<suite id="s1" name="Liff Flows Selenium" source="D:\PorChai\robot\suites\ui\liff_flows_selenium.robot">
+<kw name="Open Mobile Browser" type="SETUP">
+<kw name="Evaluate" owner="BuiltIn">
+<var>${chrome_options}</var>
+<arg>sys.modules['selenium.webdriver'].ChromeOptions()</arg>
+<arg>sys</arg>
+<doc>Evaluates the given expression in Python and returns the result.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.821286" elapsed="0.000672"/>
+</kw>
+<kw name="Call Method" owner="BuiltIn">
+<arg>${chrome_options}</arg>
+<arg>add_argument</arg>
+<arg>--window-size=412,915</arg>
+<doc>Calls the named method of the given object with the provided arguments.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.822702" elapsed="0.000385"/>
+</kw>
+<kw name="Call Method" owner="BuiltIn">
+<arg>${chrome_options}</arg>
+<arg>add_experimental_option</arg>
+<arg>mobileEmulation</arg>
+<arg>${{ {'deviceName': 'Pixel 7'} }}</arg>
+<doc>Calls the named method of the given object with the provided arguments.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.823300" elapsed="0.000298"/>
+</kw>
+<kw name="Create Webdriver" owner="SeleniumLibrary">
+<arg>Chrome</arg>
+<arg>options=${chrome_options}</arg>
+<doc>Creates an instance of Selenium WebDriver.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.823820" elapsed="0.000149"/>
+</kw>
+<kw name="Set Selenium Implicit Wait" owner="SeleniumLibrary">
+<arg>5s</arg>
+<doc>Sets the implicit wait value used by Selenium.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.824146" elapsed="0.000470"/>
+</kw>
+<status status="PASS" start="2026-11-16T06:08:59.819953" elapsed="0.004787"/>
+</kw>
+<test id="s1-t1" name="TC-17: Double Submit Protection on Record Expense" line="21">
+<kw name="Go To" owner="SeleniumLibrary">
+<arg>${LIFF_RECORD_URL}</arg>
+<doc>Navigates the current browser window to the provided ``url``.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.825632" elapsed="0.000095"/>
+</kw>
+<kw name="Wait Until Page Contains Element" owner="SeleniumLibrary">
+<arg>xpath=//input[@type='text' or @type='number']</arg>
+<arg>timeout=10s</arg>
+<doc>Waits until the element ``locator`` appears on the current page.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.825906" elapsed="0.000587"/>
+</kw>
+<kw name="Input Text" owner="SeleniumLibrary">
+<arg>xpath=(//input)[1]</arg>
+<arg>45</arg>
+<doc>Types the given ``text`` into the text field identified by ``locator``.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.826712" elapsed="0.000228"/>
+</kw>
+<kw name="Input Text" owner="SeleniumLibrary">
+<arg>xpath=(//input)[2]</arg>
+<arg>ข้าว</arg>
+<doc>Types the given ``text`` into the text field identified by ``locator``.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.827139" elapsed="0.000203"/>
+</kw>
+<kw name="Click Button" owner="SeleniumLibrary">
+<arg>xpath=//button[contains(., 'บันทึก')]</arg>
+<doc>Clicks the button identified by ``locator``.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.827499" elapsed="0.000193"/>
+</kw>
+<doc>Fill expense and verify button disables or records once.</doc>
+<tag>liff</tag>
+<tag>tc-17</tag>
+<tag>ui</tag>
+<status status="PASS" start="2026-11-16T06:08:59.824882" elapsed="0.003005"/>
+</test>
+<kw name="Close Browser" owner="SeleniumLibrary" type="TEARDOWN">
+<doc>Closes the current browser.</doc>
+<status status="NOT RUN" start="2026-11-16T06:08:59.828656" elapsed="0.000080"/>
+</kw>
+<doc>UI &amp; LIFF Webview test suite using SeleniumLibrary (built-in support).</doc>
+<status status="PASS" start="2026-11-16T06:08:58.857143" elapsed="0.971659"/>
+</suite>
+<statistics>
+<total>
+<stat pass="1" fail="0" skip="0">All Tests</stat>
+</total>
+<tag>
+<stat pass="1" fail="0" skip="0">liff</stat>
+<stat pass="1" fail="0" skip="0">tc-17</stat>
+<stat pass="1" fail="0" skip="0">ui</stat>
+</tag>
+<suite>
+<stat name="Liff Flows Selenium" id="s1" pass="1" fail="0" skip="0">Liff Flows Selenium</stat>
+</suite>
+</statistics>
+<errors>
+</errors>
+</robot>
