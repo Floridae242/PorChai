@@ -121,6 +121,50 @@ async function screenEntries() {
 }
 
 describe("card 09: expenses from the chat", () => {
+  it.each(["ถ้าวันนี้ฉันได้รับเงิน 10k", "ถ้าเงินเข้า 10K วันนี้", "สมมติได้เงิน ๑๐k วันนี้", "หากได้รับเงิน １０ｋ วันนี้", "ถ้าแม่ให้เงิน 10,000 บาทวันนี้"])("hypothetical income is read-only, never a purchase: %s", async input => {
+    await figma();
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const before = await loadSummary(owner.data!.id);
+    await chat(input);
+    expect(lastText()).toContain("รายรับสมมติ");
+    expect(lastText()).toContain("10,000 บาท");
+    expect(lastText()).toContain("12,400 บาท");
+    expect(lastText()).toContain("ยังไม่ได้บันทึกรายรับ");
+    expect(lastText()).not.toContain("ราคา");
+    expect(lastButtons().some(b => /จ่ายจริง|เก็บไว้ในแผน/.test(b.label))).toBe(false);
+    await chat("ยืนยัน");
+    expect(await screenEntries()).toEqual([]);
+    expect(await loadSummary(owner.data!.id)).toEqual(before);
+    const incomes = await db.from("incomes").select("id").eq("user_id", owner.data!.id);
+    expect(incomes.error).toBeNull(); expect(incomes.data).toEqual([]);
+  });
+  it.each(["ถ้าวันนี้ได้รับเงิน 10kg", "ถ้าวันนี้ได้รับเงิน 1m", "ถ้าวันนี้ได้รับเงิน 1พัน", "ถ้าวันนี้ได้รับเงิน 10k มั้ง", "ถ้าพรุ่งนี้ได้รับเงิน 10k", "ถ้าวันนี้ไม่ได้รับเงิน 10k", "ถ้าได้เงิน 10k ซื้อรองเท้า 500", "ถ้าได้เงิน 100001 บาท", "ถ้าวันนี้ได้รับเงิน −10k", "ถ้าวันนี้ได้รับเงิน - 10k", "ถ้าวันนี้ได้รับเงิน ฿-10k", "ถ้าสัปดาห์หน้าได้รับเงิน 10k", "ถ้าวันศุกร์ได้รับเงิน 10k", "ถ้าได้รับเงิน 10k"])("unclear or future income cannot become a purchase draft: %s", async input => {
+    await figma();
+    await chat("ชาบู 100 ไหวไหม");
+    await chat(input);
+    expect(lastText()).toContain("ยังไม่ได้บันทึก");
+    expect(lastButtons().some(b => /จ่ายจริง|เก็บไว้ในแผน/.test(b.label))).toBe(false);
+    await chat("ยืนยัน");
+    expect(await screenEntries()).toEqual([]);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect((await loadSummary(owner.data!.id)).balance).toBe(240000);
+    const incomes = await db.from("incomes").select("id").eq("user_id", owner.data!.id);
+    expect(incomes.error).toBeNull(); expect(incomes.data).toEqual([]);
+    await chat("ดูแต้ม"); expect(lastText()).toContain("0 แต้ม");
+  });
+  it("a receipt what-if replaces a pending purchase without authorizing it, then actual 10k income can be recorded", async () => {
+    await figma(); await chat("ชาบู 100 ไหวไหม");
+    await chat("ถ้าวันนี้ฉันได้รับเงิน 10k");
+    expect(lastText()).toContain("12,400 บาท");
+    await chat("ยืนยัน"); expect(await screenEntries()).toEqual([]);
+    await chat("ได้รับเงิน 10k");
+    expect(lastText()).toContain("10,000 บาท");
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect((await loadSummary(owner.data!.id)).balance).toBe(1240000);
+    const incomes = await db.from("incomes").select("amount").eq("user_id", owner.data!.id);
+    expect(incomes.error).toBeNull(); expect(incomes.data).toEqual([{ amount: 1000000 }]);
+    expect(await screenEntries()).toEqual([]);
+  });
   const readFeatures = [
     ["help", "ทำอะไรได้บ้าง"], ["insights", "วิเคราะห์การใช้เงิน"], ["categories", "ดูหมวด"],
     ["report", "ดูรายงานวันนี้"], ["search", "ค้นรายจ่าย ข้าว"], ["entries", "ดูรายการ"],
@@ -972,7 +1016,9 @@ describe("card 09: expenses from the chat", () => {
   });
   afterEach(async () => {
     vi.unstubAllEnvs();
-    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    // Bound cleanup to this case; accumulating every prior event builds oversized REST queries.
+    const cleaned = await db.from("line_events").delete().in("webhook_event_id", eventIds.splice(0));
+    expect(cleaned.error).toBeNull();
     const commandOwner=await db.from("users").select("id").eq("line_user_id",lineA).maybeSingle();
     if(commandOwner.data)await db.from("line_events").delete().like("webhook_event_id",`chat-command:${commandOwner.data.id}:%`);
     await db.from("users").delete().eq("line_user_id", lineA);
@@ -1196,7 +1242,9 @@ describe("card 15: questions in the chat", () => {
   });
   afterEach(async () => {
     vi.unstubAllEnvs();
-    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    // Bound cleanup to this case; accumulating every prior event builds oversized REST queries.
+    const cleaned = await db.from("line_events").delete().in("webhook_event_id", eventIds.splice(0));
+    expect(cleaned.error).toBeNull();
     await db.from("users").delete().eq("line_user_id", lineA);
   });
 
@@ -1300,7 +1348,9 @@ describe("card 15: chatting with the AI (rules first, AI only when they cannot r
   });
   afterEach(async () => {
     vi.unstubAllEnvs();
-    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    // Bound cleanup to this case; accumulating every prior event builds oversized REST queries.
+    const cleaned = await db.from("line_events").delete().in("webhook_event_id", eventIds.splice(0));
+    expect(cleaned.error).toBeNull();
     await db.from("users").delete().eq("line_user_id", lineA);
   });
 
@@ -1599,7 +1649,9 @@ describe("card 10: the recorded card's buttons (โฟรวิว's Flex card, 
   });
   afterEach(async () => {
     vi.unstubAllEnvs();
-    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    // Bound cleanup to this case; accumulating every prior event builds oversized REST queries.
+    const cleaned = await db.from("line_events").delete().in("webhook_event_id", eventIds.splice(0));
+    expect(cleaned.error).toBeNull();
     await db.from("users").delete().in("line_user_id", [lineA, `${lineA}_other`]);
   });
 
@@ -1702,7 +1754,9 @@ describe("rich menu (โฟรวิว's spec and image) and what the bot canno
   });
   afterEach(async () => {
     vi.unstubAllEnvs();
-    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    // Bound cleanup to this case; accumulating every prior event builds oversized REST queries.
+    const cleaned = await db.from("line_events").delete().in("webhook_event_id", eventIds.splice(0));
+    expect(cleaned.error).toBeNull();
     await db.from("users").delete().eq("line_user_id", lineA);
   });
 
@@ -1821,7 +1875,9 @@ describe("every answer has [เปิดแอป] above the keyboard (phone 13 
   });
   afterEach(async () => {
     vi.unstubAllEnvs();
-    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    // Bound cleanup to this case; accumulating every prior event builds oversized REST queries.
+    const cleaned = await db.from("line_events").delete().in("webhook_event_id", eventIds.splice(0));
+    expect(cleaned.error).toBeNull();
     await db.from("users").delete().eq("line_user_id", lineA);
   });
 
@@ -1855,7 +1911,9 @@ describe("โฟรวิว's try cards: their buttons (ลองยอดอ�
   });
   afterEach(async () => {
     vi.unstubAllEnvs();
-    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    // Bound cleanup to this case; accumulating every prior event builds oversized REST queries.
+    const cleaned = await db.from("line_events").delete().in("webhook_event_id", eventIds.splice(0));
+    expect(cleaned.error).toBeNull();
     await db.from("users").delete().in("line_user_id", [lineA, `${lineA}_other`]);
   });
 
@@ -1941,7 +1999,9 @@ describe("price hints: «ถ้ากินตี๋น้อยจะเหล�
   afterEach(async () => {
     vi.unstubAllEnvs();
     await db.from("price_hints").delete().eq("name", shop);
-    await db.from("line_events").delete().in("webhook_event_id", eventIds);
+    // Bound cleanup to this case; accumulating every prior event builds oversized REST queries.
+    const cleaned = await db.from("line_events").delete().in("webhook_event_id", eventIds.splice(0));
+    expect(cleaned.error).toBeNull();
     await db.from("users").delete().eq("line_user_id", lineA);
   });
 

@@ -38,6 +38,11 @@ export function isQuestion(text: string): boolean {
   return isPurchaseWish(t) || QUESTION_WORDS.test(t) || QUESTION_START.test(bare) || QUESTION_END.test(bare);
 }
 
+// Income what-ifs have no purchase draft or payment authority, including when an old card is pending.
+export function isIncomeQuestion(text: string): boolean {
+  return isQuestion(text) && /ถ้า|หาก|สมมติ|สมมุติ|[0-9๐-๙０-９]/u.test(text) && /ได้รับเงิน|รับเงิน|ได้เงิน|เงินเข้า|เงินเดือน|รายรับ|แม่ให้เงิน|พ่อให้เงิน|ผู้ปกครองให้เงิน/u.test(text);
+}
+
 // Explicit desire describes a possible purchase, even without a question mark or price.
 export function isPurchaseWish(text: string): boolean {
   return /^อยาก\s*(?:กิน|ซื้อ|ดื่ม|สั่ง)/u.test(text.trim());
@@ -98,9 +103,10 @@ export function dayOf(text: string): Day {
 }
 
 export function readQuestion(raw: string): Question {
-  const text = normalize(raw);
+  const text = normalize(raw).replace(/(\d+(?:\.\d+)?)\s*[kK](?![a-zA-Z])/g,
+    (_, value: string) => String(Number(value) * 1000));
   const numbers = text.match(NUMBER) ?? [];
-  const exact = numbers.length === 1 && !APPROXIMATE.test(text) && /^\+?\d+(?:\.\d{1,2})?$/.test(numbers[0]);
+  const exact = numbers.length === 1 && !/[-−–—]\s*(?:฿\s*)?\d/u.test(text) && !/มั้ง|น่าจะ|\d\s*(?:[a-zA-Z]|ร้อย|พัน|หมื่น|แสน|ล้าน)/u.test(text) && !APPROXIMATE.test(text) && /^\+?\d+(?:\.\d{1,2})?$/.test(numbers[0]);
   const amount = exact ? Math.round(Number(numbers[0]) * 100) : null;
   const item = text.replace(NUMBER, " ").replace(FILLER, " ").replace(/\s+/g, " ").trim().slice(0, 40) || null;
   return { item, amount: amount && amount > 0 ? amount : null, day: dayOf(text) };
