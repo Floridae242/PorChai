@@ -709,13 +709,19 @@ function leavesSetup(body: string): boolean {
   const parsed = parseExpense(body);
   return parsed.kind === "income" || (parsed.kind === "entry" && /\p{L}/u.test(parsed.title));
 }
+// A number step took «ข้าว 50» as the balance (17 Nov); «มี 3000», «ออม 500», «ค่ารถ 20» are still answers
+const ANSWER_WORDS = /^(?:(?:มี|เหลือ|เงิน|ยอด|รวม|ทั้งหมด|วันละ|เดือนละ|ใส่|กัน|ไว้|ออม|เก็บ|เผื่อ|ฉุกเฉิน|สำรอง|ค่า|อาหาร|กิน|เดินทาง|รถ)\s*)+$/u;
+function spendsInstead(body: string): boolean {
+  const parsed = parseExpense(body);
+  return parsed.kind === "entry" && /\p{L}/u.test(parsed.title) && !ANSWER_WORDS.test(parsed.title);
+}
 async function setupReply(
   userId: string,
   p: SetupPending,
   body: string,
 ): Promise<Answer | null> {
   const input = { ...p.input },
-    n = statedMoney(body),
+    n = spendsInstead(body) ? undefined : statedMoney(body),
     today = thaiDate(new Date());
   const next = (field: SetupPending["field"]) => setup({ ...p, input, field });
   const unclear = () => (leavesSetup(body) ? null : setup(p, "unclear"));

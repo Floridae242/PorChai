@@ -146,6 +146,26 @@ describe("the «เริ่มรอบเงิน» questions can be left", (
     await chat(addDays(today(), 14));
     expect(lastText()).toContain("กันเงินออม");
   });
+
+  // Tle's merge review, 16 Nov: a step that asks for a number took «ข้าว 50» as the balance
+  it("an expense at a number step is recorded, not taken as the answer", async () => {
+    await cycle(300000, 10);
+    for (const t of ["เริ่มรอบเงิน", "เงินจากบ้าน", "รายเดือน"]) await chat(t);
+    await chat("ข้าว 50");
+    expect(lastText()).not.toContain("วันรับเงินรอบถัดไป");
+    expect(await entries()).toMatchObject([{ amount: 5000, note: "ข้าว" }]);
+  });
+
+  it("number answers with a word stay answers", async () => {
+    await cycle(300000, 10);
+    for (const t of ["เริ่มรอบเงิน", "เงินจากบ้าน", "รายเดือน", "มี 3000"]) await chat(t);
+    expect(lastText()).toContain("วันรับเงินรอบถัดไป");
+    for (const t of [addDays(today(), 14), "ออม 500", "เผื่อ 300", "ค่าอาหาร 60"]) await chat(t);
+    expect(lastText()).toContain("กันค่าเดินทาง");
+    await chat("ค่ารถ 20");
+    expect(lastText()).toContain("ยืนยัน");
+    expect(await entries()).toEqual([]);
+  });
 });
 
 describe("the over-budget card (L6) can be confirmed by typing", () => {
