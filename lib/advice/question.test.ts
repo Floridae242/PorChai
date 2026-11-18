@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isQuestion, isTomorrowQuestion, numbersIn, onlyKnownNumbers, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isIncomeQuestion, isEnoughQuestion, isPaydayQuestion, isQuestion, isTomorrowQuestion, numbersIn, onlyKnownNumbers, readQuestion } from "@/lib/advice/question";
 
 it.each(["อยากกินหมูกระทะวันศุกร์", "อยากซื้อหูฟัง 199", "อยากดื่มกาแฟ 50", "อยากสั่งข้าว 45"])(
   "future purchase intent is a what-if, never an immediate payment: %s", (text) => expect(isQuestion(text)).toBe(true),
@@ -197,4 +197,23 @@ describe("isTomorrowQuestion", () => {
   it.each(["พรุ่งนี้กินชาบู 300 ไหวไหม", "วันนี้ใช้ได้เท่าไหร่", "พรุ่งนี้เงินเข้าไหม", "พรุ่งนี้"])(
     "«%s» is not", (t) => expect(isTomorrowQuestion(t)).toBe(false),
   );
+});
+
+// Purchase shorthand must agree with the ledger parser, not read 10k as 10 baht.
+it.each(["หูฟัง 10k ไหวไหม", "หูฟัง 10K ไหวไหม", "หูฟัง ๑๐k ไหวไหม", "หูฟัง １０ｋ ไหวไหม"])("reads thousand suffix in a trial: %s", input => {
+  expect(readQuestion(input)).toMatchObject({ amount: 1000000, item: "หูฟัง" });
+});
+it.each(["หูฟัง 10kg ไหวไหม", "หูฟัง 1m ไหวไหม", "หูฟัง 1พัน ไหวไหม", "หูฟัง 10k มั้ง ไหวไหม"])("does not underread unclear units: %s", input => {
+  expect(readQuestion(input).amount).toBeNull();
+});
+
+it.each(["ถ้าวันนี้ฉันได้รับเงิน 10k", "หากเงินเข้า 500", "ได้รับเงิน 500 ไหม"])("recognizes receipt questions: %s", input => {
+  expect(isIncomeQuestion(input)).toBe(true);
+});
+it.each(["เงินเข้าเมื่อไร", "วันรับเงินวันไหน", "เงินพอถึงวันเงินเข้าไหม", "ได้รับเงิน 10k", "หูฟัง 10k ไหวไหม"])("does not replace another intent with hypothetical income: %s", input => {
+  expect(isIncomeQuestion(input)).toBe(false);
+});
+
+it.each(["ถ้าวันนี้ได้รับเงิน −10k", "ถ้าวันนี้ได้รับเงิน - 10k", "ชาบู −100 ไหวไหม", "ชาบู - 100 ไหวไหม"])("a signed negative trial is never projected as positive: %s", input => {
+  expect(readQuestion(input).amount).toBeNull();
 });

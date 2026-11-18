@@ -3,11 +3,11 @@ import { conversationBoundary } from "@/lib/chat/intent";
 import { editReplyAmount, isCorrectionReply, looksLikeAmountReply } from "@/lib/chat/correction";
 import { AiGate, withAiScope } from "@/lib/ai/admission";
 import { USER_CATEGORIES, type UserCategory } from "@/lib/api-types";
-import { tomorrowBudget } from "@/lib/calc/budget";
+import { computeBudget, tomorrowBudget } from "@/lib/calc/budget";
 import { thaiDate } from "@/lib/calc/time";
 import { advise, dueOnOf } from "@/lib/advice/advise";
 import { findPriceHint } from "@/lib/advice/price-hint";
-import { isBalanceQuestion, isEnoughQuestion, isPaydayQuestion, isPurchaseWish, isQuestion, isTomorrowQuestion, readQuestion } from "@/lib/advice/question";
+import { isBalanceQuestion, isIncomeQuestion, isEnoughQuestion, isPaydayQuestion, isPurchaseWish, isQuestion, isTomorrowQuestion, readQuestion } from "@/lib/advice/question";
 import {
   alreadyDeletedMessage,
   adviceCard,
@@ -74,7 +74,7 @@ import {
   recordedMessage,
   type Draft,
 } from "@/lib/chat/messages";
-import { amountOnly, categoryOf, MAX_TITLE, parseExpense } from "@/lib/chat/parse";
+import { amountOnly, categoryOf, MAX_AMOUNT, MAX_TITLE, parseExpense } from "@/lib/chat/parse";
 import { loadBudget, loadSummary, requireActiveCycle, summaryOf } from "@/lib/db/budget";
 import { ocrDraftFor, proposalFor, recentChat, remember, tryDraftFor, type ChatLine, type OcrDraft, type Pending, type TryDraft } from "@/lib/db/chat-memory";
 import { DEMO_HABIT, demoReminder, markReminder, reminderById, seedDemoHabit, type ReminderLog } from "@/lib/db/reminders";
@@ -87,6 +87,7 @@ import { actOnPlan, addPlan, planIdByKey } from "@/lib/db/plans";
 import { simulate } from "@/lib/db/simulate";
 import { userIdForLine } from "@/lib/db/users";
 import { HttpError } from "@/lib/http";
+import { formatBaht } from "@/lib/format/money";
 import { decodePostback, type DecodedPostback } from "@/lib/line/flex/postback";
 import { reply, text, withAppButton, type ReplyMessage } from "@/lib/line/reply";
 import { presentReply } from "@/lib/line/presentation";
@@ -200,6 +201,7 @@ async function onText(userId: string, body: string, eventId: string): Promise<An
   if (menu) return say(menu());
   // «ลบข้อมูลได้ไหม»: where to delete the account in the app (never done from the chat, never the AI)
   if (isDeleteDataAsk(body)) return say(deleteDataMessage());
+  if (isIncomeQuestion(body)) return incomeWhatIf(userId, body);
   const command = await chatAction(userId, body, pending);
   if (command) return command;
   // Only a server-stored edit target can consume a short correction such as «ใช่ 400».
@@ -426,6 +428,24 @@ async function payDraft(userId: string, draft: Draft): Promise<ReplyMessage> {
   const { entry, created } = await record(userId, draft);
   if (!created) return alreadyMessage(draft);
   return recorded(userId, { ...draft, category: draft.category as UserCategory, id: entry.id });
+}
+
+// Hypothetical receipts use a read-only calculator snapshot, never a purchase/payment draft.
+async function incomeWhatIf(userId: string, body: string): Promise<Answer> {
+  const question = readQuestion(body);
+  if (question.amount === null || question.amount > MAX_AMOUNT || question.day !== "today" || !/วันนี้|ตอนนี้/u.test(body) ||
+      /ไม่|รอเงิน|เมื่อวาน|เมื่อคืน|เดือนหน้า|สัปดาห์หน้า|อาทิตย์หน้า|วัน(?:จันทร์|อังคาร|พุธ|พฤหัส|ศุกร์|เสาร์|อาทิตย์)|วันที่|ซื้อ|จ่าย|ผ่อน/u.test(body)) {
+    return say(text("น้องพอใช้เข้าใจว่ากำลังลองรายรับครับ ขอจำนวนเงินและวันที่ให้ชัดเจน เช่น «ถ้าวันนี้ได้รับเงิน 10000 บาท» ถ้ามีรายจ่ายด้วย ขอแยกถามทีละส่วนครับ ยังไม่ได้บันทึกหรือเปลี่ยนยอดเงินครับ"), undefined, "ลองรายรับสมมติ");
+  }
+  const loaded = await loadBudget(userId);
+  const balance = loaded.input.balance + question.amount;
+  const projected = computeBudget({ ...loaded.input, balance });
+  const detail = projected.kind === "ok"
+    ? `งบใช้ต่อวันจะเป็น ${formatBaht(projected.dailyBudget)} บาท และวันนี้จะเหลือใช้ ${formatBaht(projected.todayRemaining)} บาท`
+    : projected.kind === "shortfall"
+      ? `หลังกันเงินตามแผน ยังขาด ${formatBaht(projected.shortfall)} บาท`
+      : "รอบเงินเดิมถึงวันรับเงินแล้วครับ ตั้งรอบใหม่ก่อนคำนวณงบต่อวัน";
+  return say(text(`ถ้าวันนี้ได้รับเพิ่ม ${formatBaht(question.amount)} บาท ยอดเงินที่มีจะเป็น ${formatBaht(balance)} บาทครับ\n${detail}\nคำนวณโดยคงบิล เงินออม และเงินเผื่อเดิมไว้ ยังไม่ได้บันทึกรายรับหรือเปลี่ยนยอดจริงครับ\nหากได้รับจริงแล้ว พิมพ์ «ได้รับเงิน ${question.amount / 100} บาท» ได้เลยครับ`), undefined, "ลองรายรับสมมติ");
 }
 
 // Card 15 «ชาบู 300 ไหวไหม»: the answer as โฟรวิว's AI compare card, its buttons pointing at this draft
