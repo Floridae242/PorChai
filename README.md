@@ -1,5 +1,7 @@
 # PorChai (พอใช้)
 
+Automation นำเสนอ workflow ผู้ใช้ (แชต + MINI App พร้อมวิดีโอ): [คู่มือรันเดโม](docs/USER-WORKFLOW-AUTOMATION.md) · `npm run demo:workflow`
+
 บิลประจำแบบปฏิทินและ Flex แจ้งเตือน: [วิธีใช้และตั้ง scheduler](docs/BILL-CALENDAR.md)
 แต้มร่วมกันและโฆษณาสาธิต: [การทำงานและตรวจรหัสเชื่อมต่อ](docs/POINTS-SYNC-AND-SPONSORS.md)
 

@@ -1,7 +1,7 @@
 import type { UserCategory } from "@/lib/api-types";
 import { getDb } from "@/lib/db/client";
 import type { SlipKind } from "@/lib/ocr/slip";
-import type { ActionPending } from "@/lib/chat/actions/types";
+import type { ActionPending, CommandPending } from "@/lib/chat/actions/types";
 
 // Short chat memory (migration 20261113000000_chat_memory). The database forgets lines older than
 // 30 minutes and beyond the newest 10; reads also skip anything older, in case nobody wrote since.
@@ -64,6 +64,24 @@ export async function commandPendingFor(userId: string, key: string): Promise<Ac
     .gte("created_at", since()).order("id", { ascending: false }).limit(1);
   if (error) throw error;
   const p = data[0]?.pending as ActionPending | undefined;
+  if (p?.kind === "chat_command" && p.action.op === "bill_schedule_add" && !p.closed) {
+    // A later draft of the same bill supersedes this nonce, even after unrelated chat.
+    // Use equality filters (never interpolate a user title into a raw filter expression).
+    const [commands, forms] = await Promise.all([
+      getDb().from("chat_messages").select("id,pending").eq("user_id", userId).eq("role", "bot")
+        .eq("pending->action->>op", "bill_schedule_add").eq("pending->action->input->>title", p.action.input.title)
+        .gte("created_at", since()).order("id", { ascending: false }).limit(1),
+      getDb().from("chat_messages").select("id").eq("user_id", userId).eq("role", "bot")
+        .eq("pending->intent->>tool", "add_bill").eq("pending->intent->>repeat", "monthly")
+        .eq("pending->intent->>title", p.action.input.title)
+        .gte("created_at", since()).order("id", { ascending: false }).limit(1),
+    ]);
+    if (commands.error) throw commands.error;
+    if (forms.error) throw forms.error;
+    const latest = commands.data[0], form = forms.data[0];
+    if ((latest?.pending as CommandPending | undefined)?.key !== p.key ||
+        (form && latest && Number(form.id) > Number(latest.id))) return { ...p, closed: true };
+  }
   return p?.kind.startsWith("chat_") ? p : null;
 }
 

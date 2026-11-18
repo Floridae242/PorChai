@@ -9,7 +9,7 @@ export function statedMoney(message: string): number | undefined {
     .replace(/\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}/gu, " ")
     .replace(/(?:รายการ|แผน|บิล|ลำดับ)\s*\d+/gu, " ")
     .replace(/วันที่\s*\d{1,2}(?!\d)(?!\s*บาท)/gu, " ");
-  if (/[+\-−–—]\s*(?:฿\s*)?\d|ประมาณ|ราว|เกือบ|กว่า|\d[eE][+-]?\d/u.test(source))
+  if (/[+\-−–—]\s*(?:฿\s*)?\d|ประมาณ|ราว|เกือบ|กว่า|มั้ง|น่าจะ|\d\s*(?:ร้อย|พัน|หมื่น|แสน|ล้าน)|\d\s*[kKmM](?![a-zA-Z])|\d[eE][+-]?\d/u.test(source))
     return undefined;
   const numbers = source.match(/[+-]?\d+(?:\.\d+)?/g) ?? [];
   if (numbers.length !== 1 || !/^\d+(?:\.\d{1,2})?$/.test(numbers[0]))
@@ -20,7 +20,8 @@ export function statedMoney(message: string): number | undefined {
     : undefined;
 }
 export function statedDate(message: string, today: string): string | undefined {
-  const iso = message.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  const digits = message.replace(/[๐-๙０-９]/gu, digit => String(digit.charCodeAt(0) - (digit >= "０" ? 0xff10 : 0x0e50)));
+  const iso = digits.match(/\d{4}-\d{2}-\d{2}/)?.[0];
   if (iso) {
     const date = new Date(iso);
     if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== iso)
@@ -34,10 +35,12 @@ export function statedDate(message: string, today: string): string | undefined {
   return undefined;
 }
 function namedMoney(text: string, names: string): number | undefined {
-  const match = normalizeMoneyText(text).match(
-    new RegExp(`(?:${names})(?:ต่อวัน|วันละ)?\\s*(\\d+(?:\\.\\d+)?)`),
+  const normalized = normalizeMoneyText(text);
+  if (/ประมาณ|ราว|เกือบ|กว่า|มั้ง|น่าจะ|\d\s*[-–]\s*\d/u.test(normalized)) return undefined;
+  const match = normalized.match(
+    new RegExp(`(?:${names})(?:ต่อวัน|วันละ)?\\s*([+\\-−–—\\d.eE]+(?:\\s*(?:ร้อย|พัน|หมื่น|แสน|ล้าน|[kKmM]))?)`),
   );
-  return match ? statedMoney(match[1]) : undefined;
+  return match && /^\d+(?:\.\d{1,2})?$/.test(match[1]) ? statedMoney(match[1]) : undefined;
 }
 // «เพิ่มบิล ค่าไฟ 500 วันที่ 20» kept no date (16 Nov): the next 20th from today, today included.
 // One-off plans clamp short months; monthly bills keep their requested day as the anchor.
@@ -107,12 +110,18 @@ export function fields(message: string, tool: Tool, today: string): Intent {
           : "all",
   };
 }
-export function parseIntent(message: string, today: string): Intent | null {
-  const s = message
+/** Normalize command framing only; preserve Thai spelling and raw financial input. */
+export function commandText(message: string): string {
+  return message
       .normalize("NFC")
+      .replace(/\s+/gu, " ")
       .trim()
-      .replace(/^(?:ช่วย(?!เหลือ)|ขอให้|ขอ(?=ดู|แก้|เปลี่ยน)|อยากให้|อยาก|ต้องการ)\s*/u, ""),
-    bare = s.replace(/(?:ครับ|ค่ะ|นะครับ|หน่อย)+$/u, "").trim();
+      .replace(/^(?:(?:ช่วย(?!เหลือ)|รบกวน|ขอให้|ขอ(?=ดู|แก้|เปลี่ยน|สร้าง|เพิ่ม|ตั้ง|จด|บันทึก)|อยากให้|อยาก|ต้องการ)\s*)+/u, "")
+      .replace(/(?:\s*(?:ด้วยนะครับ|ด้วยนะคะ|ให้หน่อย|หน่อย|นะครับ+|นะคับ+|นะคะ|ครับ+|คับ+|ค้าบ+|คร้าบ+|ค่า+|ค่ะ|คะ|จ้า+|จ้ะ|น้า+|งับ+))+[!！.]*$/u, "")
+      .replace(/\s+(?:pls|please|plz|thx|thanks)[!！.]*$/iu, "").trim();
+}
+export function parseIntent(message: string, today: string): Intent | null {
+  const s = commandText(message), bare = s;
   const unpaid = normalizeMoneyText(bare).match(/^(?:ยังไม่(?:ได้)?จ่าย|ไม่ได้จ่าย)\s*(?:บิล|แผน)?\s*(ล่าสุด|เมื่อกี้|\d+)(?:\s*หน้า\s*(\d+))?$/u);
   if (unpaid) return {
     tool: "plan_action", action: "unpay",
@@ -194,15 +203,23 @@ export function parseIntent(message: string, today: string): Intent | null {
   if (/^(?:ดู|ขอ)(?:แผน|บิล)|^บิลค้าง/u.test(s)) return fields(s, "plans", today);
   const add = bare.match(/^(?:เพิ่ม|สร้าง|ตั้ง|จด|บันทึก)\s*(บิล|แผน)\s*(.*)$/u);
   if (add) {
-    const f = fields(bare, add[1] === "บิล" ? "add_bill" : "add_plan", today);
+    const schedule = normalizeMoneyText(add[2]);
+    const dates = new Set(schedule.match(/\d{4}-\d{2}-\d{2}/gu) ?? []);
+    const days = new Set([...schedule.matchAll(/วันที่\s*(\d{1,2})(?!\d)/gu)].map(match => Number(match[1])));
     const monthly = add[1] === "บิล" && /ทุก\s*(?:วันที่|เดือน)|รายเดือน|เดือนละ/u.test(add[2]);
+    const iso = [...dates][0], day = [...days][0];
+    if (dates.size > 1 || days.size > 1 || (iso && day !== undefined && Number(iso.slice(8)) !== day) ||
+        (monthly && [...days].some(value => value < 1 || value > 31)) ||
+        /วันที่\s*\d{1,2}(?!\d)\s*(?:หรือ|ถึง|[-–/])\s*(?:วันที่\s*)?\d{1,2}(?!\d)/u.test(schedule))
+      throw invalid("น้องพอใช้ยังเลือกวันครบกำหนดไม่ได้ครับ ช่วยระบุวันเดียวที่ถูกต้อง เช่น ทุกวันที่ 25 ของเดือน");
+    const f = fields(bare, add[1] === "บิล" ? "add_bill" : "add_plan", today);
     if (monthly) {
       f.repeat = "monthly";
-      f.date = statedDate(normalizeMoneyText(bare), today) ?? nextDayOfMonth(bare, today, true);
+      f.date = iso ? statedDate(schedule, today) : nextDayOfMonth(bare, today, true) ?? statedDate(schedule, today);
     }
     // Only normalize digits here: NFKC changes Thai names such as น้ำ.
-    const title = add[2].replace(/[๐-๙]/gu, digit => String(digit.charCodeAt(0) - 0x0e50))
-      .replace(/\d{4}-\d{2}-\d{2}/gu, " ")
+    const title = add[2].replace(/[๐-๙０-９]/gu, digit => String(digit.charCodeAt(0) - (digit >= "０" ? 0xff10 : 0x0e50)))
+      .replace(/(?:เริ่ม(?:ตั้งแต่)?\s*(?:วันที่\s*)?)?\d{4}-\d{2}-\d{2}/gu, " ")
       .replace(/(?:ทุก\s*)?วันที่\s*[๐-๙\d]+(?:\s*ของ(?:ทุก)?เดือน)?/gu, " ")
       .replace(/(?:ของ)?ทุกเดือน|ของเดือน|รายเดือน|เดือนละ/gu, " ")
       .replace(/[๐-๙\d,]+(?:\.\d+)?\s*(?:บาท|฿)?/gu, " ")

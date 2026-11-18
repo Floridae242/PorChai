@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // A separate output lets presentation automation coexist with the developer server.
+  ...(process.env.PORCHAI_PRESENTATION === "1" ? {
+    distDir: ".next-presentation",
+    devIndicators: false,
+    typescript: { tsconfigPath: "tests/presentation/tsconfig.next.json" },
+  } : {}),
   cacheComponents: true,
   partialPrefetching: true,
   async headers() {

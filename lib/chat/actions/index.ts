@@ -12,6 +12,7 @@ import { appUrl } from "@/lib/liff/config";
 import { HttpError } from "@/lib/http";
 import {
   commandPendingFor,
+  recentChat,
   remember,
   type Pending,
 } from "@/lib/db/chat-memory";
@@ -62,7 +63,7 @@ import {
 import { categoryOf, parseExpense } from "@/lib/chat/parse";
 import { reportCard } from "@/lib/chat/cards";
 import { CATEGORY_LABELS, miniAppUrl } from "@/lib/line/flex/format";
-import { parseIntent, statedDate, statedMoney } from "./parse";
+import { commandText, parseIntent, statedDate, statedMoney } from "./parse";
 import { inferReadIntent } from "./infer";
 import { sponsorCarousel } from "@/lib/line/sponsor-card";
 import { INSTALLMENT_HELP, installmentSchedule, parseInstallment } from "./installments";
@@ -812,8 +813,9 @@ export async function chatAction(
   pending: Pending | null,
 ): Promise<Answer | null> {
   try {
+    const control = commandText(body);
     const isAction = pending?.kind.startsWith("chat_");
-    if (isAction && /^(ยกเลิก|ไม่เอา|cancel)$/iu.test(body.trim()))
+    if (isAction && /^(ยกเลิก|ไม่เอา|ไม่ยืนยัน|cancel)$/iu.test(control))
       return pending?.kind === "chat_command"
         ? confirm(userId, pending, false)
         : say("ยกเลิกคำขอแล้วครับ");
@@ -830,7 +832,7 @@ export async function chatAction(
     }
     if (
       pending?.kind === "chat_command" &&
-      /^(ยืนยัน|ตกลง|ใช่)$/u.test(body.trim())
+      /^(ยืนยัน|ตกลง|ใช่)$/u.test(control)
     )
       return confirm(userId, pending, true);
     const intent = parseIntent(body, thaiDate(new Date()));
@@ -904,6 +906,11 @@ export async function chatActionButton(
   if (!match) return expired();
   const p = await commandPendingFor(userId, match[2]);
   if (!p) return expired();
+  if (p.kind === "chat_command" && p.closed && p.action.op === "bill_schedule_add") {
+    const history = await recentChat(userId);
+    const latest = history.at(-1)?.pending;
+    return say("ร่างบิลนี้ใช้ต่อไม่ได้แล้วครับ ใช้ร่างล่าสุดหรือเริ่มสร้างบิลใหม่ได้เลย", latest?.kind.startsWith("chat_") ? latest as ActionPending : undefined);
+  }
   if (p.kind === "chat_command" && match[1] !== "pick")
     return confirm(userId, p, match[1] === "yes");
   if (p.kind === "chat_list" && match[1] === "pick" && match[3] !== undefined)
