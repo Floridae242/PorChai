@@ -11,6 +11,7 @@ import type {
 import type { InstallmentInput } from "./installments";
 import type { SaveCategory } from "@/lib/insights/types";
 import type { NewEntryRequest } from "@/lib/api-types";
+import type { NewBillSchedule } from "@/lib/bills/types";
 
 export type Tool =
   | "help"
@@ -45,6 +46,7 @@ export type Tool =
   | "web";
 export interface Intent {
   tool: Tool;
+  repeat?: "monthly";
   amount?: number;
   title?: string;
   date?: string;
@@ -61,6 +63,7 @@ export interface Intent {
   selected?: { id: string; title: string; amount: number; status?: string }; // populated only from server-owned lists
 }
 export type Mutation =
+  | { op: "bill_schedule_add"; input: NewBillSchedule }
   | {op:"category_save";input:SaveCategory}
   | {op:"category_entry";input:NewEntryRequest}
   | { op: "installments"; input: InstallmentInput }

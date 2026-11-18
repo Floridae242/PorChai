@@ -75,6 +75,8 @@ import { spendingInsights } from "@/lib/db/spending-insights";
 import { spendingCategories,saveSpendingCategory } from "@/lib/db/spending-categories";
 import { suggestSpending } from "@/lib/ai/spending-suggestions";
 import { addEntry } from "@/lib/db/entries";
+import { createBillSchedule } from "@/lib/db/bills";
+import { parseBillSchedule } from "@/lib/bills/calendar";
 import { parseNewEntry } from "@/lib/validate";
 import { categoryCommand } from "./personal-categories";
 import { splitExplicitExpenses } from "@/lib/chat/multi-expense";
@@ -169,6 +171,10 @@ async function execute(userId: string, p: CommandPending): Promise<string> {
   if (p.basis && a.op !== "installments")
     requireBasis(await loadBudget(userId), p.basis);
   switch (a.op) {
+    case "bill_schedule_add": {
+      const bill = await createBillSchedule(userId, a.input, `chat-bill:${p.key}`);
+      return `สร้างบิลประจำ ${bill.title} ${money(bill.amount)} แล้วครับ\nครบกำหนดทุกวันที่ ${Number(bill.startsOn.slice(8))} ของเดือน เริ่ม ${bill.startsOn}\nยังไม่ได้จดเป็นรายจ่ายครับ เปิดดูและปรับบิลได้ที่ “บิลประจำ” ในแอป`;
+    }
     case "category_save": {const c=await saveSpendingCategory(userId,a.input);return `บันทึกหมวด ${c.label} · ${c.monthlyBudget===null?"ยังไม่ตั้งงบ":`${money(c.monthlyBudget)} ต่อเดือน`} แล้วครับ งบนี้ใช้ติดตามรายจ่าย ไม่ได้เพิ่มเงินที่ใช้ได้`;}
     case "category_entry": {const {entry}=await addEntry(userId,parseNewEntry(a.input,today),`chat-category:${p.key}`,"chat");return `จด ${entry.note ?? "รายจ่าย"} ${money(entry.amount)} ในหมวดที่เลือกแล้วครับ จดวันนี้ได้รับแต้มอัตโนมัติวันละ 1 แต้ม`;}
     case "installments": {
@@ -319,6 +325,9 @@ function ask(
   intent: Intent,
   field: "amount" | "date" | "title" | "food" | "transport" | "time",
 ): Answer {
+  if (field === "amount" && intent.tool === "add_bill" && intent.repeat === "monthly") {
+    return say(`บิล${intent.title ? ` ${intent.title}` : ""}${intent.date ? ` · ครบกำหนดทุกวันที่ ${Number(intent.date.slice(8))} ของเดือน` : ""}\nจำนวนกี่บาทต่อเดือนครับ? เช่น 399 บาท\nน้องพอใช้ยังไม่ได้สร้างบิลหรือหักเงินครับ`, { kind: "chat_form", intent, field }, [], "สร้างบิลประจำ");
+  }
   const prompts = {
     amount: "จำนวนกี่บาทครับ? พิมพ์ยอดที่แน่นอน เช่น 500",
     date: "วันที่เท่าไหร่ครับ? ใช้ YYYY-MM-DD เช่น 2026-12-01",
@@ -578,6 +587,14 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
     case "add_plan":
       if (!i.title) return ask(i, "title");
       if (i.amount === undefined) return ask(i, "amount");
+      if (i.tool === "add_bill" && i.repeat === "monthly") {
+        if (!i.date) return ask(i, "date");
+        const input = parseBillSchedule({ title: i.title, amount: i.amount, startsOn: i.date, repeat: "monthly", notify: true }, thaiDate(new Date()));
+        await loadSummary(userId); // Require an active cycle before offering a confirmation.
+        return preview(userId,
+          `สร้างบิลประจำ ${input.title} ${money(input.amount)}\nทุกวันที่ ${Number(input.startsOn.slice(8))} ของเดือน เริ่ม ${input.startsOn}\nเตือน LINE ล่วงหน้า 3 วันและวันครบกำหนด 09:00 น.\nยังไม่ได้จดเป็นรายจ่ายครับ`,
+          { op: "bill_schedule_add", input });
+      }
       return preview(
         userId,
         `${i.tool === "add_bill" ? "เพิ่มบิล" : "เพิ่มแผน"} ${i.title} ${money(i.amount)}${i.date ? ` วันที่ ${i.date}` : " ไม่กำหนดวัน"}`,
