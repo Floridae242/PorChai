@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db/client";
 import { loadSummary } from "@/lib/db/budget";
 import { getNotificationPreferences, saveNotificationPreferences } from "@/lib/db/notifications";
 import { listBillSchedules } from "@/lib/db/bills";
+import { cancelEntrySnapshot, cancellationSnapshot } from "@/lib/db/entries";
 import { getReminderSettings } from "@/lib/db/reminders";
 import * as billsDb from "@/lib/db/bills";
 import { parseIntent } from "@/lib/chat/actions/parse";
@@ -163,6 +164,88 @@ describe("card 09: expenses from the chat", () => {
     expect((await loadSummary(owner.data!.id)).balance).toBe(1240000);
     const incomes = await db.from("incomes").select("amount").eq("user_id", owner.data!.id);
     expect(incomes.error).toBeNull(); expect(incomes.data).toEqual([{ amount: 1000000 }]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it("reported delete-by-amount sentence cancels the matching entry, never adds 25 baht", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("ค่ารถ 25");
+    await chat("ลบ 25 บาทออกจากรายจดวันนี้");
+    expect(lastText()).toContain("ยืนยัน"); expect(await screenEntries()).toHaveLength(2);
+    await chat("ยืนยัน");
+    expect(await screenEntries()).toEqual([expect.objectContaining({ note: "ข้าว", amount: 5000 })]);
+  });
+  it("reported delete-all-today sentence previews a batch and restores money only after confirmation", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("ค่ารถ 25");
+    await chat("ลบรายการที่เคยจดในวันนี้ทั้งหมด");
+    expect(lastText()).toContain("2 รายการ"); expect(lastText()).toContain("75 บาท");
+    expect(lastText()).toContain("ยืนยัน"); expect(await screenEntries()).toHaveLength(2);
+    const confirm = lastButtons().find(b => b.label === "ยืนยัน")!.data!;
+    await chat("ยืนยัน"); expect(await screenEntries()).toEqual([]);
+    await tap(confirm); expect(await screenEntries()).toEqual([]);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect((await loadSummary(owner.data!.id)).balance).toBe(240000);
+  });
+  it("duplicate amounts require selecting one reviewed entry", async () => {
+    await figma(); await chat("ค่ารถ 25"); await chat("ข้าว 25");
+    await chat("ลบ 25 บาทของวันนี้");
+    expect(lastText()).toContain("รายจ่ายล่าสุด"); expect(await screenEntries()).toHaveLength(2);
+    await tap(lastButtons().find(b => b.label === "เลือก 1")!.data!);
+    expect(lastText()).toContain("ยืนยัน"); await chat("ยืนยัน");
+    expect(await screenEntries()).toHaveLength(1);
+  });
+  it.each(["ลบรายจ่าย 25 บาททั้งหมดวันนี้", "ลบค่ารถทั้งหมดวันนี้", "ลบรายการทั้งหมด", "ลบรายการทั้งหมดเมื่อวาน", "ลบ 999 บาทของวันนี้", "ลบ 25 บาทได้ไหม", "ลบรายรับ 25 บาท", "ลบ 25 บาทออกจากยอดเงินจริง", "ลบหมวดอาหาร 25 บาท"])("unclear or unmatched deletion never broadens scope or adds money: %s", async input => {
+    await figma(); await chat("ข้าว 50"); await chat("ค่ารถ 25");
+    const before = await screenEntries();
+    await chat(input);
+    expect(lastButtons().some(b => b.label === "ยืนยัน")).toBe(false);
+    await chat("ยืนยัน"); expect(await screenEntries()).toEqual(before);
+  });
+  it("cancelled batch and old confirm button leave the ledger unchanged", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("ค่ารถ 25");
+    await chat("ลบรายจ่ายทั้งหมดวันนี้");
+    const confirm = lastButtons().find(b => b.label === "ยืนยัน")!.data!;
+    await chat("ไม่เอา"); await tap(confirm); expect(await screenEntries()).toHaveLength(2);
+  });
+  it("a batch only cancels its reviewed snapshot, preserving entries recorded afterwards", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("ค่ารถ 25");
+    await chat("ลบรายจ่ายทั้งหมดวันนี้");
+    const confirm = lastButtons().find(b => b.label === "ยืนยัน")!.data!;
+    await chat("น้ำ 10"); await tap(confirm);
+    expect(await screenEntries()).toEqual([expect.objectContaining({ note: "น้ำ", amount: 1000 })]);
+  });
+  it("a changed batch entry rejects the whole cancellation without partial writes", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("ค่ารถ 25");
+    const initial = await screenEntries();
+    await chat("ลบรายจ่ายทั้งหมดวันนี้");
+    const confirm = lastButtons().find(b => b.label === "ยืนยัน")!.data!;
+    const edit = await db.from("entries").update({ amount: 2600 }).eq("id", initial[0].id);
+    expect(edit.error).toBeNull(); await tap(confirm);
+    expect(lastText()).toContain("รายการเปลี่ยนไป"); expect(await screenEntries()).toHaveLength(2);
+  });
+  it("today's deletion excludes yesterday and preserves income and plans", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("ค่ารถ 25");
+    const entries = await screenEntries();
+    expect((await db.from("entries").update({ spent_on: addDays(today(), -1) }).eq("id", entries[0].id)).error).toBeNull();
+    await chat("ได้รับเงิน 100"); await chat("ลบรายจ่ายทั้งหมดวันนี้"); await chat("ยืนยัน");
+    expect(await screenEntries()).toEqual([expect.objectContaining({ amount: 2500, spentOn: addDays(today(), -1) })]);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect((await db.from("incomes").select("amount").eq("user_id", owner.data!.id)).data).toEqual([{ amount: 10000 }]);
+    expect((await db.from("plans").select("id").eq("user_id", owner.data!.id)).data).toHaveLength(1);
+  });
+  it("a batch containing paid plan entries refuses cancellation and keeps plan accounting intact", async () => {
+    await figma(); await chat("จ่ายบิล 1"); await chat("ยืนยัน"); await chat("ข้าว 50");
+    await chat("ลบรายจ่ายทั้งหมดวันนี้");
+    expect(lastText()).toContain("ยกเลิกการจ่ายที่แผน");
+    expect(lastButtons().some(b => b.label === "ยืนยัน")).toBe(false); expect(await screenEntries()).toHaveLength(2);
+  });
+  it("batch RPC validates ownership and stale snapshots atomically, including retries", async () => {
+    await figma(); await chat("ข้าว 50"); await chat("ค่ารถ 25");
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const snapshot = await cancellationSnapshot(owner.data!.id, today());
+    const items = snapshot.entries.map(e => ({ id: e.id, updatedAt: e.updatedAt }));
+    await expect(cancelEntrySnapshot(owner.data!.id, snapshot.cycleId, today(), [...items, { id: "00000000-0000-0000-0000-000000000001", updatedAt: items[0].updatedAt }])).rejects.toThrow("รายการเปลี่ยนไป");
+    expect(await screenEntries()).toHaveLength(2);
+    expect(await cancelEntrySnapshot(owner.data!.id, snapshot.cycleId, today(), items)).toBe(2);
+    expect(await cancelEntrySnapshot(owner.data!.id, snapshot.cycleId, today(), items)).toBe(2);
     expect(await screenEntries()).toEqual([]);
   });
   const readFeatures = [

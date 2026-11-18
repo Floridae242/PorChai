@@ -212,3 +212,10 @@ it.each([
 it("keeps the next reward page instead of looping to page one", () => {
   expect(parseIntent("ดูของรางวัล หน้า 2", today)).toMatchObject({ tool: "rewards", page: 2 });
 });
+
+it.each(["ลบ 25 บาทออกจากรายจดวันนี้", "ลบรายการ ๒๕ บาทของวันนี้", "ช่วยลบรายจ่าย ２５ บาทวันนี้คับ"])("routes amount-based deletion without recording: %s", input => {
+  expect(parseIntent(input, "2026-11-18")).toMatchObject({ tool: "entry_delete", amount: 2500, date: "2026-11-18" });
+});
+it.each(["ลบรายการที่เคยจดในวันนี้ทั้งหมด", "ลบรายจ่ายทั้งหมดวันนี้", "ขอลบรายการวันนี้ทั้งหมดครับ"])("routes explicit today's batch deletion: %s", input => {
+  expect(parseIntent(input, "2026-11-18")).toMatchObject({ tool: "entry_delete", deleteAll: true, date: "2026-11-18" });
+});

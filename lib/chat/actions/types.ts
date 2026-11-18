@@ -47,6 +47,7 @@ export type Tool =
 export interface Intent {
   tool: Tool;
   repeat?: "monthly";
+  deleteAll?: boolean;
   amount?: number;
   title?: string;
   date?: string;
@@ -85,6 +86,7 @@ export type Mutation =
     }
   | { op: "entry_edit"; id: string; amount: number; expected: Entry }
   | { op: "entry_delete"; id: string; expected: Entry }
+  | { op: "entry_delete_many"; cycleId: string; day: string; items: { id: string; updatedAt: string }[]; total: number }
   | {
       op: "notifications";
       value: NotificationPreferences;
