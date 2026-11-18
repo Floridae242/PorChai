@@ -181,3 +181,23 @@ export async function entryExists(userId: string, idempotencyKey: string): Promi
   if (error) throw error;
   return (count ?? 0) > 0;
 }
+
+export type EntryCancellation = { id: string; updatedAt: string };
+export async function cancellationSnapshot(userId: string, day: string) {
+  const cycle = await requireActiveCycle(userId);
+  const result = await getDb().from("entries").select(`${COLUMNS},updated_at`)
+    .eq("user_id", userId).eq("cycle_id", cycle.id).eq("spent_on", day).is("cancelled_at", null)
+    .order("created_at", { ascending: false }).limit(101);
+  if (result.error) throw result.error;
+  return { cycleId: cycle.id, entries: (result.data as (Row & { updated_at: string })[]).map(row => ({
+    ...toEntry(row), updatedAt: row.updated_at,
+  })) };
+}
+export async function cancelEntrySnapshot(userId: string, cycleId: string, day: string, items: EntryCancellation[]): Promise<number> {
+  const result = await getDb().rpc("cancel_chat_entries", { p_user: userId, p_cycle: cycleId, p_day: day, p_items: items });
+  if (result.error?.code === "PGRST202") throw new HttpError(503, "not_ready", "การลบหลายรายการยังไม่พร้อมครับ ตอนนี้เลือกลบทีละรายการได้ ยังไม่ได้เปลี่ยนข้อมูล");
+  if (result.error?.code === "CE409") throw new HttpError(409, "stale", "รายการเปลี่ยนไปแล้วครับ ขอรายการที่จะลบใหม่ก่อนยืนยันอีกครั้ง");
+  if (result.error?.code === "CE422") throw new HttpError(422, "invalid_input", "เลือกลบครั้งละ 1–100 รายการครับ");
+  if (result.error) throw result.error;
+  return result.data as number;
+}

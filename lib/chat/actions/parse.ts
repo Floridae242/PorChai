@@ -128,6 +128,18 @@ export function parseIntent(message: string, today: string): Intent | null {
     target: /ล่าสุด|เมื่อกี้/u.test(unpaid[1]) ? "latest" : Number(unpaid[1]),
     ...(unpaid[2] ? { page: Number(unpaid[2]) } : {}),
   };
+  // Delete requests must be owned by the command path before amount/category/AI routing.
+  if (/^(?:ขอ)?ลบ(?!ข้อมูล|บัญชี|แอค|บิล|แผน)|^(?:ยกเลิก)(?:รายการ|รายจ่าย)/u.test(s)) {
+    const f = fields(s, "entry_delete", today);
+    const normalized = normalizeMoneyText(s);
+    if (/\d\s*บาท/u.test(normalized) && !/หน้า\s*\d/u.test(normalized)) {
+      f.amount = statedMoney(normalized.replace(/(?:รายการ|รายจ่าย)\s*(?=\d)/u, ""));
+      if (!/ล่าสุด|เมื่อกี้/u.test(s)) f.target = undefined;
+    }
+    if (!/^(?:ขอ)?ลบ\s*(?:(?:รายการ|รายจ่าย)\s*)?(?:[0-9๐-๙０-９฿]|ล่าสุด|เมื่อกี้)/u.test(s) && f.target === undefined)
+      f.amount = undefined; // An unparsed item name must be selected explicitly, never ignored.
+    return { ...f, query: s, deleteAll: /ทั้งหมด|ทุกรายการ/u.test(s) };
+  }
   if(/^(?:ดู|ขอ)?(?:วิเคราะห์|พฤติกรรม|แพทเทิร์น)|^AI\s*(?:แนะนำ|วิเคราะห์)|^แนะนำงบ/iu.test(s))return {tool:"insights",query:s};
   if(/^(?:ดู|ขอ)(?:หมวด|งบรายหมวด)/u.test(s))return {tool:"categories"};
   if(/^(?:เพิ่มหมวด|ตั้งหมวด|ตั้งงบ)/u.test(s))return {tool:"category_save",query:bare};

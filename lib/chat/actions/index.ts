@@ -29,6 +29,8 @@ import {
   entryForChat,
   editEntry,
   cancelEntry,
+  cancellationSnapshot,
+  cancelEntrySnapshot,
 } from "@/lib/db/entries";
 import { listPlans, addPlan, actOnPlan } from "@/lib/db/plans";
 import {
@@ -241,6 +243,11 @@ async function execute(userId: string, p: CommandPending): Promise<string> {
     case "essentials":
       await setEssentials(userId, parseEssentials(a));
       return `ตั้งค่าอาหาร ${money(a.food)} และเดินทาง ${money(a.transport)} ต่อวันแล้วครับ`;
+    case "entry_delete_many": {
+      if (a.day !== today) throw stale();
+      const count = await cancelEntrySnapshot(userId, a.cycleId, a.day, a.items);
+      return `ลบรายจ่าย ${count} รายการ รวม ${money(a.total)} แล้วครับ ยอดใช้จ่ายคำนวณใหม่แล้ว ไม่ได้สร้างรายจ่ายเพิ่ม`;
+    }
     case "entry_edit":
     case "entry_delete": {
       const current = await entryForChat(userId, a.id);
@@ -355,6 +362,8 @@ async function choose(
   const rows: ListPending["items"] =
     type === "entry"
       ? (await listEntries(userId))
+          .filter(e => intent?.tool !== "entry_delete" || ((!intent.date || e.spentOn === intent.date) &&
+            (intent.amount === undefined || intent.target !== undefined || e.amount === intent.amount)))
           .slice((page - 1) * 10, page * 10)
           .map((e) => ({
             id: e.id,
@@ -640,9 +649,38 @@ async function runFeature(userId: string, i: Intent): Promise<Answer> {
       );
     case "entry_edit":
     case "entry_delete": {
+      if (i.tool === "entry_delete") {
+        const today = thaiDate(new Date());
+        if (i.query && /รายรับ|บิล|แผน|หมวด|แต้ม|คูปอง|บัญชี|ข้อมูล|ยอดเงิน|ยอดรวม/u.test(i.query))
+          return say("ต้องการยกเลิกรายจ่ายที่จด หรือเปลี่ยนข้อมูลส่วนอื่นครับ? ถ้าลบรายจ่าย ส่งเช่น «ลบ 25 บาทของวันนี้» ถ้าเป็นบิลให้ยกเลิกการจ่ายที่แผนครับ ยังไม่ได้ลบหรือเพิ่มรายจ่าย");
+        if (i.query && (/ไหม|มั้ย|ยังไง|อย่างไร|ไม่|อย่า|[?？]/u.test(i.query)))
+          return say("ถ้าต้องการลบ ส่งชื่อหรือยอดรายการ เช่น «ลบ 25 บาทของวันนี้» แล้วตรวจรายการก่อนยืนยันครับ ยังไม่ได้ลบหรือจดรายจ่ายเพิ่ม");
+        if (i.deleteAll) {
+          if (i.date !== today || !/วันนี้/u.test(i.query ?? ""))
+            return say("ต้องการลบของวันไหนครับ? เช่น «ลบรายจ่ายทั้งหมดวันนี้» น้องพอใช้จะแสดงรายการให้ตรวจและยืนยันก่อนลบครับ");
+          if (!/^(?:ขอ)?ลบ(?:(?:รายการ|รายจ่าย|รายจด)(?:ที่(?:เคย)?จด)?(?:ใน|ของ)?(?:วันนี้ทั้งหมด|ทั้งหมด(?:ใน|ของ)?วันนี้)|ทุกรายการ(?:ใน|ของ)?วันนี้)$/u.test((i.query ?? "").replace(/\s+/gu, "")))
+            return say("ขอบเขตที่จะลบยังไม่ชัดครับ ถ้าลบเฉพาะยอด ส่งเช่น «ลบ 25 บาทของวันนี้» ถ้าลบทุกยอดจริง ๆ ส่ง «ลบรายจ่ายทั้งหมดวันนี้» แล้วตรวจร่างก่อนยืนยันครับ ยังไม่ได้ลบรายการใด");
+          const snapshot = await cancellationSnapshot(userId, today);
+          if (!snapshot.entries.length) return say("วันนี้ไม่มีรายจ่ายที่ยังไม่ได้ลบครับ ไม่ได้เปลี่ยนยอดเงิน");
+          if (snapshot.entries.length > 100) return say("วันนี้มีมากกว่า 100 รายการครับ ขอเลือกลบทีละรายการผ่านประวัติก่อน เพื่อให้ตรวจได้ครบครับ ยังไม่ได้ลบรายการใด");
+          if (snapshot.entries.some(e => e.source === "plan")) return say("วันนี้มีรายการจ่ายจากแผนหรือบิลครับ ขอให้ยกเลิกการจ่ายที่แผนก่อน แล้วค่อยเลือกลบรายจ่ายอื่น เพื่อให้สถานะบิลกับยอดเงินตรงกันครับ ยังไม่ได้ลบรายการใด");
+          const total = snapshot.entries.reduce((sum, e) => sum + e.amount, 0);
+          const names = snapshot.entries.slice(0, 10).map(e => `${e.note ?? "รายจ่าย"} ${money(e.amount)}`).join("\n");
+          return preview(userId, `ลบรายจ่ายวันนี้ ${snapshot.entries.length} รายการ รวม ${money(total)}\n${names}${snapshot.entries.length > 10 ? `\nและอีก ${snapshot.entries.length - 10} รายการ` : ""}\nลบเฉพาะรายการในร่างนี้ หลังยืนยันเท่านั้น รายรับและบิลประจำไม่ถูกลบ`, {
+            op: "entry_delete_many", cycleId: snapshot.cycleId, day: today, total,
+            items: snapshot.entries.map(e => ({ id: e.id, updatedAt: e.updatedAt })),
+          });
+        }
+        if (!i.selected && i.amount !== undefined && i.target === undefined) {
+          const matching = (await listEntries(userId)).filter(e => (!i.date || e.spentOn === i.date) && e.amount === i.amount);
+          if (!matching.length) return say(`ไม่พบรายจ่าย ${money(i.amount)}${i.date ? ` ของวันที่ ${i.date}` : ""} ครับ ยังไม่ได้ลบหรือเพิ่มรายการ`);
+          if (matching.length === 1) i = { ...i, selected: { id: matching[0].id, title: matching[0].note ?? "รายจ่าย", amount: matching[0].amount } };
+        }
+      }
       if (!i.selected) return choose(userId, "entry", i);
       const { entry, cancelled } = await entryForChat(userId, i.selected.id);
       if (cancelled) throw stale();
+      if (i.tool === "entry_delete" && ((i.date && entry.spentOn !== i.date) || (i.amount !== undefined && entry.amount !== i.amount))) throw stale();
       if (i.tool === "entry_edit" && i.amount === undefined)
         return ask(i, "amount");
       return preview(
