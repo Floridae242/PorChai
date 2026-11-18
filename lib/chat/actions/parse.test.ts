@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { fields, parseIntent, statedDate, statedMoney } from "./parse";
 
 const today = "2026-11-15";
+it.each([
+  "สร้างบิลเน็ตทุกวันที่ 25 ของเดือน",
+  "ช่วยสร้างบิล เน็ต ทุกวันที่ ๒๕ ของเดือนครับ",
+  "เพิ่มบิล ค่าเน็ต ทุกวันที่ 25",
+])("recognizes a monthly bill command without treating its due day as money: %s", message => {
+  const intent = parseIntent(message, today);
+  expect(intent).toMatchObject({ tool: "add_bill", repeat: "monthly", date: "2026-11-25" });
+  expect(intent?.amount).toBeUndefined();
+  expect(intent?.title).toMatch(/เน็ต/u);
+  expect(intent?.title).not.toMatch(/ทุก|วันที่|เดือน/u);
+});
 it.each(["ยังไม่จ่าย 3 หน้า 1", "ยังไม่ได้จ่ายบิล ๓ หน้า ๑", "ไม่ได้จ่ายแผน 3", "ยังไม่จ่ายบิลล่าสุด"])("routes an explicit unpaid correction safely: %s", (message) => {
   expect(parseIntent(message, today)).toMatchObject({ tool: "plan_action", action: "unpay", target: message.includes("ล่าสุด") ? "latest" : 3 });
 });
@@ -123,7 +134,8 @@ describe("«วันที่ N» on a new bill or plan is the next such day", 
     ["เพิ่มบิล ค่าไฟ 500 วันที่ 20", "2026-11-15", "2026-11-20"],
     ["เพิ่มบิล ค่าไฟ 500 วันที่ 15", "2026-11-15", "2026-11-15"],
     ["เพิ่มบิล ค่าไฟ 500 วันที่ 5", "2026-11-15", "2026-12-05"],
-    ["เพิ่มบิล ค่าเน็ต 300 ทุกวันที่ 31", "2026-11-15", "2026-11-30"],
+    // A monthly anchor must stay 31; start on the next real 31st, then clamp shorter future months.
+    ["เพิ่มบิล ค่าเน็ต 300 ทุกวันที่ 31", "2026-11-15", "2026-12-31"],
     ["เพิ่มบิล ค่าเน็ต 300 วันที่ 3", "2026-12-20", "2027-01-03"],
     ["เพิ่มแผน รองเท้า 1500 วันที่ 25", "2026-11-15", "2026-11-25"],
   ])("«%s» on %s → %s", (message, on, due) => {
@@ -136,6 +148,21 @@ describe("«วันที่ N» on a new bill or plan is the next such day", 
   it.each(["เพิ่มบิล ค่าไฟ 500 วันที่ 0", "เพิ่มบิล ค่าไฟ 500 วันที่ 32"])("«%s» has no date", (message) => {
     expect(parseIntent(message, "2026-11-15")?.date).toBeUndefined();
   });
+});
+it.each([
+  ["สร้างบิลค่าเน็ต 399 บาท ทุกวันที่ 25 ของเดือน", 39900, "ค่าเน็ต"],
+  ["สร้าง บิล เน็ต ทุกวันที่ ๒๕ ของเดือน ๓๙๙ บาท", 39900, "เน็ต"],
+  ["ตั้งบิลเน็ตเดือนละ 399 วันที่ 25", 39900, "เน็ต"],
+])("keeps the monthly price and title separate from scheduling words: %s", (message, amount, title) => {
+  expect(parseIntent(message, today)).toMatchObject({ tool: "add_bill", amount, title, repeat: "monthly", date: "2026-11-25" });
+});
+it("preserves an explicit ISO start date without leaving date fragments in the bill title", () => {
+  expect(parseIntent("สร้างบิล ค่าเน็ต 399 บาท รายเดือน วันที่ 2026-12-25", today))
+    .toMatchObject({ title: "ค่าเน็ต", amount: 39900, repeat: "monthly", date: "2026-12-25" });
+});
+it.each(["2026-12-25", "๒๐๒๖-๑๒-๒๕"])("preserves Thai bill names while removing an ISO start date: %s", date => {
+  expect(parseIntent(`สร้างบิลค่าน้ำ399บาทรายเดือนวันที่${date}`, today))
+    .toMatchObject({ title: "ค่าน้ำ", amount: 39900, repeat: "monthly", date: "2026-12-25" });
 });
 
 // 16 Nov: «ค้นหา ข้าว», «ตั้งเตือน 20:00», «ปิดเตือน» got «ตอบไม่ได้»

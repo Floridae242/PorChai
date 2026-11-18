@@ -40,8 +40,8 @@ function namedMoney(text: string, names: string): number | undefined {
   return match ? statedMoney(match[1]) : undefined;
 }
 // «เพิ่มบิล ค่าไฟ 500 วันที่ 20» kept no date (16 Nov): the next 20th from today, today included.
-// A month without that day («วันที่ 31» in November) takes its last day.
-function nextDayOfMonth(message: string, today: string): string | undefined {
+// One-off plans clamp short months; monthly bills keep their requested day as the anchor.
+function nextDayOfMonth(message: string, today: string, preserveDay = false): string | undefined {
   const day = Number(normalizeMoneyText(message).match(/วันที่\s*(\d{1,2})(?!\d)/u)?.[1]);
   if (!day || day > 31) return undefined;
   const [y, m] = today.split("-").map(Number);
@@ -50,6 +50,15 @@ function nextDayOfMonth(message: string, today: string): string | undefined {
     return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(day, last)).padStart(2, "0")}`;
   };
   const thisMonth = on(y, m);
+  if (preserveDay) {
+    // Keep the requested monthly anchor (31), rather than permanently changing it to 30.
+    for (let offset = 0; offset < 12; offset++) {
+      const month = new Date(Date.UTC(y, m - 1 + offset, 1));
+      const candidate = on(month.getUTCFullYear(), month.getUTCMonth() + 1);
+      if (Number(candidate.slice(8)) === day && candidate >= today) return candidate;
+    }
+    return undefined;
+  }
   return thisMonth >= today ? thisMonth : m === 12 ? on(y + 1, 1) : on(y, m + 1);
 }
 export function fields(message: string, tool: Tool, today: string): Intent {
@@ -183,11 +192,19 @@ export function parseIntent(message: string, today: string): Intent | null {
   if (/^(?:ลบ|ยกเลิก)(?:รายการ|รายจ่าย)/u.test(s))
     return fields(s, "entry_delete", today);
   if (/^(?:ดู|ขอ)(?:แผน|บิล)|^บิลค้าง/u.test(s)) return fields(s, "plans", today);
-  const add = s.match(/^(?:เพิ่ม|จด|บันทึก)(บิล|แผน)\s*(.*)$/u);
+  const add = bare.match(/^(?:เพิ่ม|สร้าง|ตั้ง|จด|บันทึก)\s*(บิล|แผน)\s*(.*)$/u);
   if (add) {
-    const f = fields(s, add[1] === "บิล" ? "add_bill" : "add_plan", today);
-    const title = add[2]
+    const f = fields(bare, add[1] === "บิล" ? "add_bill" : "add_plan", today);
+    const monthly = add[1] === "บิล" && /ทุก\s*(?:วันที่|เดือน)|รายเดือน|เดือนละ/u.test(add[2]);
+    if (monthly) {
+      f.repeat = "monthly";
+      f.date = statedDate(normalizeMoneyText(bare), today) ?? nextDayOfMonth(bare, today, true);
+    }
+    // Only normalize digits here: NFKC changes Thai names such as น้ำ.
+    const title = add[2].replace(/[๐-๙]/gu, digit => String(digit.charCodeAt(0) - 0x0e50))
       .replace(/\d{4}-\d{2}-\d{2}/gu, " ")
+      .replace(/(?:ทุก\s*)?วันที่\s*[๐-๙\d]+(?:\s*ของ(?:ทุก)?เดือน)?/gu, " ")
+      .replace(/(?:ของ)?ทุกเดือน|ของเดือน|รายเดือน|เดือนละ/gu, " ")
       .replace(/[๐-๙\d,]+(?:\.\d+)?\s*(?:บาท|฿)?/gu, " ")
       .replace(/ครบกำหนด|วันที่|พรุ่งนี้|วันนี้|มะรืน/gu, " ")
       .replace(/\s+/g, " ")

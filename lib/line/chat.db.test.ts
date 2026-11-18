@@ -4,6 +4,8 @@ import { addDays, thaiDate } from "@/lib/calc/time";
 import { getDb } from "@/lib/db/client";
 import { loadSummary } from "@/lib/db/budget";
 import { getNotificationPreferences, saveNotificationPreferences } from "@/lib/db/notifications";
+import { listBillSchedules } from "@/lib/db/bills";
+import { parseIntent } from "@/lib/chat/actions/parse";
 import { generate } from "@/lib/ai/gemini";
 import * as installmentsDb from "@/lib/db/installments";
 import type { VerifyResult } from "@/lib/line/id-token";
@@ -464,6 +466,41 @@ describe("card 09: expenses from the chat", () => {
     await chat("ดูแผน หน้า 2");expect(lastText()).toContain("หน้า 2");expect(lastText()).toContain("งวด 10/12");
     await chat("จ่ายบิล 1 หน้า 2");expect(lastText()).toContain("งวด 10/12");await chat("ยืนยัน");
     expect((await screenEntries()).map((e:{amount:number})=>e.amount)).toEqual([100000]);
+  });
+  it("the reported monthly bill command asks its amount, confirms a recurring bill, and never spends the due day", async () => {
+    await figma();
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const message = "สร้างบิลเน็ตทุกวันที่ 25 ของเดือน";
+    await chat(message);
+    expect(lastText()).toContain("จำนวนกี่บาท");
+    expect(await screenEntries()).toEqual([]);
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    await chat("399");
+    expect(lastText()).toContain("399 บาท");
+    expect(lastText()).toContain("ทุกวันที่ 25");
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    const confirm = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await tap(confirm); await tap(confirm);
+    expect(await listBillSchedules(owner.data!.id)).toMatchObject([{ title: "เน็ต", amount: 39900,
+      startsOn: parseIntent(message, today())!.date, repeat: "monthly", notify: true }]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it("cancelling a complete monthly bill preview creates neither a schedule nor an expense", async () => {
+    await figma();
+    await chat("สร้างบิลค่าเน็ต 399 บาท ทุกวันที่ 25 ของเดือน");
+    expect(lastText()).toContain("สร้างบิลประจำ");
+    await tap(lastButtons().find(button => button.label === "ยกเลิก")!.data!);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it.each(["วันที่ 25", "-399", "0", "999999", "25 หรือ 399"])("invalid bill amount replies never record a day or create a schedule: %s", async amount => {
+    await figma(); await chat("สร้างบิลเน็ตทุกวันที่ 25 ของเดือน"); await chat(amount);
+    expect(lastButtons().some(button => button.label === "ยืนยัน")).toBe(false);
+    await chat("ยืนยัน");
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    expect(await screenEntries()).toEqual([]);
   });
   it("a dated bill reminder cannot change global preferences, even after typing confirm", async () => {
     await figma();
