@@ -15,7 +15,7 @@ export const MAX_TITLE = 40; // fits a LINE postback with room to spare
 
 const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
 // «ร้อยกว่า», «ประมาณ 50», «~50», «40-50»: the user does not know the exact amount yet
-const APPROXIMATE = /กว่า|ประมาณ|ราว|เกือบ|~|\d\s*-\s*\d/;
+const APPROXIMATE = /กว่า|ประมาณ|ราว|เกือบ|มั้ง|น่าจะ|~|\d\s*-\s*\d/;
 // Money in («รับ 500», โฟรวิว's how-to card): income, never a spend
 const INCOME = /^(ได้รับเงิน|เงินเดือนเข้า|รับเงิน|รับ|เงินเข้า|ได้เงิน|รายรับ|เงินเดือน|แม่ให้เงิน|พ่อให้เงิน|ผู้ปกครองให้เงิน|got paid\b|income\b|salary\b)/i;
 // Another day: the chat records today only, so «เมื่อวาน ข้าว 45» is asked back (the app picks the date)
@@ -23,7 +23,7 @@ const BACKDATED = /เมื่อวาน|วานนี้|เมื่อ�
 const NUMBER = /\d+(?:\.\d{1,2})?/g;
 const CURRENCY = /บาท|฿|\.-/g;
 // «ห้าสิบ», «ข้าวห้าสิบบาท»: an amount in words is asked in digits, never read (16 Nov). «สองแถว», «ร้อยเอ็ด» are not.
-const NUMBER_WORD = /(?:หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ)(?:สิบ|ร้อย|พัน|หมื่น)|(?:สิบ|ร้อย|พัน)(?:บาท|$)/u;
+const NUMBER_WORD = /(?:หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ)(?:สิบ|ร้อย|พัน|หมื่น)|(?:สิบ|ร้อย|พัน)(?:บาท|$)|\d\s*(?:ร้อย|พัน|หมื่น|แสน|ล้าน)|\d\s*[mM](?![a-zA-Z])/u;
 // «ค่า 50», «ซื้อ 50»: a verb alone is no name (16 Nov, they were recorded so)
 const NO_NAME = /^(?:ค่า|ซื้อ|จ่าย|ใช้|ค่าใช้จ่าย|รายจ่าย|จ่ายค่า|ซื้อของ)$/u;
 const SPENT = /\s*(?:จ่าย|หมด|ใช้)?ไป$/;
@@ -87,7 +87,7 @@ export function parseExpense(raw: string): ParsedExpense {
   const income = INCOME.test(text);
   if (income && /[-+]\s*\d/.test(text)) return { kind: "ask", reason: "income" };
   const numbers = text.match(NUMBER) ?? [];
-  if (numbers.length === 0 && NUMBER_WORD.test(text)) return { kind: "ask", reason: "number_word" };
+  if (NUMBER_WORD.test(text)) return { kind: "ask", reason: "number_word" };
   if (numbers.length === 0) return { kind: "ask", reason: income ? "income" : "no_amount" };
   if (numbers.length > 1) return { kind: "ask", reason: "many_amounts" };
 

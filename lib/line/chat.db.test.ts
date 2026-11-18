@@ -5,6 +5,8 @@ import { getDb } from "@/lib/db/client";
 import { loadSummary } from "@/lib/db/budget";
 import { getNotificationPreferences, saveNotificationPreferences } from "@/lib/db/notifications";
 import { listBillSchedules } from "@/lib/db/bills";
+import { getReminderSettings } from "@/lib/db/reminders";
+import * as billsDb from "@/lib/db/bills";
 import { parseIntent } from "@/lib/chat/actions/parse";
 import { generate } from "@/lib/ai/gemini";
 import * as installmentsDb from "@/lib/db/installments";
@@ -119,6 +121,134 @@ async function screenEntries() {
 }
 
 describe("card 09: expenses from the chat", () => {
+  const readFeatures = [
+    ["help", "ทำอะไรได้บ้าง"], ["insights", "วิเคราะห์การใช้เงิน"], ["categories", "ดูหมวด"],
+    ["report", "ดูรายงานวันนี้"], ["search", "ค้นรายจ่าย ข้าว"], ["entries", "ดูรายการ"],
+    ["plans", "ดูแผน"], ["points", "ดูแต้ม"], ["rewards", "ดูของรางวัล"],
+    ["promos", "ดูคูปอง"], ["web", "ค้นเว็บ ราคาอาหาร"],
+    ["bill_reminder_help", "ตั้งแจ้งเตือนบิลค่าเน็ต เวลา 09:00"],
+  ];
+  it.each(readFeatures.flatMap(([feature, input]) => [
+    { feature, input: `${input}คับ` }, { feature, input: `รบกวนช่วย${input}หน่อยค่าาา` },
+  ]))("read-only feature $feature preserves the ledger for $input", async ({ input }) => {
+    await figma();
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const preferences = await getNotificationPreferences(owner.data!.id);
+    const reminders = await getReminderSettings(owner.data!.id);
+    expect((await chat(input)).status).toBe(200);
+    expect(lastText().trim().length).toBeGreaterThan(0);
+    expect(await screenEntries()).toEqual([]);
+    expect((await loadSummary(owner.data!.id)).balance).toBe(240000);
+    expect(await getNotificationPreferences(owner.data!.id)).toEqual(preferences);
+    expect(await getReminderSettings(owner.data!.id)).toEqual(reminders);
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    const incomes = await db.from("incomes").select("id").eq("user_id", owner.data!.id);
+    expect(incomes.error).toBeNull(); expect(incomes.data).toEqual([]);
+    const plans = await db.from("plans").select("title,amount,status").eq("user_id", owner.data!.id);
+    expect(plans.error).toBeNull(); expect(plans.data).toEqual([{ title: "ค่าหอ", amount: 60000, status: "reserved" }]);
+  });
+  const settingsFeatures = [
+    { feature: "balance", input: "ปรับยอด 2000 บาท", result: { balance: 200000 } },
+    { feature: "buffer", input: "กันเงินเผื่อ 200 บาท", result: { buffer: 20000 } },
+    { feature: "essentials", input: "ตั้งค่าอาหาร 60 ค่ารถ 20", result: { essentials: 8000 } },
+    { feature: "payday", input: "ตั้งวันรับเงิน", result: { payday: "relative" } },
+    { feature: "notifications", input: "เปิดสรุปรายวัน เวลา 21:00", result: { daily: true, digestTime: "21:00" } },
+    { feature: "reminders", input: "ตั้งเตือน 21:00", result: { reminder: true, reminderTime: "21:00" } },
+  ];
+  it.each(settingsFeatures.flatMap(example => [
+    { ...example, style: "คับ" }, { ...example, style: "ค่ะ!" },
+  ]))("$feature requires confirmation, supports cancellation and avoids duplicate writes ($style)", async ({ input, feature, result, style }) => {
+    await figma();
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const snapshot = async () => {
+      const summary = await loadSummary(owner.data!.id);
+      const digest = await getNotificationPreferences(owner.data!.id);
+      const reminder = await getReminderSettings(owner.data!.id);
+      return { balance: summary.balance, buffer: summary.emergencyBuffer, essentials: summary.essentialPerDay,
+        payday: summary.payday, daily: digest.daily, digestTime: digest.time, reminder: reminder.enabled, reminderTime: reminder.time };
+    };
+    const before = await snapshot();
+    const request = `${input}${feature === "payday" ? ` ${addDays(today(), 15)}` : ""}${style}`;
+    await chat(request);
+    const old = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    expect(await snapshot()).toEqual(before);
+    await chat("ไม่เอาคับ"); await tap(old); expect(await snapshot()).toEqual(before);
+    await chat(request);
+    const current = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await chat("ยืนยันคับ");
+    const after = await snapshot();
+    expect(after).toMatchObject(feature === "payday" ? { payday: addDays(today(), 15) } : result);
+    await tap(current); expect(await snapshot()).toEqual(after);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it.each(["คับ", "ค่ะ!"])("personal category, budget and categorized entry remain consistent: %s", async suffix => {
+    await figma();
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const categories = async () => {
+      const rows = await db.from("spending_categories").select("id,label,parent,monthly_budget").eq("user_id", owner.data!.id).eq("label", "ชานมเดโม");
+      expect(rows.error).toBeNull(); return rows.data!;
+    };
+    const request = `เพิ่มหมวด ชานมเดโม กลุ่ม อาหาร งบ 500 บาท${suffix}`;
+    await chat(request); const old = lastButtons().find(b => b.label === "ยืนยัน")!.data!;
+    expect(await categories()).toEqual([]);
+    await chat("ไม่เอาคับ"); await tap(old); expect(await categories()).toEqual([]);
+    await chat(request); await chat("ยืนยันคับ");
+    expect(await categories()).toEqual([expect.objectContaining({ label: "ชานมเดโม", parent: "food", monthly_budget: 50000 })]);
+    const categoryId = (await categories())[0].id;
+    await chat(`จด ชานม 50 หมวด ชานมเดโม${suffix}`);
+    const confirm = lastButtons().find(b => b.label === "ยืนยัน")!.data!;
+    expect(await screenEntries()).toEqual([]);
+    await chat("ยืนยันคับ"); await tap(confirm);
+    expect(await screenEntries()).toEqual([expect.objectContaining({ amount: 5000, category: "food", categoryId })]);
+    expect((await loadSummary(owner.data!.id)).balance).toBe(235000);
+    await chat(`ตั้งงบ ชานมเดโม 600 บาท${suffix}`); await chat("ยืนยันคับ");
+    expect(await categories()).toEqual([{ id: categoryId, label: "ชานมเดโม", parent: "food", monthly_budget: 60000 }]);
+    expect(await screenEntries()).toHaveLength(1);
+    await chat("ดูแต้ม"); expect(lastText()).toContain("1 แต้ม");
+  });
+  it.each(["แผน", "บิล"].flatMap(kind => ["คับ", "ค่ะ!"].map(suffix => ({ kind, suffix }))))("one-off $kind saves once after cancellation and re-entry ($suffix)", async ({ kind, suffix }) => {
+    await figma();
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const due = addDays(today(), 3);
+    const request = `เพิ่ม${kind} รองเท้าเดโม 150 บาท วันที่ ${due}${suffix}`;
+    const rows = async () => {
+      const result = await db.from("plans").select("title,amount,kind,due_on,status").eq("user_id", owner.data!.id).eq("title", "รองเท้าเดโม");
+      expect(result.error).toBeNull(); return result.data!;
+    };
+    await chat(request); const old = lastButtons().find(b => b.label === "ยืนยัน")!.data!;
+    expect(await rows()).toEqual([]);
+    await chat("ไม่เอาคับ"); await tap(old); expect(await rows()).toEqual([]);
+    await chat(request); const current = lastButtons().find(b => b.label === "ยืนยัน")!.data!;
+    await chat("ยืนยันคับ"); await tap(current);
+    expect(await rows()).toEqual([{ title: "รองเท้าเดโม", amount: 15000, kind: kind === "บิล" ? "bill" : "purchase", due_on: due, status: "reserved" }]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it.each([
+    { request: "จ่ายบิล 1", status: "paid", expenses: 1 },
+    { request: "ยกเลิกการจ่ายบิล 1", prepare: "จ่ายบิล 1", status: "reserved", expenses: 0 },
+    { request: "ยกเลิกบิล 1", status: "cancelled", expenses: 0 },
+    { request: "เลื่อนแผน 1", status: "postponed", expenses: 0 },
+    { request: "เก็บแผน 1", prepare: "เลื่อนแผน 1", status: "reserved", expenses: 0 },
+  ].flatMap(example => ["คับ", "ค่ะ!"].map(suffix => ({ ...example, suffix }))))("bill lifecycle $request with $suffix cancels safely and applies once", async ({ request, prepare, status, expenses, suffix }) => {
+    await figma();
+    if (prepare) { await chat(prepare); await chat("ยืนยัน"); }
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const state = async () => {
+      const rows = await db.from("plans").select("id,status,entry_id,version").eq("user_id", owner.data!.id);
+      expect(rows.error).toBeNull(); return { plans: rows.data, entries: await screenEntries() };
+    };
+    const before = await state();
+    await chat(`${request}${suffix}`); const old = lastButtons().find(b => b.label === "ยืนยัน")!.data!;
+    expect(await state()).toEqual(before);
+    await chat("ไม่เอาคับ"); await tap(old); expect(await state()).toEqual(before);
+    await chat(`${request}${suffix}`); const current = lastButtons().find(b => b.label === "ยืนยัน")!.data!;
+    await chat("ยืนยันคับ");
+    const after = await state();
+    expect(after.plans).toEqual([expect.objectContaining({ status })]);
+    expect(after.entries).toHaveLength(expenses);
+    if (expenses) expect(after.entries[0]).toMatchObject({ amount: 60000, category: "bills" });
+    await tap(current); expect(await state()).toEqual(after);
+  });
   it.each(["ข้าว -10", "ข้าว −10", "ข้าว 0", "ข้าว 10.999", "ยังไม่จ่าย 3 หน้า 1"])("live regression: invalid text never writes an expense: %s", async (message) => {
     await figma(); await chat(message);
     expect(await screenEntries()).toEqual([]);
@@ -434,8 +564,8 @@ describe("card 09: expenses from the chat", () => {
     expect(await screenEntries()).toEqual([]);
   });
 
-  it("creates installments only after confirmation and never books the purchase total as a spend",async()=>{
-    await figma();await chat(`ผ่อน โทรศัพท์ ยอดรวม 1000.01 บาท 3 งวด เริ่ม ${today()}`);
+  it.each(["", "คับ", "ค่ะ!"])("creates installments exactly once with typing suffix %s",async suffix=>{
+    await figma();await chat(`ผ่อน โทรศัพท์ ยอดรวม 1000.01 บาท 3 งวด เริ่ม ${today()}${suffix}`);
     expect(lastText()).toContain("ยืนยัน");expect(lastText()).toContain("333.34 บาท");expect(await screenEntries()).toEqual([]);
     const confirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;await tap(confirm);await tap(confirm);
     expect(lastText()).toContain("จบแล้ว");
@@ -494,12 +624,192 @@ describe("card 09: expenses from the chat", () => {
     expect(await listBillSchedules(owner.data!.id)).toEqual([]);
     expect(await screenEntries()).toEqual([]);
   });
+  it("replacing a pending monthly bill for the same title invalidates the old confirmation", async () => {
+    await figma();
+    await chat("สร้างบิลค่าเน็ต 399 บาท ทุกวันที่ 25 ของเดือน");
+    const old = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await chat("สร้างบิลค่าเน็ต 499 บาท ทุกวันที่ 25 ของเดือน");
+    const current = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await tap(old);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    await tap(current);
+    expect(await listBillSchedules(owner.data!.id)).toMatchObject([{ title: "ค่าเน็ต", amount: 49900 }]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it("a lost response after creating a monthly bill retries the same schedule without duplicate charges", async () => {
+    await figma(); await chat("สร้างบิลค่าเน็ต 399 บาท ทุกวันที่ 25 ของเดือน");
+    const confirm = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    const original = billsDb.createBillSchedule;
+    const spy = vi.spyOn(billsDb, "createBillSchedule").mockImplementationOnce(async (...args) => {
+      await original(...args); throw new Error("simulated lost bill response");
+    });
+    try { expect((await tap(confirm)).status).toBe(500); expect((await tap(confirm)).status).toBe(200); }
+    finally { spy.mockRestore(); }
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toHaveLength(1);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it("a different bill title keeps independent confirmations valid", async () => {
+    await figma(); await chat("สร้างบิลค่าเน็ต 399 บาท ทุกวันที่ 25 ของเดือน");
+    const internet = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await chat("สร้างบิลค่าน้ำ 99 บาท ทุกวันที่ 28 ของเดือน");
+    const water = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await tap(internet); await tap(water);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    const schedules = await listBillSchedules(owner.data!.id);
+    expect(schedules).toHaveLength(2);
+    expect(schedules.map(bill => [bill.title, bill.amount])).toEqual(expect.arrayContaining([["ค่าเน็ต", 39900], ["ค่าน้ำ", 9900]]));
+    expect(await screenEntries()).toEqual([]);
+  });
+  it("a replacement bill missing its amount also retires the previous ready-to-confirm draft", async () => {
+    await figma(); await chat("สร้างบิลค่าเน็ต 399 บาท ทุกวันที่ 25 ของเดือน");
+    const old = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await chat("สร้างบิลค่าเน็ตทุกวันที่ 28 ของเดือน");
+    expect(lastText()).toContain("จำนวนกี่บาท");
+    await tap(old);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    expect(await screenEntries()).toEqual([]);
+    await chat("499 บาท");
+    expect(lastText()).toContain("ทุกวันที่ 28");
+    await tap(lastButtons().find(button => button.label === "ยืนยัน")!.data!);
+    expect(await listBillSchedules(owner.data!.id)).toMatchObject([{ title: "ค่าเน็ต", amount: 49900 }]);
+  });
+  it.each(["ดูแต้ม", "สร้างบิลค่าน้ำ 99 บาท ทุกวันที่ 28 ของเดือน"])("same-title replacement supersedes an older card across intervening chat: %s", async between => {
+    await figma(); await chat("สร้างบิลค่าเน็ต 399 บาท ทุกวันที่ 25 ของเดือน");
+    const old = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await chat(between);
+    await chat("สร้างบิลค่าเน็ต 499 บาท ทุกวันที่ 25 ของเดือน");
+    const current = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await tap(old);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    await tap(current);
+    expect(await listBillSchedules(owner.data!.id)).toMatchObject([{ title: "ค่าเน็ต", amount: 49900 }]);
+    expect(await screenEntries()).toEqual([]);
+  });
   it.each(["วันที่ 25", "-399", "0", "999999", "25 หรือ 399"])("invalid bill amount replies never record a day or create a schedule: %s", async amount => {
     await figma(); await chat("สร้างบิลเน็ตทุกวันที่ 25 ของเดือน"); await chat(amount);
     expect(lastButtons().some(button => button.label === "ยืนยัน")).toBe(false);
     await chat("ยืนยัน");
     const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
     expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it.each([
+    "ไม่ต้องสร้างบิลเน็ต 399 บาท ทุกวันที่ 25 ของเดือน",
+    "อย่าสร้างบิลเน็ต 399 บาท ทุกวันที่ 25 ของเดือน",
+    "ถ้าสร้างบิลเน็ต 399 บาท ทุกวันที่ 25 จะพอไหม",
+    "สร้างบิลเน็ต399บาททุกวันที่25หรือ26",
+    "สร้างบิลเน็ต399บาทรายเดือนวันที่2026-12-25หรือวันที่26",
+    "สร้างบิลเน็ต399บาททุกวันที่25เริ่ม2026-12-28",
+  ])("negative, hypothetical and conflicting-date messages never spend money or offer a guessed bill: %s", async message => {
+    await figma(); await chat(message);
+    expect(lastButtons().some(button => button.label === "ยืนยัน")).toBe(false);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it.each([
+    ["รบกวนช่วยสร้างบิลเน็ต 399 บาท ทุกวันที่ 25 ของเดือนหน่อยนะคะ", "ยืนยันค่ะ"],
+    ["สร้างบิลเน็ต\n399 บาท\nทุกวันที่ 25 ของเดือน", "ยืนยันครับ!"],
+    ["สร้างบิลเน็ต ３９９ บาท ทุกวันที่ ２５ ของเดือน", "ตกลงนะคะ"],
+  ])("end-to-end bill typing and confirmation variants: %s → %s", async (message, confirmation) => {
+    await figma(); await chat(message);
+    expect(lastText()).toContain("399 บาท");
+    expect(lastButtons().some(button => button.label === "ยืนยัน")).toBe(true);
+    await chat(confirmation);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toMatchObject([{ title: "เน็ต", amount: 39900, repeat: "monthly" }]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it.each(["ยกเลิกค่ะ!", "ไม่เอาครับ", "ไม่ยืนยันนะคะ"])("polite cancellation closes a bill draft: %s", async cancellation => {
+    await figma(); await chat("สร้างบิลเน็ต399บาททุกวันที่25ของเดือน");
+    const old = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await chat(cancellation); await tap(old);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it.each(["ยืนยันได้ไหม", "ยังไม่ยืนยันครับ", "อย่ายืนยันนะคะ", "ถ้ายืนยันจะหักเงินไหม"])("a question or negated confirmation cannot authorize a bill: %s", async reply => {
+    await figma(); await chat("สร้างบิลเน็ต399บาททุกวันที่25ของเดือน"); await chat(reply);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it("a varied-typing user journey keeps income, batch spending, edit, cancel, delete and points consistent", async () => {
+    await figma();
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    await chat("ได้รับเงิน 500 บาท");
+    await chat("ข้าว 45\nน้ำ 20\nรถ 15");
+    await tap(lastButtons().find(button => button.label === "จดทั้งหมด")!.data!);
+    const initial = await screenEntries() as { id: string; amount: number }[];
+    expect(initial).toHaveLength(3);
+    expect(initial.reduce((sum, entry) => sum + entry.amount, 0)).toBe(8000);
+    expect((await loadSummary(owner.data!.id)).balance).toBe(282000);
+    await chat("ช่วยแก้รายการล่าสุด 30 บาทนะคะ");
+    await chat("ยืนยันค่ะ");
+    const edited = await screenEntries() as { id: string; amount: number }[];
+    expect(edited).toHaveLength(3);
+    expect(edited.find(entry => entry.id === initial[0].id)?.amount).toBe(3000);
+    await chat("ลบรายการล่าสุดค่ะ");
+    const cancelledDelete = lastButtons().find(button => button.label === "ยืนยัน")!.data!;
+    await chat("ยกเลิกนะคะ"); await tap(cancelledDelete);
+    expect(await screenEntries()).toHaveLength(3);
+    await chat("ลบรายการล่าสุดครับ"); await chat("ตกลงครับ!");
+    const remaining = await screenEntries() as { id: string; amount: number }[];
+    expect(remaining).toHaveLength(2);
+    expect(remaining.some(entry => entry.id === initial[0].id)).toBe(false);
+    expect((await loadSummary(owner.data!.id)).balance).toBe(290000 - remaining.reduce((sum, entry) => sum + entry.amount, 0));
+    await chat("ดูแต้มค่ะ"); expect(lastText()).toContain("1 แต้ม");
+    await chat("รบกวนช่วยดูรายงานวันนี้หน่อยนะคะ");
+    expect(lastText()).toContain("รายงาน");
+    expect(await screenEntries()).toHaveLength(2);
+  });
+  it.each([
+    ["สร้างบิลค่าน้ำทุกวันที่25ค้าบบบ", "399", "ยืนยันคับ"],
+    ["รบกวนช่วยสร้างบิลค่าน้ำทุกวันที่25หน่อยค่าาา", "๓๙๙ บาท", "ตกลงงับ"],
+  ])("short LINE-style bursts retain the bill until explicit confirmation: %s", async (start, amount, confirmation) => {
+    await figma(); await chat(start);
+    expect(lastText()).toContain("จำนวนกี่บาท");
+    await chat(amount); expect(lastText()).toContain("ค่าน้ำ");
+    await chat(confirmation);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toMatchObject([{ title: "ค่าน้ำ", amount: 39900 }]);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it.each(["โอเค", "ok", "เค", "ได้ๆ", "จัดไป", "👍", "555", "ยืนยันป่าว"])("social acknowledgements and emoji cannot silently commit the pending bill: %s", async acknowledgement => {
+    await figma(); await chat("สร้างบิลเน็ต399บาททุกวันที่25"); await chat(acknowledgement);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await listBillSchedules(owner.data!.id)).toEqual([]);
+    expect(await screenEntries()).toEqual([]);
+    expect((await loadSummary(owner.data!.id)).balance).toBe(240000);
+  });
+  it.each(["เงินเข้า 1 หมื่นมั้ง", "เงินเข้า 1 หมื่น", "รับเงิน 3 แสน", "ค่าเช่า 2 พัน", "กาแฟห้าสิบกว่า"])("colloquial or mixed-unit amounts do not become their leading digit: %s", async message => {
+    await figma(); await chat(message);
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect(await screenEntries()).toEqual([]);
+    expect((await loadSummary(owner.data!.id)).balance).toBe(240000);
+    const incomes = await db.from("incomes").select("id").eq("user_id", owner.data!.id);
+    expect(incomes.error).toBeNull(); expect(incomes.data).toEqual([]);
+  });
+  it.each(["1 พัน", "1k", "1e3", "50 - 60", "50 มั้ง"])("named budgets ask again instead of previewing a misleading amount: %s", async amount => {
+    await figma(); await chat(`ตั้งค่าอาหาร ${amount} ค่ารถ 20`);
+    expect(lastButtons().some(button => button.label === "ยืนยัน")).toBe(false);
+    await chat("ยืนยันคับ");
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect((await loadSummary(owner.data!.id)).essentialPerDay).toBe(7000);
+    expect(await screenEntries()).toEqual([]);
+  });
+  it("a full numeric clarification can finish a mixed-unit budget request without guessing", async () => {
+    await figma(); await chat("ตั้งค่าอาหาร 1 พัน ค่ารถ 20");
+    await chat("1000");
+    expect(lastText()).toContain("1,000 บาท");
+    expect(lastButtons().some(button => button.label === "ยืนยัน")).toBe(true);
+    await chat("ยืนยันคับ");
+    const owner = await db.from("users").select("id").eq("line_user_id", lineA).single();
+    expect((await loadSummary(owner.data!.id)).essentialPerDay).toBe(102000);
     expect(await screenEntries()).toEqual([]);
   });
   it("a dated bill reminder cannot change global preferences, even after typing confirm", async () => {
@@ -597,19 +907,19 @@ describe("card 09: expenses from the chat", () => {
     await figma();await chat("จ่ายบิล 1");await chat("ยืนยัน");expect((await screenEntries())[0].amount).toBe(60000);
     await chat("ยกเลิกการจ่ายบิล 1");await chat("ยืนยัน");expect(await screenEntries()).toEqual([]);
   });
-  it("sets up a new account entirely in chat without inventing income or essentials",async()=>{
+  it.each(["เริ่มรอบเงิน", "รบกวนช่วยเริ่มรอบเงินหน่อยคับ"])("sets up a new account without invented income or essentials: %s",async starter=>{
     await chat("ได้รับเงิน 1000 บาท");expect(lastText()).toContain("ยังไม่ได้ตั้งรอบเงิน");
-    for(const message of ["เริ่มรอบเงิน","เงินจากบ้าน","รายเดือน","1000",addDays(today(),12),"100","50","ข้าม"]){expect((await chat(message)).status).toBe(200);}
+    for(const message of [starter,"เงินจากบ้าน","รายเดือน","1000",addDays(today(),12),"100","50","ข้าม"]){expect((await chat(message)).status).toBe(200);}
     expect(lastText()).toContain("ยืนยัน");await chat("ยืนยัน");expect(lastText()).toContain("เริ่มรอบเงินแล้ว");
     const owner=await db.from("users").select("id").eq("line_user_id",lineA).single();
     expect((await db.from("incomes").select("id").eq("user_id",owner.data!.id)).data).toEqual([]);
     expect((await db.from("cycles").select("start_balance,essential_food_daily").eq("user_id",owner.data!.id).single()).data).toMatchObject({start_balance:100000,essential_food_daily:null});
   });
-  it("redeems a catalog reward once from a confirmed chat card",async()=>{
+  it.each(["แลกของ", "แลกของคับ", "รบกวนช่วยแลกของหน่อยค่าาา"])("redeems a catalog reward once: %s",async request=>{
     await figma();await chat("เช็กครบแล้ว");
     const reward=await db.from("rewards").insert({name:"Chat test reward",stock:1,cost:1,active:true}).select("id").single();expect(reward.error).toBeNull();
     try{
-      await chat("แลกของ");const pick=lastButtons().find(b=>b.label === "เลือก 1")!.data!;await tap(pick);expect(lastText()).toContain("ใช้ 1 แต้ม");
+      await chat(request);const pick=lastButtons().find(b=>b.label === "เลือก 1")!.data!;await tap(pick);expect(lastText()).toContain("ใช้ 1 แต้ม");
       const confirm=lastButtons().find(b=>b.label === "ยืนยัน")!.data!;await tap(confirm);expect(lastText()).toContain("เหลือ 0 แต้ม");await tap(confirm);expect(lastText()).toContain("จบแล้ว");
       expect((await db.from("rewards").select("stock").eq("id",reward.data!.id).single()).data!.stock).toBe(0);
     }finally{expect((await db.from("reward_claims").delete().eq("reward_id",reward.data!.id)).error).toBeNull();expect((await db.from("rewards").delete().eq("id",reward.data!.id)).error).toBeNull();}

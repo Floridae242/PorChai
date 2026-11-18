@@ -51,3 +51,16 @@ scripts/chat-eval-report.md
 # Local performance output; never publish account data or machine-specific traces.
 scripts/scale-benchmark-report.json
 scripts/adaptive-eval-*.json
+
+# Local presentation videos, chat transcripts and browser reports.
+/artifacts/presentation/
+/.next-presentation/
+
+# Native LINE automation evidence and compiled helper.
+/artifacts/desktop-line/
+
+/scripts/desktop-line/__pycache__/
+/tests/desktop_line/__pycache__/
+
+# Local Flex UI screenshots
+/artifacts/flex-refresh/

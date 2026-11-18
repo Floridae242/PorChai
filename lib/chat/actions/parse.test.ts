@@ -2,6 +2,25 @@ import { describe, expect, it } from "vitest";
 import { fields, parseIntent, statedDate, statedMoney } from "./parse";
 
 const today = "2026-11-15";
+describe("monthly bill calendar boundaries", () => {
+  const cases = [2026, 2028].flatMap(year => Array.from({ length: 12 }, (_, index) => index + 1)
+    .flatMap(month => [28, 29, 30, 31].map(day => ({ year, month, day }))));
+  it.each(cases)("keeps day $day across month $month of $year without confusing it with money", ({ year, month, day }) => {
+    const on = `${year}-${String(month).padStart(2, "0")}-28`;
+    const intent = parseIntent(`สร้างบิลค่าน้ำ 399.50 บาท ทุกวันที่ ${day} ของเดือน`, on)!;
+    expect(intent).toMatchObject({ title: "ค่าน้ำ", amount: 39950, repeat: "monthly" });
+    expect(intent.date! >= on).toBe(true);
+    expect(Number(intent.date!.slice(8))).toBe(day);
+    expect(new Date(intent.date!).toISOString().slice(0, 10)).toBe(intent.date);
+    // No earlier valid occurrence of the requested day may be skipped.
+    const priorMonth = new Date(`${intent.date!.slice(0, 7)}-01T00:00:00Z`);
+    priorMonth.setUTCDate(0);
+    if (priorMonth.getUTCDate() >= day) {
+      const prior = `${priorMonth.toISOString().slice(0, 7)}-${String(day).padStart(2, "0")}`;
+      expect(prior < on).toBe(true);
+    }
+  });
+});
 it.each([
   "สร้างบิลเน็ตทุกวันที่ 25 ของเดือน",
   "ช่วยสร้างบิล เน็ต ทุกวันที่ ๒๕ ของเดือนครับ",

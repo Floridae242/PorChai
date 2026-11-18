@@ -134,7 +134,9 @@ describe("one wallet for verified MINI App and signed OA events", () => {
     expect((await chat("จดหลายรายการพร้อมกันได้หรือไม่")).status).toBe(200);
     const text = words(vi.mocked(reply).mock.calls.at(-1)![1][0]);
     expect(text).toContain("จดทั้งหมด");
-    expect(text).toContain("จดหลายรายการพร้อมกันได้ครับ");
+    expect(text).toContain("จดหลายรายการพร้อมกัน");
+    expect(text).toContain("ส่ง 2–5 รายการในข้อความเดียวได้ครับ");
+    expect(text).toContain("ยังไม่ได้สร้างรายการร่างหรือบันทึกรายจ่าย");
     expect(text).not.toContain("ตอนนี้ต้องส่งทีละรายการ");
     expect(await (await read()).json()).toEqual({
       balance: 0,

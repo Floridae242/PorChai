@@ -14,7 +14,12 @@
     "test:db": "vitest run --config vitest.db.config.mts",
     "eval:chat": "vitest run --config vitest.eval.config.mts",
     "eval:offline": "vitest run lib/ai/scenarios.test.ts lib/ai/gemini-resilience.test.ts lib/ai/admission.test.ts lib/line/id-token-cache.test.ts lib/calc/invariants.test.ts lib/chat/routine.test.ts lib/chat/grounding-boundaries.test.ts",
-    "bench:scale": "vitest run --config vitest.scale.config.mts"
+    "bench:scale": "vitest run --config vitest.scale.config.mts",
+    "demo:workflow": "node scripts/presentation.mjs --full --headed",
+    "demo:workflow:ci": "node scripts/presentation.mjs --full",
+    "demo:miniapp": "node scripts/presentation.mjs --headed",
+    "demo:miniapp:ci": "node scripts/presentation.mjs",
+    "demo:report": "playwright show-report artifacts/presentation/report"
   },
   "dependencies": {
     "@line/liff": "^2.32.0",
